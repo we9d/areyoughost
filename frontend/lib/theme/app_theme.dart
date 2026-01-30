@@ -9,8 +9,7 @@ class AppTheme {
     colorScheme: const ColorScheme.dark(
       primary: Color(0xFFE94560), // Energetic red/pink
       secondary: Color(0xFF0F3460), // Secondary dark blue
-      surface: Color(0xFF16213E), // Slightly lighter blue for cards
-      background: Color(0xFF1A1A2E),
+      surface: Color(0xFF16213E),
       onPrimary: Colors.white,
       onSecondary: Colors.white,
       onSurface: Colors.white,

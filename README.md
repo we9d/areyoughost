@@ -1,16 +1,40 @@
-# areyoughost
+# Are You Ghost? (Project Ghost Game)
 
-A new Flutter project.
+A desktop-first multiplayer social deduction game consisting of a Flutter frontend and a Rust core engine.
+
+## Structure
+
+- **frontend/**: Flutter application (UI Layer)
+  - `lib/ui`: Screens and Widgets
+  - `lib/ffi`: Rust integration
+  - `lib/state`: App state management
+  - `lib/services`: Logic adapters
+- **core/**: Rust library (Network & Game Engine)
+  - `api`: FFI exports
+  - `network`: TCP socket handling
+  - `game_logic`: State machine for the game
+- **protocol/**: Protocol design documents
+- **docs/**: Project documentation (Architecture, Database, Network)
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+### Prerequisites
 
-A few resources to get you started if this is your first Flutter project:
+- Flutter SDK (latest stable)
+- Rust (latest stable)
+- SQLite (for database, if needed locally)
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### Running the Frontend
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+cd frontend
+flutter pub get
+flutter run -d windows
+```
+
+### Checking the Core
+
+```bash
+cd core
+cargo check
+```

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:areyoughost/theme/app_theme.dart';
-import 'package:areyoughost/screens/login_screen.dart';
+import 'package:areyoughost/ui/login/login_screen.dart';
+import 'package:areyoughost/ui/lobby/lobby_screen.dart';
+import 'package:areyoughost/ui/game/game_screen.dart';
 
 void main() {
   runApp(const MyApp());

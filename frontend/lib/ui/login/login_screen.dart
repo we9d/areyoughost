@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:areyoughost/screens/lobby_screen.dart';
+import 'package:areyoughost/ui/lobby/lobby_screen.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -14,7 +14,7 @@ class LoginScreen extends StatelessWidget {
             end: Alignment.bottomCenter,
             colors: [
               Theme.of(context).colorScheme.secondary,
-              Theme.of(context).colorScheme.background,
+              Theme.of(context).colorScheme.surface,
             ],
           ),
         ),

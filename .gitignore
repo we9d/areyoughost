@@ -5,6 +5,8 @@
 *.swp
 .DS_Store
 Thumbs.db
+.vscode/
+*.code-workspace
 
 # Flutter/Dart
 .dart_tool/
@@ -12,12 +14,44 @@ Thumbs.db
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
+.packages
 build/
+*.g.dart
+*.freezed.dart
 
 # Rust
 target/
 **/*.rs.bk
+Cargo.lock
+*.pdb
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# FFI Generated
+*.dll
+*.so
+*.dylib
 
 # IDEs
 .idea/
 *.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local

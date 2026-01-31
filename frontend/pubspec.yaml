@@ -1,5 +1,5 @@
 name: areyoughost
-description: "A new Flutter project."
+description: "Are You Ghost? - A desktop-first multiplayer social deduction game where players identify the ghost among them."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -35,6 +35,8 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   google_fonts: ^8.0.0
+  flutter_rust_bridge: ^2.11.1
+  ffi: ^2.1.5
 
 dev_dependencies:
   flutter_test:

@@ -1,0 +1,15 @@
+[package]
+name = "core"
+version = "0.1.0"
+edition = "2021"
+authors = ["This hole has a story team"]
+description = "Core game engine for Are You Ghost? - A multiplayer social deduction game"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+flutter_rust_bridge = "2.0"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1.0"

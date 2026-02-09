@@ -21,7 +21,6 @@ This is a **monorepo** project with a clear separation between frontend and back
   - UI framework for cross-platform desktop application
   - FFI integration with Rust backend
   - State management for game flow
-  
 - **Backend**: Rust
   - Core game logic and state machine
   - TCP networking for multiplayer
@@ -62,30 +61,82 @@ areyoughost/
 ### Prerequisites
 
 - **Flutter SDK** (latest stable) - [Install Flutter](https://flutter.dev/docs/get-started/install)
-- **Rust** (latest stable) - [Install Rust](https://www.rust-lang.org/tools/install)
+- **Visual Studio** (latest stable) - [Install Visual Studio](https://visualstudio.microsoft.com/vs/community/)
+- **Git Hub Desktop** (latest stable) - [Install Git Hub Desktop](https://desktop.github.com/download/)
+- **Git** (latest stable) - [Install Git](https://gitforwindows.org/)
+- **Rust** (latest stable) - [Install Rust: RUSTUP-ININT.exe (x64)](https: //www.rust-lang.org/tools/install)
 - **SQLite** (bundled via rusqlite)
 
 ### Installation
+1. **Git Hub Desktop**
+```
+   Log in with your Git Hub account
+   ;If don't have ,create.
 
-1. **Clone the repository**
+```
+2. **Git**
+
+```
+   Set up the git 
+```
+
+3. **Clone the repository**
+
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/we9d/areyoughost.git
    cd areyoughost
    ```
+4. **Set path of flutter**
 
-2. **Install Flutter dependencies**
+   ```
+   -Extact zip file of flutter ,then select path to "C:\flutter" .
+   -Search "Edit the system environment variable" in window.
+   -Select "Environment variable".
+   -Double click on "Path" in section of "User variable for ...".
+   -Click "Add new" ,then browse path "C:\flutter\bin" .
+   -Click "ok" all of windows.
+   -Check version of flutter in cmd ,type "flutter --version"
+   -If it show version ,then it complete!
+   ```
+
+4. **Set up Visual Studio**
+
+   ```Open Vs
+   Work Load : Desktop development with C++
+   Installation Detail (Right side) : Select All of these
+   - MSVC v143 - VS 2022 C++ x64/x86 build tools
+   - Windows 10 SDK หรือ Windows 11 SDK
+   - C++ CMake tools for Windows
+   ```
+
+5. **Install Flutter dependencies in Vs code**
+
    ```bash
    cd frontend
    flutter pub get
    ```
 
-3. **Build Rust core**
+6. **Build Rust core in Vs code**
+
    ```bash
    cd ../core
    cargo build
    ```
 
 ### Running the Application
+1. **Run App Frontend**
+
+   ```bash
+   cd frontend
+   flutter run
+   Enter 1  windows
+   ```
+2. **Run App Core**
+   ```bash
+      cd core
+      cargo run
+   ```
+
 
 #### Frontend (Flutter Desktop)
 
@@ -100,12 +151,14 @@ The app will launch in a desktop window with a centered mobile-like display (390
 #### Backend (Rust Core)
 
 To check the Rust code:
+
 ```bash
 cd core
 cargo check
 ```
 
 To run tests:
+
 ```bash
 cargo test
 ```
@@ -113,10 +166,12 @@ cargo test
 ## 📦 Dependencies
 
 ### Frontend (Flutter)
+
 - `flutter_rust_bridge` - FFI integration with Rust
 - Custom UI components for game screens
 
 ### Backend (Rust)
+
 - `rusqlite` - SQLite database with bundled library
 - `serde` & `serde_json` - Serialization
 - `flutter_rust_bridge` - FFI bridge

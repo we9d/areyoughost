@@ -24,10 +24,14 @@ class LoginScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.psychology, size: 100, color: Colors.white), // Placeholder logo
+                const Icon(
+                  Icons.psychology,
+                  size: 100,
+                  color: Colors.white,
+                ), // Placeholder logo
                 const SizedBox(height: 24),
                 Text(
-                  'Ghost ป่ะคะ',
+                  'Ghost ป่ะคะ ',
                   style: Theme.of(context).textTheme.displaySmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.primary,
@@ -60,7 +64,9 @@ class LoginScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(builder: (context) => const LobbyScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const LobbyScreen(),
+                        ),
                       );
                     },
                     child: const Text('LOGIN'),

@@ -14,7 +14,8 @@ class AppTheme {
       onSecondary: Colors.white,
       onSurface: Colors.white,
     ),
-    textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
+    fontFamily: 'Charmonman',
+    textTheme: ThemeData.dark().textTheme.apply(fontFamily: 'Charmonman'),
     cardTheme: CardThemeData(
       color: const Color(0xFF16213E),
       elevation: 4,
@@ -24,7 +25,11 @@ class AppTheme {
       backgroundColor: Color(0xFF1A1A2E),
       elevation: 0,
       centerTitle: true,
-      titleTextStyle: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+        // titleTextStyle: const TextStyle(
+        //   fontFamily: 'Charmonman',
+        //   fontSize: 24,
+        //   color: Colors.white,
+        // ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,

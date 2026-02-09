@@ -7,9 +7,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return 
     Scaffold(
-      appBar: AppBar(
-        title: Text('Ghost ปะคะ?'),
-      ),
+
       backgroundColor: Colors.black, // พื้นหลังรอบ ๆ
       body: Center(
         child: LayoutBuilder(

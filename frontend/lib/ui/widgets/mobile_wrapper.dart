@@ -27,64 +27,82 @@ class MobileWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Only apply wrapper on web/desktop, not on actual mobile devices
-    final isDesktop = kIsWeb || 
+    final isDesktop =
+        kIsWeb ||
         (defaultTargetPlatform == TargetPlatform.windows) ||
-        (defaultTargetPlatform == TargetPlatform.linux) || 
+        (defaultTargetPlatform == TargetPlatform.linux) ||
         (defaultTargetPlatform == TargetPlatform.macOS);
 
     if (!isDesktop) return child;
 
     return Scaffold(
-      backgroundColor: Colors.black, // Fallback background
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Background Image/Gradient for Desktop
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
                 image: const DecorationImage(
-                  image: NetworkImage('https://images.unsplash.com/photo-1509114397022-ed747cca3f65?q=80&w=1935&auto=format&fit=crop'), // Spooky background
+                  image: NetworkImage(
+                    'https://i.pinimg.com/736x/fd/0d/45/fd0d45e403f966860c73fe08efd651d6.jpg',
+                  ),
                   fit: BoxFit.cover,
                   opacity: 0.3,
                 ),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    const Color(0xFF0F2027),
-                    const Color(0xFF203A43),
-                    const Color(0xFF2C5364),
-                  ],
-                ),
+                // gradient: LinearGradient(
+                //   begin: Alignment.topLeft,
+                //   end: Alignment.bottomRight,
+                //   colors: [
+                //     const Color(0xFF0F2027),
+                //     const Color(0xFF203A43),
+                //     const Color(0xFF2C5364),
+                //   ],
+                // ),
               ),
             ),
           ),
-          
-          // Mobile Frame
+
+          // Mobile Frame (แก้เฉพาะส่วนนี้ให้ใช้ aspect ratio)
           Center(
-            child: Container(
-              width: 390, // Standard Mobile Width
-              height: 844, // Standard Mobile Height
-              decoration: BoxDecoration(
-                color: Theme.of(context).scaffoldBackgroundColor,
-                borderRadius: BorderRadius.circular(40),
-                border: Border.all(
-                  color: const Color(0xFF333333),
-                  width: 12,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.5),
-                    blurRadius: 20,
-                    spreadRadius: 5,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                const double designWidth = 390;
+                const double designHeight = 844;
+                final double aspectRatio = designWidth / designHeight;
+
+                double width = constraints.maxWidth;
+                double height = width / aspectRatio;
+
+                if (height > constraints.maxHeight) {
+                  height = constraints.maxHeight;
+                  width = height * aspectRatio;
+                }
+
+                return Container(
+                  width: width,
+                  height: height,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    borderRadius: BorderRadius.circular(40),
+                    border: Border.all(
+                      color: const Color.fromARGB(255, 0, 0, 0),
+                      width: 10,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              clipBehavior: Clip.hardEdge,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(28), // Inner radius
-                child: child,
-              ),
+                  clipBehavior: Clip.hardEdge,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: child,
+                  ),
+                );
+              },
             ),
           ),
         ],

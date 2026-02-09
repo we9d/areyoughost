@@ -70,8 +70,7 @@ flutter:
 
 
   assets:
-    - assets/images/ปกพื้นหลัง.jpg
-
+    - assets/images/mobileBg.jpg
 
 
 

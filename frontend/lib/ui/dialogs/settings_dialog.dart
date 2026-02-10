@@ -1,5 +1,6 @@
 import 'package:areyoughost/ui/dialogs/change_username_dialog.dart';
 import 'package:areyoughost/ui/home/home.dart';
+import 'package:areyoughost/ui/login/login_screen.dart';
 import 'package:areyoughost/ui/widgets/buttons/logout_buttons.dart';
 import 'package:areyoughost/ui/widgets/settings_title.dart';
 import 'package:areyoughost/ui/widgets/username_field.dart';
@@ -92,11 +93,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   const Spacer(),
 
                   Center(
-                    child: LogoutButton(
-                      // onPressed: () => Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(builder: (_) => const HomeScreen()),
-                      // ),
+                    child: LoginButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      ),
                     ),
                   ),
                 ],

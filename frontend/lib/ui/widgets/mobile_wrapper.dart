@@ -49,15 +49,6 @@ class MobileWrapper extends StatelessWidget {
                   fit: BoxFit.cover,
                   opacity: 0.3,
                 ),
-                // gradient: LinearGradient(
-                //   begin: Alignment.topLeft,
-                //   end: Alignment.bottomRight,
-                //   colors: [
-                //     const Color(0xFF0F2027),
-                //     const Color(0xFF203A43),
-                //     const Color(0xFF2C5364),
-                //   ],
-                // ),
               ),
             ),
           ),

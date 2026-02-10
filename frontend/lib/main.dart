@@ -10,6 +10,7 @@ import 'package:areyoughost/ui/lobby/lobby_screen.dart';
 import 'package:areyoughost/ui/game/game_screen.dart';
 import 'package:areyoughost/ui/widgets/mobile_wrapper.dart';
 import 'package:areyoughost/ui/home/home.dart';
+import 'package:areyoughost/ui/register/register_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

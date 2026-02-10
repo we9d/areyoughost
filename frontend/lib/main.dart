@@ -45,7 +45,7 @@ class AreYouGhostApp extends StatelessWidget {
       builder: (context, child) {
         return MobileWrapper(child: child!);
       },
-      home: const LoginScreen(),
+      home: const HomeScreen(),
 
     );
   }

@@ -1,9 +1,12 @@
-import 'package:areyoughost/ui/widgets/icons/friend-icon.dart'
-    show AddFriendIcon;
+import 'package:areyoughost/ui/widgets/buttons/login_buttons.dart';
+import 'package:areyoughost/ui/widgets/icons/friend-icon.dart';
 import 'package:areyoughost/ui/widgets/icons/mail-icon.dart';
 import 'package:areyoughost/ui/widgets/icons/setting-icon.dart';
 import 'package:flutter/material.dart';
 import 'package:bootstrap_icons/bootstrap_icons.dart';
+import 'package:areyoughost/ui/widgets/buttons/start_buttons.dart';
+import 'package:areyoughost/ui/widgets/buttons/rules_buttons.dart';
+import 'package:areyoughost/ui/widgets/buttons/roles_buttons.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -43,8 +46,34 @@ class HomeScreen extends StatelessWidget {
                         const SizedBox(width: 4),
                         AddFriendIcon(), //Add friends /friends
                         const SizedBox(width: 6),
-                        SettingsIcon(icon:  BootstrapIcons.gear)
-                        
+                        SettingsIcon(icon: BootstrapIcons.gear),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    top: designHeight * 0.54,
+                    left: 0,
+                    right: 0,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        StartButton(
+                          onPressed: () {
+                            // ลบ comments ตรงด้านล่างออกเพื่อให้ปุ่มนำทางไปยังหน้าเลือกโหมด <ของปลาดาว>
+                            // Navigator.push(
+                            //   context,
+                            //   MaterialPageRoute(
+                            //     builder: (_) =>
+                            //         const <ชื่อคลาสของหน้าเลือกโหมด>,
+                            //   ),
+                            // );
+                            // ไปหน้าเลือกโหมด
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        RulesButton(),
+                        const SizedBox(height: 16),
+                        RolesButton(),
                       ],
                     ),
                   ),

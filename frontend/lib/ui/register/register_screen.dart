@@ -1,30 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:areyoughost/ui/lobby/lobby_screen.dart';
-import 'package:areyoughost/ui/register/register_screen.dart';
-import 'package:areyoughost/ui/home/home.dart';
+import 'package:areyoughost/ui/login/login_screen.dart';
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   @override
   void dispose() {
     _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  void _showLoginSuccessDialog(BuildContext context) {
+  // ================= Success Popup =================
+  void _showRegisterSuccessDialog(BuildContext context) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -33,10 +37,10 @@ class _LoginScreenState extends State<LoginScreen> {
           if (Navigator.canPop(dialogContext)) {
             Navigator.pop(dialogContext);
           }
-          // Navigate to HomeScreen
+          // Navigate back to LoginScreen
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
           );
         });
 
@@ -52,14 +56,22 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const CircleAvatar(
-                  radius: 32,
-                  backgroundColor: Color(0xFF018A0C),
-                  child: Icon(Icons.check, color: Colors.white, size: 40),
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF018A0C),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check,
+                    color: Colors.white,
+                    size: 40,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'เข้าสู่ระบบสำเร็จ',
+                  'สมัครบัญชีสำเร็จ',
                   style: TextStyle(
                     fontFamily: 'Charmonman',
                     fontSize: 22,
@@ -70,7 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  '“ยินดีต้อนรับกลับมา\nพร้อมลุยความหลอนแล้วหรือยัง?”',
+                  '"...ยินดีต้อนรับสู่โลกแห่งความหลอน\n บัญชีของคุณพร้อมใช้งานแล้ว..."',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'Charmonman',
@@ -98,95 +110,110 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               Image.asset(
                 'assets/images/Login-Register.jpg',
+                width: 390,
+                height: 844,
                 fit: BoxFit.cover,
               ),
 
+              // ================= Back =================
               Positioned(
                 top: 40,
                 left: 16,
                 child: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                  icon: const Icon(
+                    Icons.arrow_back_ios,
+                    color: Colors.white,
+                  ),
                   onPressed: () {
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const HomeScreen(),
+                        builder: (_) => const LoginScreen(),
                       ),
                     );
                   },
                 ),
               ),
 
+              // ================= Content =================
               Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    children: [
-                      const Text(
-                        'เข้าสู่ระบบ',
-                        style: TextStyle(
-                          fontFamily: 'Charmonman',
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 80),
+                        const Text(
+                          'ลงทะเบียน',
+                          style: TextStyle(
+                            fontFamily: 'Charmonman',
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 30),
+                        const SizedBox(height: 30),
 
-                      Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            _buildTextField(
-                              hint: 'ชื่อผู้ใช้งาน',
-                              icon: BootstrapIcons.person_circle,
-                              controller: _usernameController,
-                            ),
-                            const SizedBox(height: 10),
-                            _buildTextField(
-                              hint: 'รหัสผ่าน',
-                              icon: PhosphorIcons.lockKey(),
-                              obscureText: true,
-                              controller: _passwordController,
-                            ),
-                          ],
+                        Form(
+                          key: _formKey,
+                          child: Column(
+                            children: [
+                              _buildTextField(
+                                hint: 'ชื่อผู้ใช้งาน',
+                                icon: BootstrapIcons.person_circle,
+                                controller: _usernameController,
+                              ),
+                              const SizedBox(height: 10),
+                              _buildTextField(
+                                hint: 'อีเมล',
+                                icon: PhosphorIcons.envelope(),
+                                controller: _emailController,
+                              ),
+                              const SizedBox(height: 10),
+                              _buildTextField(
+                                hint: 'รหัสผ่าน',
+                                icon: PhosphorIcons.lockKey(),
+                                controller: _passwordController,
+                                obscureText: true,
+                              ),
+                              const SizedBox(height: 10),
+                              _buildTextField(
+                                hint: 'ยืนยันรหัสผ่าน',
+                                icon: PhosphorIcons.lockKey(),
+                                controller: _confirmPasswordController,
+                                obscureText: true,
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
-                      InnerShadowButton(
-                        text: 'เข้าสู่ระบบ',
-                        onTap: () {
-                          if (_formKey.currentState!.validate()) {
-                            _showLoginSuccessDialog(context);
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 80),
-
-                      const Text(
-                        'ยังไม่มีบัญชีใช่ไหม?',
-                        style: TextStyle(
-                          fontFamily: 'Charmonman',
-                          fontSize: 20,
-                          color: Colors.white,
-                          decoration: TextDecoration.underline,
+                        // ================= Register Button =================
+                        InnerShadowButton(
+                          text: 'สมัครบัญชี',
+                          onTap: () {
+                            if (_formKey.currentState!.validate()) {
+                              // ตรวจสอบว่ารหัสผ่านตรงกันหรือไม่
+                              if (_passwordController.text != _confirmPasswordController.text) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'รหัสผ่านไม่ตรงกัน',
+                                      style: TextStyle(fontFamily: 'Charmonman'),
+                                    ),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+                              _showRegisterSuccessDialog(context);
+                            }
+                          },
                         ),
-                      ),
-                      const SizedBox(height: 10),
+                        const SizedBox(height: 80),
 
-                      InnerShadowButton(
-                        text: 'สมัครบัญชี',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => RegisterScreen(), // ✅ ไม่ใช้ const
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -197,6 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // ================= TextField =================
   Widget _buildTextField({
     required String hint,
     required IconData icon,
@@ -205,7 +233,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return SizedBox(
       width: 258,
-      height: 70, // Increased height for error text
+      height: 70,
       child: TextFormField(
         controller: controller,
         obscureText: obscureText,
@@ -218,6 +246,15 @@ class _LoginScreenState extends State<LoginScreen> {
         validator: (value) {
           if (value == null || value.trim().isEmpty) {
             return 'กรุณากรอก$hint';
+          }
+          // ตรวจสอบรูปแบบอีเมลถ้าเป็นช่องอีเมล
+          if (hint == 'อีเมล') {
+            final emailRegex = RegExp(
+              r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+            );
+            if (!emailRegex.hasMatch(value.trim())) {
+              return 'กรุณากรอกอีเมลให้ถูกต้อง';
+            }
           }
           return null;
         },
@@ -239,7 +276,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Colors.black, width: 2),
+            borderSide: const BorderSide(color: Colors.black),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
@@ -337,4 +374,3 @@ class _InnerShadowPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

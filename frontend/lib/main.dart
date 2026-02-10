@@ -3,7 +3,7 @@
 /// This is the main entry point for the Flutter frontend application.
 /// The app uses a mobile-like display (390x844) centered on desktop screens.
 import 'package:flutter/material.dart';
-import 'package:window_manager/window_manager.dart'; // เพิ่ม
+import 'package:window_manager/window_manager.dart';
 import 'package:areyoughost/theme/app_theme.dart';
 import 'package:areyoughost/ui/login/login_screen.dart';
 import 'package:areyoughost/ui/lobby/lobby_screen.dart';
@@ -19,7 +19,7 @@ Future<void> main() async {
   const double phoneHeight = 844;
 
   WindowOptions windowOptions = const WindowOptions(
-    minimumSize: Size(phoneWidth, phoneHeight), // กำหนดขั้นต่ำ
+    minimumSize: Size(phoneWidth, phoneHeight),
     center: true,
   );
 
@@ -45,7 +45,8 @@ class AreYouGhostApp extends StatelessWidget {
       builder: (context, child) {
         return MobileWrapper(child: child!);
       },
-      home: const HomeScreen(),
+      home: const LoginScreen(),
+
     );
   }
 }

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:areyoughost/ui/lobby/lobby_screen.dart';
-import 'package:areyoughost/ui/register/register_screen.dart';
 import 'package:areyoughost/ui/home/home.dart';
-import 'package:bootstrap_icons/bootstrap_icons.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:areyoughost/ui/register/register_screen.dart';
+import 'package:areyoughost/ui/widgets/auth_button.dart';
+import 'package:areyoughost/ui/widgets/auth_text_field.dart';
+import 'package:areyoughost/ui/widgets/success_dialog.dart';
+import 'package:areyoughost/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +17,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -24,65 +27,47 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _showLoginSuccessDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        Future.delayed(const Duration(seconds: 1), () {
-          if (Navigator.canPop(dialogContext)) {
-            Navigator.pop(dialogContext);
-          }
-          // Navigate to HomeScreen
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
-        });
+  void _handleLogin() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircleAvatar(
-                  radius: 32,
-                  backgroundColor: Color(0xFF018A0C),
-                  child: Icon(Icons.check, color: Colors.white, size: 40),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'เข้าสู่ระบบสำเร็จ',
-                  style: TextStyle(
-                    fontFamily: 'Charmonman',
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    decoration: TextDecoration.underline,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  '“ยินดีต้อนรับกลับมา\nพร้อมลุยความหลอนแล้วหรือยัง?”',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Charmonman',
-                    fontSize: 14,
-                    color: Colors.black,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await AuthService.login(
+        username: _usernameController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        _showLoginSuccessDialog(context);
+      } else {
+        setState(() {
+          _errorMessage = result['error'] ?? 'เกิดข้อผิดพลาด';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _showLoginSuccessDialog(BuildContext context) {
+    SuccessDialog.show(
+      context: context,
+      title: 'เข้าสู่ระบบสำเร็จ',
+      message: '"ยินดีต้อนรับกลับมา\nพร้อมลุยความหลอนแล้วหรือยัง?"',
+      destination: const HomeScreen(),
     );
   }
 
@@ -137,16 +122,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         key: _formKey,
                         child: Column(
                           children: [
-                            _buildTextField(
-                              hint: 'ชื่อผู้ใช้งาน',
-                              icon: BootstrapIcons.person_circle,
+                            AuthTextField(
+                              fieldType: AuthFieldType.username,
                               controller: _usernameController,
                             ),
                             const SizedBox(height: 10),
-                            _buildTextField(
-                              hint: 'รหัสผ่าน',
-                              icon: PhosphorIcons.lockKey(),
-                              obscureText: true,
+                            AuthTextField(
+                              fieldType: AuthFieldType.password,
                               controller: _passwordController,
                             ),
                           ],
@@ -154,14 +136,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      InnerShadowButton(
-                        text: 'เข้าสู่ระบบ',
-                        onTap: () {
-                          if (_formKey.currentState!.validate()) {
-                            _showLoginSuccessDialog(context);
-                          }
-                        },
+                      AuthButton(
+                        text: _isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ',
+                        onTap: _isLoading ? () {} : _handleLogin,
                       ),
+                      if (_errorMessage != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          _errorMessage!,
+                          style: const TextStyle(
+                            fontFamily: 'Charmonman',
+                            fontSize: 14,
+                            color: Colors.red,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                       const SizedBox(height: 80),
 
                       const Text(
@@ -175,13 +165,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 10),
 
-                      InnerShadowButton(
+                      AuthButton(
                         text: 'สมัครบัญชี',
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => RegisterScreen(), // ✅ ไม่ใช้ const
+                              builder: (_) => const RegisterScreen(),
                             ),
                           );
                         },
@@ -196,145 +186,4 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-
-  Widget _buildTextField({
-    required String hint,
-    required IconData icon,
-    required TextEditingController controller,
-    bool obscureText = false,
-  }) {
-    return SizedBox(
-      width: 258,
-      height: 70, // Increased height for error text
-      child: TextFormField(
-        controller: controller,
-        obscureText: obscureText,
-        cursorColor: Colors.black,
-        style: const TextStyle(
-          fontFamily: 'Charmonman',
-          fontSize: 18,
-          color: Colors.black,
-        ),
-        validator: (value) {
-          if (value == null || value.trim().isEmpty) {
-            return 'กรุณากรอก$hint';
-          }
-          return null;
-        },
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(
-            fontFamily: 'Charmonman',
-            fontSize: 18,
-            color: Colors.black54,
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          prefixIcon: Icon(icon, color: Colors.black),
-          contentPadding: const EdgeInsets.symmetric(vertical: 16),
-          errorStyle: const TextStyle(
-            fontFamily: 'Charmonman',
-            fontSize: 12,
-            color: Colors.white,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Colors.black, width: 2),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Colors.black, width: 2),
-          ),
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Colors.black, width: 2),
-          ),
-          focusedErrorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Colors.black, width: 2),
-          ),
-        ),
-      ),
-    );
-  }
 }
-
-/// ================= INNER SHADOW BUTTON =================
-class InnerShadowButton extends StatelessWidget {
-  final String text;
-  final VoidCallback onTap;
-
-  const InnerShadowButton({
-    super.key,
-    required this.text,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 172,
-      height: 40,
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1C232),
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: CustomPaint(
-              painter: _InnerShadowPainter(),
-              child: Container(),
-            ),
-          ),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: onTap,
-              child: Center(
-                child: Text(
-                  text,
-                  style: const TextStyle(
-                    fontFamily: 'Charmonman',
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InnerShadowPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-
-    final paint = Paint()
-      ..color = Colors.black.withOpacity(0.25)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..maskFilter = const MaskFilter.blur(BlurStyle.inner, 2);
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        rect.deflate(1),
-        const Radius.circular(14),
-      ),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-

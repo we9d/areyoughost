@@ -75,6 +75,7 @@ flutter:
   assets:
     - assets/images/Login-Register.jpg
     - assets/images/mobileBg.jpg
+    - assets/images/logo.png
 
 
 

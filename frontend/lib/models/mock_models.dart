@@ -1,12 +1,16 @@
-
-// Mocking the Rust/FFI generated models for now
+// Mock models for development
+// These will be replaced with actual FFI models later
 
 class User {
   final String userId;
   final String username;
   final String displayName;
 
-  User({required this.userId, required this.username, required this.displayName});
+  User({
+    required this.userId,
+    required this.username,
+    required this.displayName,
+  });
 }
 
 class Room {
@@ -15,7 +19,7 @@ class Room {
   final int maxPlayers;
   final int currentPlayers;
   final bool isPublic;
-  final String status; // 'waiting', 'playing'
+  final String status;
 
   Room({
     required this.roomId,
@@ -30,18 +34,23 @@ class Room {
 class Role {
   final int roleId;
   final String roleName;
-  final String faction; // 'villager', 'wolf', 'neutral'
+  final String faction;
   final String description;
 
-  Role({required this.roleId, required this.roleName, required this.faction, required this.description});
+  Role({
+    required this.roleId,
+    required this.roleName,
+    required this.faction,
+    required this.description,
+  });
 }
 
 class GameParticipant {
   final String userId;
-  final String username; // Added for convenience in UI
+  final String username;
   final int seatNumber;
   final bool isAlive;
-  final Role? role; // Visible only if self or revealed
+  final Role? role;
 
   GameParticipant({
     required this.userId,
@@ -57,7 +66,7 @@ class ChatMessage {
   final String senderId;
   final String senderName;
   final String message;
-  final String phaseType; // 'day', 'night', 'vote'
+  final String phaseType;
   final DateTime createdAt;
 
   ChatMessage({

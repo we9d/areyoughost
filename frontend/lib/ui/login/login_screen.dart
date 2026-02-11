@@ -147,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: const TextStyle(
                             fontFamily: 'Charmonman',
                             fontSize: 14,
-                            color: Colors.red,
+                            color: Colors.white,
                           ),
                           textAlign: TextAlign.center,
                         ),

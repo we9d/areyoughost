@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:areyoughost/services/auth_service.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:bootstrap_icons/bootstrap_icons.dart';
 
 /// Type of authentication text field
 enum AuthFieldType {
@@ -63,12 +65,12 @@ class _AuthTextFieldState extends State<AuthTextField> {
   IconData get _defaultIcon {
     switch (widget.fieldType) {
       case AuthFieldType.username:
-        return Icons.person_outline;
+        return BootstrapIcons.person_circle;
       case AuthFieldType.email:
-        return Icons.email_outlined;
+        return BootstrapIcons.envelope;
       case AuthFieldType.password:
       case AuthFieldType.confirmPassword:
-        return Icons.lock_outline;
+        return PhosphorIcons.lockKey();
     }
   }
 
@@ -122,6 +124,7 @@ class _AuthTextFieldState extends State<AuthTextField> {
         controller: widget.controller,
         obscureText: _shouldObscure,
         cursorColor: Colors.black,
+        cursorErrorColor: Colors.black,
         style: const TextStyle(
           fontFamily: 'Charmonman',
           fontSize: 18,

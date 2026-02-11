@@ -18,42 +18,38 @@ class Shadow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        width: width, //button width
-        height: height, //button height
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(30)),
-        child: Stack(
-          //โค้ดมาก่อนได้อยู่หลังสุด
-          children: [
-            // INNER SHADOW
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(25),
-                    gradient: gradient,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Container(
+          width: width, //button width
+          height: height, //button height
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(30)),
+          child: Stack(
+            //โค้ดมาก่อนได้อยู่หลังสุด
+            children: [
+              // INNER SHADOW
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(25),
+                      gradient: gradient,
+                    ),
                   ),
                 ),
               ),
-            ),
-            // ตัวปุ่มสีจริง
-            Container(
-              // padding: EdgeInsets.only(
-              //   top: 9.5,
-              //   bottom: 10,
-              //   left: 28,
-              //   right: 28,
-              // ),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(30),
+              // ตัวปุ่มสีจริง
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                alignment: Alignment.center,
+                child: child,
               ),
-
-              alignment: Alignment.center,
-              child: child,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

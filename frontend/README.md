@@ -1,4 +1,4 @@
-# areyoughost
+# Are You Ghost?
 
 A new Flutter project.
 

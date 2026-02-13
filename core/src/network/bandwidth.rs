@@ -619,7 +619,7 @@ impl SharedQosBandwidthLimiter {
                 let p_idx = (start_index + i) % 4;
                 let p = priorities[p_idx];
 
-                let mut queue = self.queues[p].lock().await;
+                let queue = self.queues[p].lock().await;
                 if queue.is_empty() {
                     deficits[p] = 0; 
                     continue;
@@ -634,7 +634,7 @@ impl SharedQosBandwidthLimiter {
                 // Keeping it simple for now.
 
                 loop {
-                    let mut queue = self.queues[p].lock().await;
+                    let queue = self.queues[p].lock().await;
                     if let Some(req) = queue.front() {
                         let size = req.bytes;
                         if (size as isize) <= deficits[p] {

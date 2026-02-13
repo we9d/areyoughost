@@ -6,7 +6,7 @@ use tokio::net::TcpStream;
 use anyhow::Result;
 
 use super::bandwidth::BandwidthLimiter;
-use super::message::Message;
+
 
 /// TCP client with bandwidth control
 #[allow(dead_code)]

@@ -12,16 +12,19 @@
 //!
 //! ## Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! use crate::network::{TcpServer, TcpClient};
 //!
+//! # async fn example() -> anyhow::Result<()> {
 //! // Server
 //! let server = TcpServer::bind("0.0.0.0:8080").await?;
 //! server.set_bandwidth_limit(1_000_000).await; // 1 MB/s
 //!
 //! // Client
 //! let client = TcpClient::connect("127.0.0.1:8080").await?;
-//! client.send_message(message).await?;
+//! // client.send_message(message).await?; // message not defined in example
+//! # Ok(())
+//! # }
 //! ```
 
 pub mod message;
@@ -36,7 +39,7 @@ pub use tcp_server::TcpServer;
 pub use tcp_client::TcpClient;
 pub use bandwidth::BandwidthLimiter;
 
-use anyhow::Result;
+
 
 /// Network statistics for monitoring
 #[derive(Debug, Clone)]

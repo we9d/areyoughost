@@ -25,7 +25,7 @@ impl Api {
     }
 
     // User authentication
-    pub fn login(&self, username: String, password: String) -> Result<User> {
+    pub fn login(&self, username: String, _password: String) -> Result<User> {
         // TODO: Implement actual authentication
         Ok(User {
             user_id: 1,
@@ -36,7 +36,7 @@ impl Api {
         })
     }
 
-    pub fn register(&self, username: String, password: String) -> Result<User> {
+    pub fn register(&self, username: String, _password: String) -> Result<User> {
         // TODO: Implement user registration
         Ok(User {
             user_id: 1,
@@ -68,7 +68,7 @@ impl Api {
         })
     }
 
-    pub fn join_room(&self, room_id: String, user_id: i64) -> Result<GameState> {
+    pub fn join_room(&self, room_id: String, _user_id: i64) -> Result<GameState> {
         // TODO: Join room logic
         Ok(GameState {
             room: Room {

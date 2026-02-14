@@ -121,3 +121,12 @@ pub struct GameState {
     pub current_phase: Option<GamePhase>,
     pub recent_messages: Vec<ChatMessage>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GameResult {
+    pub game_id: String,
+    pub winner_faction: String,
+    pub total_phases: i32,
+    pub ended_reason: Option<String>,
+    pub created_at: String,
+}

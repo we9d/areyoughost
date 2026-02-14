@@ -36,14 +36,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    // Check password confirmation
-    if (_passwordController.text != _confirmPasswordController.text) {
-      setState(() {
-        _errorMessage = 'รหัสผ่านไม่ตรงกัน';
-      });
-      return;
-    }
-
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -161,6 +153,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               AuthTextField(
                                 fieldType: AuthFieldType.confirmPassword,
                                 controller: _confirmPasswordController,
+                                customValidator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'กรุณายืนยันรหัสผ่าน';
+                                  }
+                                  // Check for Thai characters
+                                  final thaiPattern = RegExp(r'[ก-๙]');
+                                  if (thaiPattern.hasMatch(value)) {
+                                    return 'กรุณากรอกภาษาอังกฤษ';
+                                  }
+                                  // Check for spaces
+                                  if (value.contains(' ')) {
+                                    return 'ไม่สามารถใช้ช่องว่าง กรุณาลองใหม่อีกครั้ง';
+                                  }
+                                  if (value != _passwordController.text) {
+                                    return 'รหัสผ่านไม่ตรงกัน';
+                                  }
+                                  return null;
+                                },
                               ),
                             ],
                           ),
@@ -178,7 +188,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             style: const TextStyle(
                               fontFamily: 'Charmonman',
                               fontSize: 14,
-                              color: Colors.red,
+                              color: Colors.white,
                             ),
                             textAlign: TextAlign.center,
                           ),

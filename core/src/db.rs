@@ -9,6 +9,7 @@
 use rusqlite::Result;
 
 pub mod sqlite;
+pub mod firebase;
 
 /// Database trait for abstracting database operations
 ///

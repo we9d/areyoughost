@@ -7,7 +7,8 @@ import 'package:window_manager/window_manager.dart';
 import 'package:areyoughost/theme/app_theme.dart';
 import 'package:areyoughost/ui/login/login_screen.dart';
 import 'package:areyoughost/ui/lobby/lobby_screen.dart';
-import 'package:areyoughost/ui/game/game_screen.dart';
+// removed unused import of GameScreen to avoid unresolved URI during analysis
+import 'package:areyoughost/ui/game/mode_select_screen.dart';
 import 'package:areyoughost/ui/widgets/mobile_wrapper.dart';
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/ui/home/home.dart';
@@ -47,7 +48,7 @@ class AreYouGhostApp extends StatelessWidget {
       builder: (context, child) {
         return MobileWrapper(child: child!);
       },
-      home: const HomeScreen(),
+      home: const ModeSelectScreen(),
 
     );
   }

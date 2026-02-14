@@ -1,15 +1,34 @@
 [package]
-name = "core"
-version = "0.1.0"
+name = "areyoughost_core"
+version = "0.1.1"
 edition = "2021"
 authors = ["This hole has a story team"]
 description = "Core game engine for Are You Ghost? - A multiplayer social deduction game"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-rusqlite = { version = "0.32", features = ["bundled"] }
+# Async runtime with networking support
+tokio = { version = "1", features = ["full", "net", "time", "sync", "macros", "test-util"] }
+
+# Data handling
+bytes = "1.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+# Database
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# HTTP client for Firebase REST API
+reqwest = { version = "0.11", features = ["json"] }
+
+# FFI bridge
 flutter_rust_bridge = "2.0"
-tokio = { version = "1", features = ["full"] }
+
+# Error handling
 anyhow = "1.0"
+thiserror = "1.0"
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+urlencoding = "2.1.3"

@@ -22,7 +22,7 @@ class SuccessDialog extends StatelessWidget {
     required this.title,
     required this.message,
     required this.destination,
-    this.duration = const Duration(seconds: 1),
+    this.duration = const Duration(seconds: 2),
   });
 
   /// Show the success dialog and auto-navigate
@@ -31,7 +31,7 @@ class SuccessDialog extends StatelessWidget {
     required String title,
     required String message,
     required Widget destination,
-    Duration duration = const Duration(seconds: 1),
+    Duration duration = const Duration(seconds: 2),
   }) {
     showDialog(
       context: context,

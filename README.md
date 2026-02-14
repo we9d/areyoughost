@@ -21,11 +21,28 @@ This is a **monorepo** project with a clear separation between frontend and back
   - UI framework for cross-platform desktop application
   - FFI integration with Rust backend
   - State management for game flow
+  - Network monitoring and control UI
+  
 - **Backend**: Rust
+  - **Custom Network Stack** (OSI Layers 4-7)
+    - Raw TCP/UDP socket programming
+    - Custom protocol design (no pre-built networking libraries)
+    - Bandwidth throttling and QoS control
+    - Multi-connection async runtime (Tokio)
   - Core game logic and state machine
-  - TCP networking for multiplayer
-  - SQLite database for persistence
+  - SQLite database for local persistence
+  - Firebase REST API for cloud sync
   - FFI exports for Flutter integration
+
+### Network Architecture
+
+Our custom network implementation provides control over all OSI layers:
+
+- **Layer 7 (Application)**: Game protocol, message routing
+- **Layer 6 (Presentation)**: Custom serialization, compression
+- **Layer 5 (Session)**: Connection management, session state
+- **Layer 4 (Transport)**: Raw TCP/UDP sockets, bandwidth control
+- **Layers 1-3**: Monitored via socket statistics
 
 ### Project Structure
 
@@ -180,15 +197,20 @@ cargo test
 
 ## 🔧 Development Status
 
-**Current Phase**: Early Development
+**Current Phase**: Network Stack Implementation
 
 - ✅ Project structure established
 - ✅ Basic UI screens (Login, Lobby, Game)
 - ✅ Mock API service layer
-- ✅ Protocol documentation
-- 🚧 FFI integration (in progress)
+- ✅ Architecture planning complete
+- 🚧 **Custom Network Stack** (in progress)
+  - 🚧 Raw socket implementation (TCP/UDP)
+  - 🚧 Custom packet protocol design
+  - 🚧 Bandwidth control system
+  - 🚧 OSI layer monitoring
+- 🚧 Firebase REST integration
+- 🚧 FFI integration
 - 🚧 Rust game logic implementation
-- 🚧 Network layer implementation
 - ⏳ Database schema and operations
 - ⏳ Real-time multiplayer functionality
 

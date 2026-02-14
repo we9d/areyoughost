@@ -32,12 +32,12 @@ class MockUserDatabase {
       final users = await getAllUsers();
       
       // Check if username already exists
-      if (users.containsKey(username.toLowerCase())) {
+      if (users.containsKey(username)) {
         return false; // Username already taken
       }
       
       // Add new user
-      users[username.toLowerCase()] = passwordHash;
+      users[username] = passwordHash;
       
       // Save to SharedPreferences
       final prefs = await SharedPreferences.getInstance();
@@ -52,13 +52,13 @@ class MockUserDatabase {
   /// Check if username exists
   static Future<bool> userExists(String username) async {
     final users = await getAllUsers();
-    return users.containsKey(username.toLowerCase());
+    return users.containsKey(username);
   }
 
   /// Verify user credentials
   static Future<bool> verifyCredentials(String username, String passwordHash) async {
     final users = await getAllUsers();
-    return users[username.toLowerCase()] == passwordHash;
+    return users[username] == passwordHash;
   }
 
   /// Clear all users (for testing)

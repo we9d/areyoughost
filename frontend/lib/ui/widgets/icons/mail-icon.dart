@@ -53,11 +53,15 @@ class _MailDialog extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(width: 60, height: 0.8, color: Colors.black),
+                  Expanded(
+                    child: Container(height: 0.8, color: Colors.black),
+                  ),
                   const SizedBox(width: 12),
-                  const Text('ไม่มีคำเชิญชวน', style: TextStyle(fontSize: 20,color:Colors.black), ),
+                  const Text('ไม่มีคำเชิญชวน', style: TextStyle(fontSize: 20, color: Colors.black)),
                   const SizedBox(width: 12),
-                  Container(width: 60, height: 0.8, color: Colors.black),
+                  Expanded(
+                    child: Container(height: 0.8, color: Colors.black),
+                  ),
                 ],
               ),
             ),

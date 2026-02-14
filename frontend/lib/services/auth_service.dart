@@ -10,12 +10,13 @@ class AuthService {
       return 'กรุณากรอกชื่อผู้ใช้งาน';
     }
 
-    // Check for spaces
-    if (username.contains(' ')) {
-      return 'ชื่อผู้ใช้ต้องไม่มีช่องว่าง';
+    // Check for Thai characters
+    final thaiPattern = RegExp(r'[ก-๙]');
+    if (thaiPattern.hasMatch(username)) {
+      return 'กรุณากรอกภาษาอังกฤษ';
     }
 
-    // Check for special characters (only allow alphanumeric and underscore)
+    // Check for spaces or special characters (allow alphanumeric and underscores)
     final validPattern = RegExp(r'^[a-zA-Z0-9_]+$');
     if (!validPattern.hasMatch(username)) {
       return 'ไม่สามารถใช้สัญลักษณ์พิเศษได้ กรุณาลองใหม่อีกครั้ง';
@@ -34,10 +35,21 @@ class AuthService {
     return null; // Valid
   }
 
-  // Password validation: no restrictions (security focused)
+  // Password validation: English only
   static String? validatePassword(String? password) {
     if (password == null || password.isEmpty) {
       return 'กรุณากรอกรหัสผ่าน';
+    }
+
+    // Check for Thai characters
+    final thaiPattern = RegExp(r'[ก-๙]');
+    if (thaiPattern.hasMatch(password)) {
+      return 'กรุณากรอกภาษาอังกฤษ';
+    }
+
+    // Check for spaces
+    if (password.contains(' ')) {
+      return 'ไม่สามารถใช้ช่องว่าง กรุณาลองใหม่อีกครั้ง';
     }
 
     // Minimum length for security

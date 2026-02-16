@@ -1,235 +1,334 @@
-# Are You Ghost?
+# Are You Ghost? 👻🎮
 
-A desktop-first multiplayer social deduction game where players must identify the "ghost" among them through discussion and voting. Built with Flutter for the frontend and Rust for the backend engine.
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-2021-orange.svg)](https://www.rust-lang.org)
+[![Flutter](https://img.shields.io/badge/flutter-latest-blue.svg)](https://flutter.dev)
+
+A desktop-first multiplayer social deduction game where players must identify the "ghost" among them through discussion and voting. Built with **Flutter** for the frontend and **Rust** for the backend engine.
 
 ## 🎮 About the Game
 
-**Are You Ghost?** is a social deduction game inspired by Mafia and Werewolf. Players engage in rounds of discussion and voting to identify hidden ghost players before it's too late. The game features:
+**Are You Ghost?** is a social deduction game inspired by Mafia and Werewolf. Players engage in rounds of discussion and voting to identify hidden ghost players before it's too late.
 
-- **Multiplayer lobbies** supporting up to 16 players per room
-- **Real-time chat** during discussion phases
-- **Voting mechanics** to eliminate suspected ghosts
-- **Desktop-optimized UI** with mobile-like display (390x844) centered on screen
+**Features:**
+- 🏠 **Multiplayer Lobbies** - Support for up to 16 players per room
+- 💬 **Real-Time Chat** - In-game discussion during day phases
+- 🗳️ **Voting Mechanics** - Democratic elimination system
+- 🖥️ **Desktop-Optimized** - Native Windows application (Mac/Linux planned)
+- 🌐 **Network Play** - Connect via Cloudflare Tunnel for easy multiplayer
+
+## 📋 Table of Contents
+
+- [Architecture](#-architecture)
+- [Quick Start](#-quick-start)
+- [Installation](#-installation)
+- [Development](#-development)
+- [Project Structure](#-project-structure)
+- [Documentation](#-documentation)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ## 🏗️ Architecture
 
-This is a **monorepo** project with a clear separation between frontend and backend:
+This is a **monorepo workspace** with clear separation between frontend and backend:
 
-### Tech Stack
+### Components
 
-- **Frontend**: Flutter (Desktop - Windows)
-  - UI framework for cross-platform desktop application
-  - FFI integration with Rust backend
-  - State management for game flow
-  - Network monitoring and control UI
-  
-- **Backend**: Rust
-  - **Custom Network Stack** (OSI Layers 4-7)
-    - Raw TCP/UDP socket programming
-    - Custom protocol design (no pre-built networking libraries)
-    - Bandwidth throttling and QoS control
-    - Multi-connection async runtime (Tokio)
-  - Core game logic and state machine
-  - SQLite database for local persistence
-  - Firebase REST API for cloud sync
-  - FFI exports for Flutter integration
-
-### Network Architecture
-
-Our custom network implementation provides control over all OSI layers:
-
-- **Layer 7 (Application)**: Game protocol, message routing
-- **Layer 6 (Presentation)**: Custom serialization, compression
-- **Layer 5 (Session)**: Connection management, session state
-- **Layer 4 (Transport)**: Raw TCP/UDP sockets, bandwidth control
-- **Layers 1-3**: Monitored via socket statistics
-
-### Project Structure
-
-```
-areyoughost/
-├── frontend/              # Flutter application (UI Layer)
-│   └── lib/
-│       ├── ui/           # Screens (Login, Lobby, Game)
-│       ├── ffi/          # Rust FFI bindings
-│       ├── state/        # App state management
-│       ├── services/     # API service layer (RustApi)
-│       ├── models/       # Data models
-│       └── theme/        # UI theming
-│
-├── core/                 # Rust library (Game Engine & Network)
-│   └── src/
-│       ├── api/          # FFI exports to Flutter
-│       ├── network/      # TCP socket handling
-│       ├── game_logic/   # Game state machine
-│       ├── db/           # Database operations
-│       ├── models/       # Data structures
-│       └── utils/        # Helper functions
-│
-├── protocol/             # Network protocol specifications
-│   ├── message_types.md  # Message type definitions
-│   └── packet_format.md  # Packet structure
-│
-└── docs/                 # Project documentation
+```mermaid
+graph LR
+    A[Flutter Desktop] -->|FFI| B[Rust Core Library]
+    A -->|WebSocket| C[Rust Server]
+    C --> B
+    C --> D[(PostgreSQL)]
 ```
 
-## 🚀 Getting Started
+- **Frontend:** Flutter desktop application (Windows)
+- **Core:** Rust library with game logic, networking, and FFI exports
+- **Server:** Standalone Axum HTTP/WebSocket server
+- **Database:** PostgreSQL for persistent storage
+
+### Technology Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | Flutter (Desktop), Dart |
+| **Backend** | Rust 2021, Tokio (async runtime) |
+| **Server** | Axum (HTTP/WebSocket framework) |
+| **Database** | PostgreSQL 16, sqlx |
+| **FFI Bridge** | flutter_rust_bridge |
+| **Networking** | Custom TCP/UDP stack (OSI Layers 4-7) |
+
+**[→ Detailed Architecture Documentation](docs/ARCHITECTURE.md)**
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- **Flutter SDK** (latest stable) - [Install Flutter](https://flutter.dev/docs/get-started/install)
-- **Visual Studio** (latest stable) - [Install Visual Studio](https://visualstudio.microsoft.com/vs/community/)
-- **Git Hub Desktop** (latest stable) - [Install Git Hub Desktop](https://desktop.github.com/download/)
-- **Git** (latest stable) - [Install Git](https://gitforwindows.org/)
-- **Rust** (latest stable) - [Install Rust: RUSTUP-ININT.exe (x64)](https: //www.rust-lang.org/tools/install)
-- **SQLite** (bundled via rusqlite)
+- [Rust](https://www.rust-lang.org/tools/install) (latest stable)
+- [Flutter](https://flutter.dev/docs/get-started/install) (latest stable)
+- [Visual Studio](https://visualstudio.microsoft.com/vs/community/) (with C++ build tools)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) (for PostgreSQL)
+- [Git](https://git-scm.com/downloads)
 
-### Installation
-1. **Git Hub Desktop**
-```
-   Log in with your Git Hub account
-   ;If don't have ,create.
+### Run the Server
 
-```
-2. **Git**
+```powershell
+# Start database
+docker-compose up -d
 
-```
-   Set up the git 
+# Run server
+cargo run -p areyoughost_server
 ```
 
-3. **Clone the repository**
+The server will start on http://localhost:3000
 
-   ```bash
-   git clone https://github.com/we9d/areyoughost.git
-   cd areyoughost
-   ```
-4. **Set path of flutter**
+### Run the Flutter App
 
-   ```
-   -Extact zip file of flutter ,then select path to "C:\flutter" .
-   -Search "Edit the system environment variable" in window.
-   -Select "Environment variable".
-   -Double click on "Path" in section of "User variable for ...".
-   -Click "Add new" ,then browse path "C:\flutter\bin" .
-   -Click "ok" all of windows.
-   -Check version of flutter in cmd ,type "flutter --version"
-   -If it show version ,then it complete!
-   ```
-
-4. **Set up Visual Studio**
-
-   ```Open Vs
-   Work Load : Desktop development with C++
-   Installation Detail (Right side) : Select All of these
-   - MSVC v143 - VS 2022 C++ x64/x86 build tools
-   - Windows 10 SDK หรือ Windows 11 SDK
-   - C++ CMake tools for Windows
-   ```
-
-5. **Install Flutter dependencies in Vs code**
-
-   ```bash
-   cd frontend
-   flutter pub get
-   ```
-
-6. **Build Rust core in Vs code**
-
-   ```bash
-   cd ../core
-   cargo build
-   ```
-
-### Running the Application
-1. **Run App Frontend**
-
-   ```bash
-   cd frontend
-   flutter run
-   Enter 1  windows
-   ```
-2. **Run App Core**
-   ```bash
-      cd core
-      cargo run
-   ```
-
-
-#### Frontend (Flutter Desktop)
-
-```bash
+```powershell
 cd frontend
 flutter pub get
 flutter run -d windows
 ```
 
-The app will launch in a desktop window with a centered mobile-like display (390x844 resolution).
+The desktop app will launch in a centered window.
 
-#### Backend (Rust Core)
+## 📦 Installation
 
-To check the Rust code:
+### 1. Clone the Repository
 
-```bash
-cd core
-cargo check
+```powershell
+git clone https://github.com/we9d/areyoughost.git
+cd areyoughost
 ```
 
-To run tests:
+### 2. Set Up Flutter
 
-```bash
-cargo test
+**Windows Installation:**
+1. Extract Flutter SDK to `C:\flutter`
+2. Add `C:\flutter\bin` to your PATH:
+   - Search "Edit the system environment variables"
+   - Click "Environment Variables"
+   - Under "User variables", edit "Path"
+   - Add new entry: `C:\flutter\bin`
+   - Click OK on all windows
+3. Verify installation:
+   ```powershell
+   flutter --version
+   ```
+
+### 3. Configure Visual Studio
+
+Install Visual Studio with these workloads:
+- **Desktop development with C++**
+
+Required components:
+- MSVC v143 - VS 2022 C++ x64/x86 build tools
+- Windows 10 SDK or Windows 11 SDK
+- C++ CMake tools for Windows
+
+### 4. Install Rust
+
+Download and run: [rustup-init.exe (x64)](https://www.rust-lang.org/tools/install)
+
+Verify installation:
+```powershell
+rustc --version
+cargo --version
 ```
 
-## 📦 Dependencies
+### 5. Set Up Environment
 
-### Frontend (Flutter)
+Copy the environment template:
+```powershell
+Copy-Item .env.example -Destination .env
+```
 
-- `flutter_rust_bridge` - FFI integration with Rust
-- Custom UI components for game screens
+Edit `.env` with your local configuration (defaults work for development).
 
-### Backend (Rust)
+### 6. Start PostgreSQL
 
-- `rusqlite` - SQLite database with bundled library
-- `serde` & `serde_json` - Serialization
-- `flutter_rust_bridge` - FFI bridge
-- `tokio` - Async runtime for networking
-- `anyhow` - Error handling
+```powershell
+docker-compose up -d
+```
+
+This starts:
+- PostgreSQL on `localhost:5432`
+- PgAdmin on http://localhost:8080
+
+### 7. Build the Project
+
+**Build Rust workspace:**
+```powershell
+cargo build --workspace
+```
+
+**Install Flutter dependencies:**
+```powershell
+cd frontend
+flutter pub get
+```
+
+## 💻 Development
+
+### Running Components
+
+**Backend Server:**
+```powershell
+cargo run -p areyoughost_server
+```
+
+**Flutter Desktop App:**
+```powershell
+cd frontend
+flutter run -d windows
+```
+
+**Database Management:**
+- PgAdmin: http://localhost:8080
+  - Email: `admin@areyoughost.com`
+  - Password: `admin`
+
+### Code Quality
+
+**Format code:**
+```powershell
+cargo fmt --all
+```
+
+**Run linter:**
+```powershell
+cargo clippy --workspace --all-targets
+```
+
+**Run tests:**
+```powershell
+cargo test --workspace
+```
+
+**[→ Full Development Guide](docs/DEVELOPMENT.md)**
+
+## 📁 Project Structure
+
+```
+areyoughost/
+├── core/                 # Rust core library (game logic + networking)
+│   ├── src/
+│   │   ├── api.rs       # FFI exports to Flutter
+│   │   ├── game_logic/  # Game state machine
+│   │   ├── network/     # Custom TCP/UDP networking
+│   │   ├── db/          # PostgreSQL integration
+│   │   └── models.rs    # Shared data structures
+│   └── Cargo.toml
+│
+├── server/              # Standalone HTTP/WebSocket server
+│   ├── src/
+│   │   └── main.rs
+│   └── Cargo.toml
+│
+├── frontend/            # Flutter desktop application
+│   ├── lib/
+│   │   ├── ui/         # Screen widgets
+│   │   ├── services/   # API service layer
+│   │   ├── state/      # State management
+│   │   └── ffi/        # Rust FFI bindings
+│   └── pubspec.yaml
+│
+├── docs/                # Documentation
+│   ├── ARCHITECTURE.md
+│   ├── DEVELOPMENT.md
+│   └── PROTOCOL.md
+│
+├── examples/            # Code examples
+├── scripts/             # Build and deployment scripts
+├── docker-compose.yml   # PostgreSQL setup
+├── Cargo.toml          # Workspace configuration
+└── README.md           # This file
+```
+
+## 📖 Documentation
+
+- **[Architecture Overview](docs/ARCHITECTURE.md)** - System design and component interaction
+- **[Development Guide](docs/DEVELOPMENT.md)** - Setup, workflow, and debugging
+- **[Protocol Specification](docs/PROTOCOL.md)** - Custom network protocol details
+- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute
+- **[Cloudflare Tunnel Setup](CLOUDFLARE_TUNNEL.md)** - External server deployment
+
+## 🌐 Network Protocol
+
+The game implements a **custom TCP-based protocol** with full control over OSI layers 4-7:
+
+- **Layer 7 (Application):** Game messages (login, vote, chat)
+- **Layer 6 (Presentation):** Binary serialization, optional compression
+- **Layer 5 (Session):** Connection state, session management
+- **Layer 4 (Transport):** Raw TCP/UDP sockets, bandwidth control
+
+**Features:**
+- Custom packet format with sequence numbers
+- QoS priority levels (Critical → High → Medium → Low)
+- Configurable bandwidth throttling
+- Heartbeat and keepalive mechanisms
+
+**[→ Protocol Specification](docs/PROTOCOL.md)**
 
 ## 🔧 Development Status
 
-**Current Phase**: Network Stack Implementation
+**Current Phase:** Network Stack Implementation
 
-- ✅ Project structure established
-- ✅ Basic UI screens (Login, Lobby, Game)
-- ✅ Mock API service layer
-- ✅ Architecture planning complete
-- 🚧 **Custom Network Stack** (in progress)
-  - 🚧 Raw socket implementation (TCP/UDP)
-  - 🚧 Custom packet protocol design
-  - 🚧 Bandwidth control system
-  - 🚧 OSI layer monitoring
-- 🚧 Firebase REST integration
-- 🚧 FFI integration
-- 🚧 Rust game logic implementation
-- ⏳ Database schema and operations
-- ⏳ Real-time multiplayer functionality
+### Completed ✅
+- [x] Project structure and workspace setup
+- [x] Flutter UI screens (Login, Lobby, Game)
+- [x] HTTP/WebSocket server with health checks
+- [x] Docker-based PostgreSQL setup
+- [x] FFI bridge configuration
+- [x] Cloudflare Tunnel integration
+- [x] Comprehensive documentation
 
-## 📝 Protocol
+### In Progress 🚧
+- [ ] Custom network stack (TCP/UDP)
+- [ ] Game state machine implementation
+- [ ] Database schema and migrations
+- [ ] Real-time multiplayer synchronization
+- [ ] Role distribution system
+- [ ] Vote counting and win conditions
 
-The game uses a custom TCP-based protocol for client-server communication. See the `protocol/` directory for detailed specifications:
-
-- **Message Types**: Defines all message types (login, room actions, game events)
-- **Packet Format**: Binary packet structure and encoding
+### Planned ⏳
+- [ ] Complete game logic (all roles)
+- [ ] Replay system
+- [ ] Player statistics
+- [ ] Matchmaking system
+- [ ] Mobile support (iOS/Android)
 
 ## 🤝 Contributing
 
-This is a project in active development. Contributions, issues, and feature requests are welcome!
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for:
+
+- Code style guidelines
+- Development workflow
+- Pull request process
+- Testing requirements
+
+**[→ Contributing Guide](CONTRIBUTING.md)**
 
 ## 📄 License
 
-[Add your license here]
+This project is dual-licensed under:
+- **MIT License** ([LICENSE-MIT](LICENSE-MIT))
+- **Apache License 2.0** ([LICENSE-APACHE](LICENSE-APACHE))
 
-## 🔗 Links
+You may choose either license for your use.
 
+## 🔗 Resources
+
+- [Rust Book](https://doc.rust-lang.org/book/)
 - [Flutter Documentation](https://flutter.dev/docs)
-- [Rust Documentation](https://www.rust-lang.org/learn)
+- [Tokio Async Runtime](https://tokio.rs)
+- [Axum Web Framework](https://docs.rs/axum/)
+- [sqlx Database Library](https://docs.rs/sqlx/)
+
+## 👥 Team
+
+**This hole has a story team**
+
+---
+
+**Built with ❤️ using Rust and Flutter**

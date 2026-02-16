@@ -3,8 +3,8 @@
 //! Implements a simple message framing protocol:
 //! [4-byte length][1-byte type][payload]
 
+use anyhow::{anyhow, Result};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
 /// Maximum message size (1MB)
@@ -26,7 +26,7 @@ pub enum MessageType {
     LoginResponse = 0x02,
     RegisterRequest = 0x03,
     RegisterResponse = 0x04,
-    
+
     // Room Management (0x10-0x2F)
     RoomListRequest = 0x10,
     RoomListResponse = 0x11,
@@ -35,14 +35,14 @@ pub enum MessageType {
     JoinRoomRequest = 0x14,
     JoinRoomResponse = 0x15,
     LeaveRoom = 0x16,
-    
+
     // Game Actions (0x30-0x4F)
     ChatMessage = 0x30,
     CastVote = 0x31,
     GameStateUpdate = 0x32,
     PlayerEliminated = 0x33,
     GameEnd = 0x34,
-    
+
     // Control (0x50-0xFF)
     Heartbeat = 0x50,
     Disconnect = 0x51,
@@ -101,16 +101,16 @@ impl Message {
     pub fn to_bytes(&self) -> Bytes {
         let total_len = 5 + self.payload.len(); // 4 (length) + 1 (type) + payload
         let mut buf = BytesMut::with_capacity(total_len);
-        
+
         // Write length (excluding the length field itself)
         buf.put_u32((1 + self.payload.len()) as u32);
-        
+
         // Write message type
         buf.put_u8(self.msg_type as u8);
-        
+
         // Write payload
         buf.put_slice(&self.payload);
-        
+
         buf.freeze()
     }
 
@@ -122,7 +122,7 @@ impl Message {
 
         // Read length
         let length = data.get_u32() as usize;
-        
+
         if length > MAX_MESSAGE_SIZE {
             return Err(anyhow!("Message too large: {} bytes", length));
         }

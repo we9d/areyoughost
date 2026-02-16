@@ -189,7 +189,7 @@ impl PostgresDb {
         .bind(phase_id)
         .bind(sender_id)
         .bind(chat_scope)
-        .bind(message)  
+        .bind(message)
         .bind(&now)
         .execute(&self.pool)
         .await?;

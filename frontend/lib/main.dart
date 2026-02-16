@@ -11,9 +11,14 @@ import 'package:areyoughost/ui/game/game_screen.dart';
 import 'package:areyoughost/ui/widgets/mobile_wrapper.dart';
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/ui/home/home.dart';
-import 'package:areyoughost/ui/register/register_screen.dart';
+import 'package:areyoughost/src/rust/frb_generated.dart';
+import 'package:areyoughost/services/rust_api.dart';
 
 Future<void> main() async {
+  // Initialize Rust API (Database, etc.)
+  // This also initializes RustLib internally
+  await RustApi.init();
+
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
 

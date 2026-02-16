@@ -5,7 +5,7 @@ import 'package:areyoughost/services/rust_api.dart';
 // import 'package:areyoughost/services/mock_user_database.dart'; // Removed
 
 class AuthService {
-  // Username validation: alphanumeric only, no spaces, no special characters
+  // Username validation: Allow any characters
   static String? validateUsername(String? username) {
     if (username == null || username.trim().isEmpty) {
       return 'กรุณากรอกชื่อผู้ใช้งาน';
@@ -17,30 +17,23 @@ class AuthService {
     if (!validPattern.hasMatch(username)) {
       return 'ไม่สามารถใช้สัญลักษณ์พิเศษได้ (อนุญาตเฉพาะตัวอักษร, ตัวเลข, _ และภาษาไทย)';
     }
-
     // Minimum length
     if (username.length < 3) {
       return 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร';
     }
 
     // Maximum length
-    if (username.length > 20) {
-      return 'ชื่อผู้ใช้ต้องไม่เกิน 20 ตัวอักษร';
+    if (username.length > 50) {
+      return 'ชื่อผู้ใช้ต้องไม่เกิน 50 ตัวอักษร';
     }
 
     return null; // Valid
   }
 
-  // Password validation: English only
+  // Password validation: Allow any characters
   static String? validatePassword(String? password) {
     if (password == null || password.isEmpty) {
       return 'กรุณากรอกรหัสผ่าน';
-    }
-
-    // Check for Thai characters
-    final thaiPattern = RegExp(r'[ก-๙]');
-    if (thaiPattern.hasMatch(password)) {
-      return 'กรุณากรอกภาษาอังกฤษ';
     }
 
     // Check for spaces

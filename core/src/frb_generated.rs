@@ -148,7 +148,7 @@ fn wire__crate__api__Api_create_room_impl(
                                 0 => {
                                     api_that_guard =
                                         Some(api_that.lockable_decode_async_ref().await)
-                                }
+                                },
                                 _ => unreachable!(),
                             }
                         }
@@ -362,7 +362,7 @@ fn wire__crate__api__Api_join_room_impl(
                                 0 => {
                                     api_that_guard =
                                         Some(api_that.lockable_decode_async_ref().await)
-                                }
+                                },
                                 _ => unreachable!(),
                             }
                         }
@@ -732,7 +732,7 @@ fn wire__crate__api__Api_test_connection_impl(
                                 0 => {
                                     api_that_guard =
                                         Some(api_that.lockable_decode_async_ref().await)
-                                }
+                                },
                                 _ => unreachable!(),
                             }
                         }

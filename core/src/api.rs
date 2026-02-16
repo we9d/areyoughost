@@ -4,8 +4,10 @@
 //! that allow the Flutter frontend to communicate with the Rust backend.
 //!
 //! All public functions in the `Api` struct are exposed to Flutter via
-//! flutter_rust_bridge and handle user authentication, room management,
-//! and game actions.
+//! flutter_rust_bridge.
+//!
+//! **NOTE**: This module has been refactored to use the Dedicated Server (HTTP/WS)
+//! instead of a local SQLite database.
 
 use crate::db::postgres::PostgresDb;
 use crate::models::*;
@@ -80,7 +82,7 @@ impl Api {
                     } else {
                         Err(anyhow!("Invalid password"))
                     }
-                }
+                },
                 None => Err(anyhow!("User not found")),
             }
         })
@@ -101,9 +103,8 @@ impl Api {
         })
     }
 
-    // --- Network Management ---
+    // --- Legacy P2P / Local methods (Stubbed or Redirected) ---
 
-    /// Host: Start a TCP server on port 27015
     pub async fn create_room(&self, room_name: String, max_players: i32) -> Result<String> {
         // Stop any existing server/client
         *self.server.lock().unwrap() = None;
@@ -122,7 +123,6 @@ impl Api {
         ))
     }
 
-    /// Peer: Connect to a host IP on port 27015
     pub async fn join_room(&self, host_ip: String) -> Result<String> {
         // Stop any existing server/client
         *self.server.lock().unwrap() = None;
@@ -192,10 +192,10 @@ impl Api {
             message_id: "preview".to_string(),
             room_id,
             sender_id: user_id,
-            sender_name: String::from("Player"),
+            sender_name: "Me".to_string(),
             message,
-            phase_type: String::from("day"),
-            created_at: String::new(),
+            phase_type: "lobb".to_string(),
+            created_at: chrono::Utc::now().to_rfc3339(),
         })
     }
 
@@ -302,7 +302,7 @@ impl Api {
                                     for log in logs {
                                         println!("[Night Log] {}", log);
                                     }
-                                }
+                                },
                                 (PhaseType::Vote, PhaseType::Night) => {
                                     let votes = state.vote_system.get_results();
                                     if let Some((target, count)) =
@@ -320,8 +320,8 @@ impl Api {
                                         println!("No votes cast. No one executed.");
                                     }
                                     state.vote_system.reset();
-                                }
-                                _ => {}
+                                },
+                                _ => {},
                             }
 
                             // Check Win Condition
@@ -399,10 +399,7 @@ impl Api {
                 }
             }
 
-            println!(
-                "Action: Player {} did {} on {:?}",
-                actor_id, action_type, target_id
-            );
+            println!("Action: Player {} did {} on {:?}", actor_id, action_type, target_id);
 
             Ok("Action submitted".to_string())
         } else {
@@ -414,10 +411,7 @@ impl Api {
         let mut game_lock = self.game_state.lock().unwrap();
         if let Some(state) = game_lock.as_mut() {
             state.phase_machine.next_phase();
-            Ok(format!(
-                "Advanced to {:?}",
-                state.phase_machine.current_phase
-            ))
+            Ok(format!("Advanced to {:?}", state.phase_machine.current_phase))
         } else {
             Err(anyhow!("No active game"))
         }

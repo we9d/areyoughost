@@ -1,0 +1,21 @@
+# Clippy configuration for Are You Ghost project
+# https://doc.rust-lang.org/clippy/
+
+# Warn on all pedantic lints by default
+# Can be overridden with #[allow(clippy::lint_name)]
+
+# Cognitive complexity threshold
+cognitive-complexity-threshold = 30
+
+# Documentation
+missing-docs-in-crate-items = false
+
+# Allow certain patterns common in game development
+allow-unwrap-in-tests = true
+allow-dbg-in-tests = true
+
+# Type complexity threshold (for game state machines)
+type-complexity-threshold = 500
+
+# Enforce documentation on public items
+doc-valid-idents = ["OSI", "TCP", "UDP", "WebSocket", "PostgreSQL", "FFI"]

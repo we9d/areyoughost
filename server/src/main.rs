@@ -35,9 +35,9 @@ async fn main() {
     // This allows external connections through Cloudflare tunnel
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
 
-    tracing::info!("🚀 Server listening on {}", addr);
-    tracing::info!("📍 Health check: http://localhost:3000/health");
-    tracing::info!("🔌 WebSocket: ws://localhost:3000/ws");
+    tracing::info!("Server listening on {}", addr);
+    tracing::info!("Health check: http://localhost:3000/health");
+    tracing::info!("WebSocket: ws://localhost:3000/ws");
 
     // Start the server
     let listener = tokio::net::TcpListener::bind(addr)
@@ -67,7 +67,7 @@ async fn websocket_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
 
 /// Handle WebSocket connection
 async fn handle_socket(mut socket: WebSocket) {
-    tracing::info!("🔌 New WebSocket connection established");
+    tracing::info!("New WebSocket connection established");
 
     // Send welcome message
     if socket
@@ -83,7 +83,7 @@ async fn handle_socket(mut socket: WebSocket) {
     while let Some(msg) = socket.recv().await {
         match msg {
             Ok(Message::Text(text)) => {
-                tracing::info!("📨 Received: {}", text);
+                tracing::info!("Received: {}", text);
 
                 // Echo back for now (will integrate with game logic later)
                 let response = json!({
@@ -102,7 +102,7 @@ async fn handle_socket(mut socket: WebSocket) {
                 }
             },
             Ok(Message::Close(_)) => {
-                tracing::info!("🔌 WebSocket connection closed");
+                tracing::info!("WebSocket connection closed");
                 break;
             },
             Err(e) => {

@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
-    pub user_id: i64,
+    pub user_id: String,
     pub username: String,
     pub password_hash: String,
     pub created_at: String,
@@ -50,9 +50,9 @@ pub struct Role {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameParticipant {
-    pub session_id: i64,
+    pub session_id: String,
     pub room_id: String,
-    pub user_id: i64,
+    pub user_id: String,
     pub username: String, // Denormalized for convenience
     pub role: Option<String>,
     pub is_alive: bool,
@@ -62,7 +62,7 @@ pub struct GameParticipant {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GamePhase {
-    pub phase_id: i64,
+    pub phase_id: String,
     pub room_id: String,
     pub phase_type: String, // 'day', 'night', 'vote'
     pub phase_order: i32,
@@ -72,9 +72,9 @@ pub struct GamePhase {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
-    pub message_id: i64,
+    pub message_id: String,
     pub room_id: String,
-    pub sender_id: i64,
+    pub sender_id: String,
     pub sender_name: String,
     pub message: String,
     pub phase_type: String,
@@ -83,21 +83,21 @@ pub struct ChatMessage {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Vote {
-    pub vote_id: i64,
+    pub vote_id: String,
     pub room_id: String,
-    pub phase_id: i64,
-    pub voter_id: i64,
-    pub target_id: i64,
+    pub phase_id: String,
+    pub voter_id: String,
+    pub target_id: String,
     pub created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameAction {
-    pub action_id: i64,
+    pub action_id: String,
     pub room_id: String,
-    pub phase_id: i64,
-    pub actor_id: i64,
-    pub target_id: Option<i64>,
+    pub phase_id: String,
+    pub actor_id: String,
+    pub target_id: Option<String>,
     pub action_type: String,
     pub action_result: Option<String>,
     pub created_at: String,

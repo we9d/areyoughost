@@ -157,11 +157,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   if (value == null || value.isEmpty) {
                                     return 'กรุณายืนยันรหัสผ่าน';
                                   }
-                                  // Check for Thai characters
-                                  final thaiPattern = RegExp(r'[ก-๙]');
-                                  if (thaiPattern.hasMatch(value)) {
-                                    return 'กรุณากรอกภาษาอังกฤษ';
-                                  }
                                   // Check for spaces
                                   if (value.contains(' ')) {
                                     return 'ไม่สามารถใช้ช่องว่าง กรุณาลองใหม่อีกครั้ง';

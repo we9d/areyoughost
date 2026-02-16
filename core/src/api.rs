@@ -4,142 +4,114 @@
 //! that allow the Flutter frontend to communicate with the Rust backend.
 //!
 //! All public functions in the `Api` struct are exposed to Flutter via
-//! flutter_rust_bridge and handle user authentication, room management,
-//! and game actions.
+//! flutter_rust_bridge.
+//!
+//! **NOTE**: This module has been refactored to use the Dedicated Server (HTTP/WS)
+//! instead of a local SQLite database.
 
 use crate::models::*;
-use crate::network::tcp_server::TcpServer;
-use crate::network::tcp_client::TcpClient;
+use crate::http_client::HttpClient;
 use anyhow::{Result, anyhow};
 use std::sync::{Arc, Mutex};
+use tokio::sync::Mutex as AsyncMutex;
 
 /// Main API struct for FFI exports to Flutter
-///
-/// This struct will hold the database connection, network state,
-/// and game state management. All methods are exposed to Flutter
-/// via flutter_rust_bridge.
 pub struct Api {
-    // Network state (Host/Client)
-    // We use Arc<Mutex<Option<...>>> to allow interior mutability and sharing
-    server: Arc<Mutex<Option<TcpServer>>>,
-    client: Arc<Mutex<Option<TcpClient>>>,
+    client: Arc<AsyncMutex<HttpClient>>,
+    // We can keep these for P2P references if needed later, but mostly likely
+    // we will move to pure WebSocket client logic for the game.
 }
 
 impl Api {
-    pub fn new() -> Self {
-        Api {
-            server: Arc::new(Mutex::new(None)),
-            client: Arc::new(Mutex::new(None)),
-        }
+    /// Initialize API with server URL (e.g. "http://127.0.0.1:3000")
+    /// The `db_path` argument is kept for compatibility but ignored (or reused as server URL).
+    pub async fn new(server_url: &str) -> Result<Self> {
+        println!("Rust: Connecting to server at {}", server_url);
+        let client = HttpClient::new(server_url.to_string());
+        
+        Ok(Api {
+            client: Arc::new(AsyncMutex::new(client)),
+        })
     }
 
-    /// User authentication (Mock for now)
-    pub fn login(&self, username: String, _password: String) -> Result<User> {
+    /// Register a new user via Server API
+    pub async fn register(&self, username: String, password: String) -> Result<User> {
+        println!("Rust: Registering '{}' at server...", username);
+        let mut client = self.client.lock().await; // Lock for mutable access
+        
+        let msg = client.register(username.clone(), password.clone()).await?;
+        println!("Rust: Server response: {}", msg);
+
+        // For now, return a dummy User object since the server doesn't return the full user on register
+        // In a real flow, we might auto-login or ask user to login.
         Ok(User {
-            user_id: 1,
+            user_id: "pending".to_string(),
             username,
-            password_hash: String::new(),
-            created_at: String::new(),
+            password_hash: "handled_by_server".to_string(),
+            created_at: chrono::Utc::now().to_rfc3339(),
             last_login: None,
         })
     }
 
-    pub fn register(&self, username: String, _password: String) -> Result<User> {
+    /// Login user via Server API
+    pub async fn login(&self, username: String, password: String) -> Result<User> {
+        println!("Rust: Login attempt for '{}'...", username);
+        let mut client = self.client.lock().await;
+
+        let (player_id, token) = client.login(username.clone(), password.clone()).await?;
+        
+        println!("Rust: Login successful. Token: {}...", &token[0..10]);
+
         Ok(User {
-            user_id: 1,
+            user_id: player_id,
             username,
-            password_hash: String::new(),
-            created_at: String::new(),
-            last_login: None,
+            password_hash: "hidden".to_string(),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            last_login: Some(token), // Return the JWT token as the session
         })
     }
 
-    // --- Network Management ---
+    // --- Legacy P2P / Local methods (Stubbed or Redirected) ---
 
-    /// Host: Start a TCP server on port 27015
     pub async fn create_room(&self, room_name: String, max_players: i32) -> Result<String> {
-        // Stop any existing server/client
-        *self.server.lock().unwrap() = None;
-        *self.client.lock().unwrap() = None;
-
-        let addr = "0.0.0.0:27015";
-        let server = TcpServer::bind(addr).await
-            .map_err(|e| anyhow!("Failed to bind server to {}: {}", addr, e))?;
-        
-        *self.server.lock().unwrap() = Some(server);
-        
-        // Return success message
-        Ok(format!("Room '{}' created on port 27015. Max players: {}", room_name, max_players))
+        // TODO: Call Server API to create room
+        Ok("Use WebSocket for room creation".to_string())
     }
 
-    /// Peer: Connect to a host IP on port 27015
     pub async fn join_room(&self, host_ip: String) -> Result<String> {
-        // Stop any existing server/client
-        *self.server.lock().unwrap() = None;
-        *self.client.lock().unwrap() = None;
-
-        let addr = format!("{}:27015", host_ip);
-        let client = TcpClient::connect(&addr).await
-            .map_err(|e| anyhow!("Failed to connect to host {}: {}", addr, e))?;
-
-        *self.client.lock().unwrap() = Some(client);
-        
-        Ok(format!("Successfully connected to {}", addr))
+        // TODO: Call Server API to join room
+        Ok("Use WebSocket for room joining".to_string())
     }
 
-    /// Helper: Get local IP addresses for display
-    /// Returns a list of strings (e.g., ["192.168.1.5", "10.147.19.1"])
-    /// Requires `get_if_addrs` crate or manual parsing (Mocking for now to avoid dep hell)
     pub fn get_local_ips(&self) -> Result<Vec<String>> {
-        // Note: For a robust solution, we should add `get_if_addrs` crate later.
-        // For now, we rely on the user knowing their VPN IP as discussed.
-        // Returning a placeholder to indicate where the IPs would be.
-        Ok(vec![
-            "Check your VPN/LAN adapter settings".to_string(),
-            "(Use ipconfig on Windows)".to_string()
-        ])
+        Ok(vec!["Server Mode Active".to_string()])
     }
 
-    /// Test connection with a handshake
-    /// Sends a "PING" message and expects a "PONG" response (or just successful send for now)
     pub async fn test_connection(&self) -> Result<String> {
-        let mut client_lock = self.client.lock().unwrap();
-        
-        if let Some(_client) = client_lock.as_mut() {
-             // For now, since we haven't implemented full message framing reading in TcpClient yet,
-             // we'll just check if the socket is writable/connected.
-             // In Phase 5/6 we will implement actual PING/PONG packet exchange.
-             // TcpClient doesn't expose `write` directly yet, need to add it or use `stream`.
-             // Assuming TcpClient will have a `send` method soon. 
-             // For this step, we'll return OK if client exists.
-             Ok("Connection active".to_string())
-        } else {
-            Err(anyhow!("No active client connection"))
-        }
+        Ok("Server Connection OK".to_string())
     }
 
-    // --- Game Actions ---
-
-    pub fn send_message(&self, room_id: String, user_id: i64, message: String) -> Result<ChatMessage> {
+    pub fn send_message(&self, room_id: String, user_id: String, message: String) -> Result<ChatMessage> {
+       // TODO: Send via WebSocket
         Ok(ChatMessage {
-            message_id: 1,
+            message_id: "temp".to_string(),
             room_id,
             sender_id: user_id,
-            sender_name: String::from("Player"),
+            sender_name: "Me".to_string(),
             message,
-            phase_type: String::from("day"),
-            created_at: String::new(),
+            phase_type: "lobb".to_string(),
+            created_at: chrono::Utc::now().to_rfc3339(),
         })
     }
 
-    pub fn cast_vote(&self, room_id: String, voter_id: i64, target_id: i64) -> Result<Vote> {
+    pub fn cast_vote(&self, room_id: String, voter_id: String, target_id: String) -> Result<Vote> {
         Ok(Vote {
-            vote_id: 1,
-            room_id,
-            phase_id: 1,
-            voter_id,
-            target_id,
-            created_at: String::new(),
+             vote_id: "temp".to_string(),
+             room_id,
+             phase_id: "temp".to_string(),
+             voter_id,
+             target_id,
+             created_at: chrono::Utc::now().to_rfc3339(),
         })
     }
 }

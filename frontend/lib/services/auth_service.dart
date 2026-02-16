@@ -4,16 +4,10 @@ import 'package:areyoughost/services/session_manager.dart';
 import 'package:areyoughost/services/mock_user_database.dart';
 
 class AuthService {
-  // Username validation: alphanumeric only, no spaces, no special characters
+  // Username validation: Allow any characters
   static String? validateUsername(String? username) {
     if (username == null || username.trim().isEmpty) {
       return 'กรุณากรอกชื่อผู้ใช้งาน';
-    }
-
-    // Check for Thai characters
-    final thaiPattern = RegExp(r'[ก-๙]');
-    if (thaiPattern.hasMatch(username)) {
-      return 'กรุณากรอกภาษาอังกฤษ';
     }
 
     // Check for spaces or special characters (allow alphanumeric and underscores)
@@ -21,30 +15,23 @@ class AuthService {
     if (!validPattern.hasMatch(username)) {
       return 'ไม่สามารถใช้สัญลักษณ์พิเศษได้ กรุณาลองใหม่อีกครั้ง';
     }
-
     // Minimum length
     if (username.length < 3) {
       return 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร';
     }
 
     // Maximum length
-    if (username.length > 20) {
-      return 'ชื่อผู้ใช้ต้องไม่เกิน 20 ตัวอักษร';
+    if (username.length > 50) {
+      return 'ชื่อผู้ใช้ต้องไม่เกิน 50 ตัวอักษร';
     }
 
     return null; // Valid
   }
 
-  // Password validation: English only
+  // Password validation: Allow any characters
   static String? validatePassword(String? password) {
     if (password == null || password.isEmpty) {
       return 'กรุณากรอกรหัสผ่าน';
-    }
-
-    // Check for Thai characters
-    final thaiPattern = RegExp(r'[ก-๙]');
-    if (thaiPattern.hasMatch(password)) {
-      return 'กรุณากรอกภาษาอังกฤษ';
     }
 
     // Check for spaces

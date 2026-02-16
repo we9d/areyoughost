@@ -1,4 +1,4 @@
-use crate::models::{ChatMessage, GameAction, GameParticipant, GamePhase};
+use crate::models::{ChatMessage, GameAction, GameParticipant};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]

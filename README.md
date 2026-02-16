@@ -29,9 +29,10 @@ This is a **monorepo** project with a clear separation between frontend and back
     - Custom protocol design (no pre-built networking libraries)
     - Bandwidth throttling and QoS control
     - Multi-connection async runtime (Tokio)
-  - Core game logic and state machine
-  - SQLite database for local persistence
-  - Firebase REST API for cloud sync
+  - **Core Game Logic**: State machine and rule enforcement
+  - **Database**: PostgreSQL (via `sqlx`) for persistence
+  - **API**: HTTP/WebSocket (Axum) for communication
+  - **FFI**: Exports for Flutter integration
   - FFI exports for Flutter integration
 
 ### Network Architecture
@@ -82,7 +83,7 @@ areyoughost/
 - **Git Hub Desktop** (latest stable) - [Install Git Hub Desktop](https://desktop.github.com/download/)
 - **Git** (latest stable) - [Install Git](https://gitforwindows.org/)
 - **Rust** (latest stable) - [Install Rust: RUSTUP-ININT.exe (x64)](https: //www.rust-lang.org/tools/install)
-- **SQLite** (bundled via rusqlite)
+- **PostgreSQL** (running via Docker or local)
 
 ### Installation
 1. **Git Hub Desktop**
@@ -189,7 +190,7 @@ cargo test
 
 ### Backend (Rust)
 
-- `rusqlite` - SQLite database with bundled library
+- `sqlx` - PostgreSQL client (async)
 - `serde` & `serde_json` - Serialization
 - `flutter_rust_bridge` - FFI bridge
 - `tokio` - Async runtime for networking
@@ -208,10 +209,9 @@ cargo test
   - 🚧 Custom packet protocol design
   - 🚧 Bandwidth control system
   - 🚧 OSI layer monitoring
-- 🚧 Firebase REST integration
 - 🚧 FFI integration
 - 🚧 Rust game logic implementation
-- ⏳ Database schema and operations
+- 🚧 Database schema (PostgreSQL)
 - ⏳ Real-time multiplayer functionality
 
 ## 📝 Protocol

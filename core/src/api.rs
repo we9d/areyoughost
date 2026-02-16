@@ -82,7 +82,7 @@ impl Api {
                     } else {
                         Err(anyhow!("Invalid password"))
                     }
-                }
+                },
                 None => Err(anyhow!("User not found")),
             }
         })
@@ -302,7 +302,7 @@ impl Api {
                                     for log in logs {
                                         println!("[Night Log] {}", log);
                                     }
-                                }
+                                },
                                 (PhaseType::Vote, PhaseType::Night) => {
                                     let votes = state.vote_system.get_results();
                                     if let Some((target, count)) =
@@ -320,8 +320,8 @@ impl Api {
                                         println!("No votes cast. No one executed.");
                                     }
                                     state.vote_system.reset();
-                                }
-                                _ => {}
+                                },
+                                _ => {},
                             }
 
                             // Check Win Condition
@@ -399,10 +399,7 @@ impl Api {
                 }
             }
 
-            println!(
-                "Action: Player {} did {} on {:?}",
-                actor_id, action_type, target_id
-            );
+            println!("Action: Player {} did {} on {:?}", actor_id, action_type, target_id);
 
             Ok("Action submitted".to_string())
         } else {
@@ -414,10 +411,7 @@ impl Api {
         let mut game_lock = self.game_state.lock().unwrap();
         if let Some(state) = game_lock.as_mut() {
             state.phase_machine.next_phase();
-            Ok(format!(
-                "Advanced to {:?}",
-                state.phase_machine.current_phase
-            ))
+            Ok(format!("Advanced to {:?}", state.phase_machine.current_phase))
         } else {
             Err(anyhow!("No active game"))
         }

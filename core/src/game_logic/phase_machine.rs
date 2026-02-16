@@ -45,16 +45,16 @@ impl PhaseMachine {
             PhaseType::Day => {
                 self.current_phase = PhaseType::Vote;
                 self.phase_end_time = Self::now() + 15;
-            }
+            },
             PhaseType::Vote => {
                 self.current_phase = PhaseType::Night;
                 self.phase_end_time = Self::now() + 20;
-            }
+            },
             PhaseType::Night => {
                 self.current_phase = PhaseType::Day;
                 self.day_number += 1;
                 self.phase_end_time = Self::now() + 60;
-            }
+            },
         }
     }
 

@@ -2,11 +2,10 @@
 //!
 //! Raw TCP client implementation with bandwidth control
 
-use tokio::net::TcpStream;
 use anyhow::Result;
+use tokio::net::TcpStream;
 
 use super::bandwidth::BandwidthLimiter;
-
 
 /// TCP client with bandwidth control
 #[allow(dead_code)]

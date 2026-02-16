@@ -75,7 +75,9 @@ flutter:
   assets:
     - assets/images/Login-Register.jpg
     - assets/images/mobileBg.jpg
-    - assets/images/logo.png
+    - assets/images/ModeSelectBg.jpg
+    - assets/images/RandomRoleBg.jpg
+    - assets/images/NightTimeBg.jpg
 
 
 
@@ -104,5 +106,3 @@ flutter:
   #         weight: 700
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
-
-

@@ -5,8 +5,16 @@
 *.swp
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# IDEs and Editors
 .vscode/
+.idea/
+*.iml
 *.code-workspace
+*.swp
+*.swo
+*~
 
 # Flutter/Dart
 .dart_tool/
@@ -37,28 +45,15 @@ target/
 Cargo.lock
 *.pdb
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
 # FFI Generated
 *.dll
 *.so
 *.dylib
 
-# IDEs
-.idea/
-*.iml
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-desktop.ini
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
 # Logs
 *.log
@@ -67,3 +62,10 @@ logs/
 # Environment
 .env
 .env.local
+.env.*.local
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db

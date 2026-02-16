@@ -1,40 +1,46 @@
 [package]
 name = "areyoughost_core"
-version = "0.1.1"
-edition = "2021"
-authors = ["This hole has a story team"]
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
 description = "Core game engine for Are You Ghost? - A multiplayer social deduction game"
-license = "MIT OR Apache-2.0"
 
 [lib]
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
 # Async runtime with networking support
-tokio = { version = "1", features = ["full", "net", "time", "sync", "macros", "test-util"] }
+tokio = { workspace = true, features = ["net", "time", "sync", "test-util"] }
 
-# Data handling
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
 bytes = "1.5"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
 
-# Database
 # Database (PostgreSQL)
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "macros", "chrono", "uuid"] }
 dotenvy = "0.15"
 
-# HTTP client for backend API
+# HTTP client for backend API communication
 reqwest = { version = "0.11", features = ["json"] }
 
-# FFI bridge
+# WebSocket client (for connecting to server)
+tokio-tungstenite = "0.21"
+
+# FFI bridge for Flutter integration
 flutter_rust_bridge = "=2.11.1"
 
 # Error handling
-anyhow = "1.0"
-thiserror = "1.0"
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 # Utilities
-chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { workspace = true }
+uuid = { workspace = true }
 urlencoding = "2.1.3"
 rand = "0.8"

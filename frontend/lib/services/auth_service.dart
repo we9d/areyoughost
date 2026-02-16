@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:areyoughost/services/session_manager.dart';
-import 'package:areyoughost/services/mock_user_database.dart';
+import 'package:areyoughost/services/rust_api.dart';
+// import 'package:areyoughost/services/mock_user_database.dart'; // Removed
 
 class AuthService {
   // Username validation: Allow any characters
@@ -10,10 +11,11 @@ class AuthService {
       return 'กรุณากรอกชื่อผู้ใช้งาน';
     }
 
-    // Check for spaces or special characters (allow alphanumeric and underscores)
-    final validPattern = RegExp(r'^[a-zA-Z0-9_]+$');
+    // Check for spaces or special characters (allow alphanumeric, underscores, and Thai)
+    // Using Unicode range for Thai: \u0E00-\u0E7F which covers consonants, vowels, and tone marks
+    final validPattern = RegExp(r'^[a-zA-Z0-9_\u0E00-\u0E7F]+$');
     if (!validPattern.hasMatch(username)) {
-      return 'ไม่สามารถใช้สัญลักษณ์พิเศษได้ กรุณาลองใหม่อีกครั้ง';
+      return 'ไม่สามารถใช้สัญลักษณ์พิเศษได้ (อนุญาตเฉพาะตัวอักษร, ตัวเลข, _ และภาษาไทย)';
     }
     // Minimum length
     if (username.length < 3) {
@@ -54,7 +56,7 @@ class AuthService {
     return digest.toString();
   }
 
-  // Login function (mock for now, will connect to Rust backend later)
+  // Login function
   static Future<Map<String, dynamic>> login({
     required String username,
     required String password,
@@ -77,56 +79,40 @@ class AuthService {
       };
     }
 
-    // Hash password
+    // Hash password (Client side hash mainly for avoiding plain text in memory/transit if not using TLS, 
+    // but usually better to send plain over TLS and hash in backend.
+    // However, backend expects hashed password for now? 
+    // Wait, backend `login` implementation in api.rs checks `user.password_hash == password`.
+    // It expects whatever we send to match DB.
+    // In `register`, it stores `password_hash = password`.
+    // So if frontend hashes, backend stores hash.
+    // I'll keep client-side hashing to match existing logic.)
     final hashedPassword = hashPassword(password);
 
-    // TODO: Call Rust backend API for authentication
-    // For now, use mock database from SharedPreferences
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      final user = await RustApi.instance.login(username: username, password: hashedPassword);
+      
+      // Login successful
+      final userId = user.userId; // Now String
 
-    // Check if username exists in database
-    final userExists = await MockUserDatabase.userExists(username);
-    if (!userExists) {
+      // Save session
+      await SessionManager.saveSession(
+        userId: userId,
+        username: user.username,
+      );
+
       return {
+        'success': true,
+        'userId': userId,
+        'username': user.username,
+      };
+    } catch (e) {
+       // Extract helpful message if possible
+       return {
         'success': false,
-        'error': 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง',
+        'error': e.toString().replaceAll('Exception: ', ''),
       };
     }
-
-    // Check if password matches
-    final isValid = await MockUserDatabase.verifyCredentials(username, hashedPassword);
-    if (!isValid) {
-      return {
-        'success': false,
-        'error': 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง',
-      };
-    }
-
-    // Login successful - Mock user data
-    final userId = DateTime.now().millisecondsSinceEpoch.toString();
-
-    // Save session
-    await SessionManager.saveSession(
-      userId: userId,
-      username: username,
-    );
-
-    return {
-      'success': true,
-      'userId': userId,
-      'username': username,
-    };
-  }
-
-  /// Check if username is already taken in database
-  /// Returns true if username is available, false if already taken
-  static Future<bool> checkUsernameAvailability(String username) async {
-    // TODO: Call Rust backend API to check username availability
-    // For now, check against mock database
-    await Future.delayed(const Duration(milliseconds: 300));
-    
-    final exists = await MockUserDatabase.userExists(username);
-    return !exists; // Return true if username is available (doesn't exist)
   }
 
   // Register function
@@ -143,14 +129,8 @@ class AuthService {
       };
     }
 
-    // Check if username is already taken
-    final isAvailable = await checkUsernameAvailability(username);
-    if (!isAvailable) {
-      return {
-        'success': false,
-        'error': 'ชื่อนี้ถูกใช้งานแล้ว',
-      };
-    }
+    // Note: Rust `register` method will check availability/uniqueness constraints via DB UNIQUE constraint.
+    // So we don't need separate checkUsernameAvailability call anymore, we can just catch the error.
 
     // Validate password
     final passwordError = validatePassword(password);
@@ -164,33 +144,28 @@ class AuthService {
     // Hash password
     final hashedPassword = hashPassword(password);
 
-    // TODO: Call Rust backend API for registration
-    // For now, save to mock database
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      final user = await RustApi.instance.register(username: username, password: hashedPassword);
+      
+      final userId = user.userId; // Now String
 
-    // Save user to database
-    final success = await MockUserDatabase.addUser(username, hashedPassword);
-    if (!success) {
+      // Save session
+      await SessionManager.saveSession(
+        userId: userId,
+        username: user.username,
+      );
+
+      return {
+        'success': true,
+        'userId': userId,
+        'username': user.username,
+      };
+    } catch (e) {
       return {
         'success': false,
-        'error': 'เกิดข้อผิดพลาดในการสมัครบัญชี',
+        'error': e.toString().replaceAll('Exception: ', ''),
       };
     }
-
-    // Mock user data
-    final userId = DateTime.now().millisecondsSinceEpoch.toString();
-
-    // Save session
-    await SessionManager.saveSession(
-      userId: userId,
-      username: username,
-    );
-
-    return {
-      'success': true,
-      'userId': userId,
-      'username': username,
-    };
   }
 
   // Logout function

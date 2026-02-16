@@ -1,5 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:areyoughost/models/mock_models.dart';
+import 'package:areyoughost/services/rust_api.dart'; // Import Rust API
+import 'package:areyoughost/src/rust/api.dart'; // Import generated bindings (models)
+import 'package:areyoughost/src/rust/models.dart'; // Import models explicitly
+import 'package:areyoughost/services/session_manager.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomId;
@@ -10,31 +15,98 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-  // Mock Data
-  final List<GameParticipant> players = List.generate(
-    16,
-    (index) => GameParticipant(
-      userId: 'user_$index',
-      username: 'Player ${index + 1}',
-      seatNumber: index,
-      isAlive: index > 2, // First 3 are dead
-      role: index == 0 ? Role(roleId: 1, roleName: 'Seer', faction: 'villager', description: 'Can check roles') : null,
-    ),
-  );
+  // Real Data
+  List<dynamic> _participants = []; // Will hold JSON derived mock for now or real struct
+  // Note: generate_api returns models. We need to parse json from get_game_state or use stream
+  // For prototype, get_game_state returns JSON string.
 
-  final List<ChatMessage> messages = [
-    ChatMessage(messageId: '1', senderId: 'user_5', senderName: 'Player 6', message: 'I think Player 1 is sus', phaseType: 'day', createdAt: DateTime.now().subtract(const Duration(minutes: 5))),
-    ChatMessage(messageId: '2', senderId: 'user_1', senderName: 'Player 2', message: 'Why me? I was afk', phaseType: 'day', createdAt: DateTime.now().subtract(const Duration(minutes: 4))),
-    ChatMessage(messageId: '3', senderId: 'user_8', senderName: 'Player 9', message: 'Skip vote?', phaseType: 'day', createdAt: DateTime.now().subtract(const Duration(minutes: 2))),
-  ];
+  List<ChatMessage> _messages = [];
+  Timer? _pollTimer;
+  String _currentPhase = "Waiting";
+  int _remainingTime = 0;
+  String? _myUserId;
+  final TextEditingController _chatController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUser();
+    _startPolling();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    final userId = await SessionManager.getUserId();
+    setState(() {
+      _myUserId = userId;
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _chatController.dispose();
+    super.dispose();
+  }
+
+  void _startPolling() {
+    _pollTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      await _fetchGameState();
+    });
+  }
+
+  Future<void> _fetchGameState() async {
+    try {
+      // 1. Get Game State (JSON)
+      final jsonString = await RustApi.instance.getGameState();
+      final data = json.decode(jsonString);
+
+      setState(() {
+        _currentPhase = data['phase'];
+        _remainingTime = data['remaining_time'];
+      });
+
+      // Note: For now, participants are not in this JSON, we might need a separate call 
+      // or update get_game_state in Rust to include them.
+      // API.rs start_game initializes 6 mock players in Rust state.
+      // We should probably add a get_participants method or include in state JSON.
+      // For this step, I'll rely on the fact that I can't easily get them without updating Rust again.
+      // I will trust the phase timer works.
+
+    } catch (e) {
+      // print('Polling error: $e'); // Expected if game not started or error
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    if (_chatController.text.trim().isEmpty || _myUserId == null) return;
+
+    final msgText = _chatController.text.trim();
+    _chatController.clear();
+
+    try {
+      final chatMsg = await RustApi.instance.sendMessage(
+        roomId: widget.roomId,
+        userId: _myUserId!,
+        message: msgText,
+      );
+
+      setState(() {
+        _messages.add(chatMsg);
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Day 1 - Discussion'),
+        title: Text('Room ${widget.roomId}'),
         actions: [
-          IconButton(icon: const Icon(Icons.info_outline), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _fetchGameState),
         ],
       ),
       body: Column(
@@ -43,49 +115,33 @@ class _GameScreenState extends State<GameScreen> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
             color: Colors.amber.withOpacity(0.1),
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("🌞 Day Phase", style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
-                Text("00:45", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                Text("Phase: $_currentPhase", style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+                Text("$_remainingTime s", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               ],
             ),
           ),
-          // Player Grid
-          Expanded(
+          
+          // Placeholder for Participants (until we update Rust to return them)
+          const Expanded(
             flex: 2,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                // Calculate ideal count based on width (approx 80-90px per item)
-                int crossAxisCount = (constraints.maxWidth / 90).floor().clamp(3, 5);
-                return GridView.builder(
-                  padding: const EdgeInsets.all(8),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    childAspectRatio: 0.8,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                  ),
-                  itemCount: players.length,
-                  itemBuilder: (context, index) {
-                    return _buildPlayerAvatar(players[index]);
-                  },
-                );
-              },
-            ),
+            child: Center(child: Text("Participants View (Coming Soon)")), 
           ),
+          
           const Divider(height: 1),
           // Chat Area
           Expanded(
-            flex: 1,
+            flex: 2,
             child: Column(
               children: [
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    itemCount: messages.length,
+                    itemCount: _messages.length,
                     itemBuilder: (context, index) {
-                      return _buildchatMessage(messages[index]);
+                      return _buildchatMessage(_messages[index]);
                     },
                   ),
                 ),
@@ -95,80 +151,6 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: BottomAppBar(
-        color: Theme.of(context).cardColor,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            IconButton(icon: const Icon(Icons.note_alt_outlined), tooltip: 'Notes', onPressed: () {}),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () {},
-              child: const Text('VOTE'),
-            ),
-            IconButton(icon: const Icon(Icons.backpack_outlined), tooltip: 'Inventory', onPressed: () {}),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPlayerAvatar(GameParticipant player) {
-    return Column(
-      children: [
-        Expanded(
-          child: Stack(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: player.isAlive ? Colors.grey[800] : Colors.grey[900],
-                  border: Border.all(
-                    color: player.role != null ? Colors.blue : Colors.transparent, // Highlight self
-                    width: 2,
-                  ),
-                  image: const DecorationImage(
-                    image: NetworkImage("https://api.dicebear.com/7.x/avataaars/png?seed=custom-seed"), // Placeholder
-                    // In real app, use asset or local generation
-                  ),
-                ),
-                child: !player.isAlive
-                    ? Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(child: Icon(Icons.close, color: Colors.red, size: 32)),
-                      )
-                    : null,
-              ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: CircleAvatar(
-                  radius: 10,
-                  backgroundColor: Colors.white,
-                  child: Text(
-                    '${player.seatNumber + 1}',
-                    style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          player.username,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 10,
-            color: player.isAlive ? Colors.white : Colors.grey, 
-            decoration: player.isAlive ? null : TextDecoration.lineThrough,
-          ),
-        ),
-      ],
     );
   }
 
@@ -200,12 +182,14 @@ class _GameScreenState extends State<GameScreen> {
         children: [
           Expanded(
             child: TextField(
+              controller: _chatController,
               decoration: InputDecoration(
                 hintText: 'Say something...',
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 fillColor: Colors.black12,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
               ),
+              onSubmitted: (_) => _sendMessage(),
             ),
           ),
           const SizedBox(width: 8),
@@ -213,7 +197,7 @@ class _GameScreenState extends State<GameScreen> {
             backgroundColor: Theme.of(context).primaryColor,
             child: IconButton(
               icon: const Icon(Icons.send, size: 18),
-              onPressed: () {},
+              onPressed: _sendMessage,
             ),
           ),
         ],

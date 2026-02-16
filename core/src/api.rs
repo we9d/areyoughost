@@ -423,3 +423,111 @@ impl Api {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Helper to get test database URL
+    fn get_test_db_url() -> String {
+        std::env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://postgres:password@localhost/areyoughost".to_string())
+    }
+
+    #[test]
+    fn test_register_success() {
+        let api = Api::new(get_test_db_url());
+
+        let username = format!("test{}", chrono::Utc::now().timestamp() % 100000);
+        let password = "test_password_123";
+
+        let user = api
+            .register(username.clone(), password.to_string())
+            .expect("Registration should succeed");
+
+        assert_eq!(user.username, username);
+        assert!(!user.user_id.is_empty());
+        println!("✅ Registration successful: {}", user.username);
+    }
+
+    #[test]
+    fn test_register_duplicate_username() {
+        let api = Api::new(get_test_db_url());
+
+        let username = format!("dup{}", chrono::Utc::now().timestamp() % 100000);
+        let password = "password123";
+
+        api.register(username.clone(), password.to_string())
+            .expect("First registration should succeed");
+
+        let result = api.register(username.clone(), password.to_string());
+        assert!(result.is_err());
+        println!("✅ Duplicate username correctly rejected");
+    }
+
+    #[test]
+    fn test_login_success() {
+        let api = Api::new(get_test_db_url());
+
+        let username = format!("login{}", chrono::Utc::now().timestamp() % 100000);
+        let password = "secure_password_456";
+
+        api.register(username.clone(), password.to_string())
+            .expect("Registration should succeed");
+
+        let logged_in_user = api
+            .login(username.clone(), password.to_string())
+            .expect("Login should succeed");
+
+        assert_eq!(logged_in_user.username, username);
+        println!("✅ Login successful: {}", username);
+    }
+
+    #[test]
+    fn test_login_wrong_password() {
+        let api = Api::new(get_test_db_url());
+
+        let username = format!("wrong{}", chrono::Utc::now().timestamp() % 100000);
+        let password = "correct_password";
+
+        api.register(username.clone(), password.to_string())
+            .expect("Registration should succeed");
+
+        let result = api.login(username.clone(), "wrong_password".to_string());
+        assert!(result.is_err());
+        println!("✅ Wrong password correctly rejected");
+    }
+
+    #[test]
+    fn test_login_nonexistent_user() {
+        let api = Api::new(get_test_db_url());
+
+        let username = format!("none{}", chrono::Utc::now().timestamp() % 100000);
+        let password = "any_password";
+
+        let result = api.login(username.clone(), password.to_string());
+        assert!(result.is_err());
+        println!("✅ Non-existent user correctly rejected");
+    }
+
+    #[test]
+    fn test_thai_username_support() {
+        let api = Api::new(get_test_db_url());
+
+        let username = format!("ไทย{}", chrono::Utc::now().timestamp() % 10000);
+        let password = "รหัสผ่าน123";
+
+        let user = api
+            .register(username.clone(), password.to_string())
+            .expect("Thai characters should be supported");
+
+        assert_eq!(user.username, username);
+
+        let logged_in = api
+            .login(username.clone(), password.to_string())
+            .expect("Thai login should work");
+
+        assert_eq!(logged_in.username, username);
+        println!("✅ Thai characters supported: {}", user.username);
+    }
+}

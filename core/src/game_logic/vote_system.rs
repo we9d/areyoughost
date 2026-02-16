@@ -1,4 +1,3 @@
-use crate::models::Vote;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]

@@ -77,8 +77,7 @@ class ChatBox extends StatelessWidget {
                                   ),
                                   children: [
                                     TextSpan(
-                                      text:
-                                          '${msg.senderId} ${msg.senderName}: ',
+                                      text: '${msg.senderId} Player : ',
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                       ),

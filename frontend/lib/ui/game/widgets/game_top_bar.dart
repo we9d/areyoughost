@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class GameTopBar extends StatelessWidget {
   final String title;
@@ -23,15 +24,15 @@ class GameTopBar extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              /// ❌ ออกจากเกม
+              /// 🚪 ออกจากเกม
               GestureDetector(
                 onTap: onExitTap,
                 behavior: HitTestBehavior.opaque,
-                child: const SizedBox(
+                child: SizedBox(
                   width: 32,
                   child: Icon(
-                    Icons.close,
-                    size: 22,
+                    PhosphorIcons.signOut(),
+                    size: 32.0,
                     color: Colors.white,
                   ),
                 ),
@@ -55,11 +56,11 @@ class GameTopBar extends StatelessWidget {
               GestureDetector(
                 onTap: onPlayerTap,
                 behavior: HitTestBehavior.opaque,
-                child: const SizedBox(
+                child: SizedBox(
                   width: 32,
                   child: Icon(
-                    Icons.person_outline,
-                    size: 22,
+                    PhosphorIcons.usersThree(),
+                    size: 32.0,
                     color: Colors.white,
                   ),
                 ),

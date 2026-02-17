@@ -16,13 +16,13 @@ class PlayerGrid extends StatelessWidget {
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
+        itemCount: players.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 4,
           mainAxisSpacing: 8,
           crossAxisSpacing: 8,
-          childAspectRatio: 0.68, // สัดส่วนใกล้ Figma และไม่ overflow
+          childAspectRatio: 0.68, // ใกล้ Figma
         ),
-        itemCount: players.length,
         itemBuilder: (context, index) {
           final p = players[index];
 
@@ -35,15 +35,14 @@ class PlayerGrid extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                /// 🔹 เลข + ชื่อ (ชิดบน / แถวเดียว / สีดำทั้งหมด)
+                /// 🔹 เลข + ชื่อผู้เล่น
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
                       p.number.toString(),
                       style: const TextStyle(
                         fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.bold,
                         color: Colors.black,
                         height: 1.2,
                       ),
@@ -56,7 +55,7 @@ class PlayerGrid extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 11,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.bold,
                           color: Colors.black,
                           height: 1.2,
                         ),
@@ -65,21 +64,23 @@ class PlayerGrid extends StatelessWidget {
                   ],
                 ),
 
-                const Spacer(),
+                const Spacer(flex: 2),
 
-                /// 🔹 Avatar (วงกลมดำ ขนาด fix ตาม Figma)
-                Center(
-                  child: Container(
+                /// 🔹 รูป defaultPlayer (เล็ก / กลาง / พอดี Figma)
+                const Center(
+                  child: SizedBox(
                     width: 36,
                     height: 36,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black,
+                    child: Image(
+                      image: AssetImage(
+                        'assets/images/defaultPlayer.png',
+                      ),
+                      fit: BoxFit.contain,
                     ),
                   ),
                 ),
 
-                const Spacer(),
+                const Spacer(flex: 2),
               ],
             ),
           );

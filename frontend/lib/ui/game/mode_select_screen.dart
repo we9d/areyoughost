@@ -1,179 +1,139 @@
-import 'package:flutter/material.dart';
-// removed unused game_screen import; use relative import for random_role_screen
+import 'package:flutter/material.dart' as m;
+import 'shadow_button.dart';
 import 'random_role_screen.dart';
 
-class ModeSelectScreen extends StatelessWidget {
+class ModeSelectScreen extends m.StatelessWidget {
   const ModeSelectScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
+  m.Widget build(m.BuildContext context) {
+    return m.Scaffold(
+      body: m.Stack(
         children: [
-          // =========================
-          // Background Image
-          // =========================
-          Positioned.fill(
-            child: Image.asset(
+          // ===== BG =====
+          m.Positioned.fill(
+            child: m.Image.asset(
               'assets/images/ModeSelectBg.jpg',
-              fit: BoxFit.cover,
+              fit: m.BoxFit.cover,
             ),
           ),
 
-          // =========================
-          // Dark Overlay
-          // =========================
-          Positioned.fill(
-            child: Container(
-              color: Colors.black.withOpacity(0.55),
+          // ===== DARK OVERLAY =====
+          m.Positioned.fill(
+            child: m.Container(
+              color: m.Colors.black.withOpacity(0.55),
             ),
           ),
 
-          // =========================
-          // Main Content
-          // =========================
-          SafeArea(
-            child: Column(
+          m.SafeArea(
+            child: m.Column(
               children: [
-                // =========================
-                // Top Bar (Back Button)
-                // =========================
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new,
-                      color: Colors.white,
+                // ===== BACK =====
+                m.Align(
+                  alignment: m.Alignment.centerLeft,
+                  child: m.IconButton(
+                    icon: const m.Icon(
+                      m.Icons.arrow_back_ios_new,
+                      color: m.Colors.white,
                     ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
+                    onPressed: () => m.Navigator.pop(context),
                   ),
                 ),
 
-                const Spacer(),
+                const m.Spacer(),
 
-                // =========================
-                // Title
-                // =========================
-                const Text(
+                // ===== TITLE =====
+                const m.Text(
                   'เลือกโหมด',
-                  style: TextStyle(
+                  style: m.TextStyle(
                     fontSize: 32,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    fontWeight: m.FontWeight.w700,
+                    color: m.Colors.white,
                     shadows: [
-                      Shadow(
+                      m.Shadow(
                         blurRadius: 6,
-                        color: Colors.black87,
+                        color: m.Colors.black87,
+                        offset: m.Offset(0, 2),
                       ),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 32),
+                const m.SizedBox(height: 36),
 
-                // =========================
-                // Play Now Button
-                // =========================
-                _PrimaryButton(
-                  text: 'เล่นทันที',
-                  color: const Color(0xFF4E6E8E),
+                // ===== PLAY NOW =====
+                ShadowButton(
+                  width: 240,
+                  height: 62,
+                  color: const m.Color(0xFF3A5A7A), // ✅ น้ำเงิน
+                  gradient: m.LinearGradient(
+                    begin: m.Alignment.topCenter,
+                    end: m.Alignment.bottomCenter,
+                    colors: [
+                      m.Colors.white.withOpacity(0.25),
+                      m.Colors.transparent,
+                      m.Colors.black.withOpacity(0.65),
+                    ],
+                  ),
                   onPressed: () {
-                    Navigator.push(
+                    m.Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const RandomRoleScreen(roomId: 'mode_select'),
+                      m.MaterialPageRoute(
+                        builder: (_) =>
+                            const RandomRoleScreen(roomId: 'mode_select'),
                       ),
                     );
                   },
+                  child: const m.Text(
+                    'เล่นทันที',
+                    style: m.TextStyle(
+                      fontSize: 22,
+                      fontWeight: m.FontWeight.w800,
+                      color: m.Colors.white,
+                      letterSpacing: 0.3,
+                      shadows: [
+                        m.Shadow(
+                          blurRadius: 4,
+                          color: m.Colors.black87,
+                          offset: m.Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
 
-                const SizedBox(height: 16),
+                const m.SizedBox(height: 18),
 
-                // =========================
-                // Play With Friends (Disabled)
-                // =========================
-                _PrimaryButton(
-                  text: 'เล่นกับเพื่อน',
-                  color: const Color(0xFF7B2D2D),
+                // ===== PLAY WITH FRIENDS (DISABLED) =====
+                ShadowButton(
+                  width: 240,
+                  height: 62,
+                  color: const m.Color(0xFF6A1F2B), // ✅ แดง
+                  gradient: m.LinearGradient(
+                    begin: m.Alignment.topCenter,
+                    end: m.Alignment.bottomCenter,
+                    colors: [
+                      m.Colors.white.withOpacity(0.12),
+                      m.Colors.transparent,
+                      m.Colors.black.withOpacity(0.55),
+                    ],
+                  ),
                   onPressed: null,
+                  child: const m.Text(
+                    'เล่นกับเพื่อน',
+                    style: m.TextStyle(
+                      fontSize: 22,
+                      fontWeight: m.FontWeight.w800,
+                      color: m.Colors.white54,
+                    ),
+                  ),
                 ),
-                // NOTE:
-                // ปุ่มนี้ intentionally disabled
-                // สำหรับ future feature: invite / create room
 
-                const Spacer(flex: 2),
+                const m.Spacer(flex: 2),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// =========================
-// Primary Button Widget
-// =========================
-class _PrimaryButton extends StatelessWidget {
-  final String text;
-  final Color color;
-  final VoidCallback? onPressed;
-
-  const _PrimaryButton({
-    required this.text,
-    required this.color,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isDisabled = onPressed == null;
-
-    return SizedBox(
-      width: 220,
-      height: 60,
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDisabled ? color.withOpacity(0.5) : color,
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: isDisabled ? null : [
-            // Inner shadow effect
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 8,
-              spreadRadius: -2,
-              offset: const Offset(0, 4),
-            ),
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 4,
-              spreadRadius: -1,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: ElevatedButton(
-          onPressed: onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            disabledBackgroundColor: Colors.transparent,
-            elevation: 0,
-            shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
-          ),
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: isDisabled ? Colors.white54 : Colors.white,
-            ),
-          ),
-        ),
       ),
     );
   }

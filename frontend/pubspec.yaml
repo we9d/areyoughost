@@ -78,6 +78,8 @@ flutter:
     - assets/images/ModeSelectBg.jpg
     - assets/images/RandomRoleBg.jpg
     - assets/images/NightTimeBg.jpg
+    - assets/images/defaultPlayer.png
+    - assets/icons/skill-icon.svg
 
 
 

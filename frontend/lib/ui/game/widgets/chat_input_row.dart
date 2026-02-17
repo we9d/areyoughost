@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class ChatInputRow extends StatefulWidget {
   final VoidCallback onRoleInfoTap;
@@ -42,27 +44,46 @@ class _ChatInputRowState extends State<ChatInputRow> {
           children: [
             /// 🔹 บทบาท
             IconButton(
-              icon: const Icon(Icons.masks),
-              color: Colors.white,
+              icon: Icon(
+                PhosphorIcons.maskHappy(),
+                size: 32.0,
+                color: Colors.white,
+              ),
               splashRadius: 20,
               onPressed: widget.onRoleInfoTap,
             ),
 
             /// 🔹 แชท (icon กลาง)
             IconButton(
-              icon: const Icon(Icons.chat_bubble_outline),
-              color: Colors.white,
+              icon: Icon(
+                PhosphorIcons.wechatLogo(),
+                size: 32.0,
+                color: Colors.white,
+              ),
               splashRadius: 20,
               onPressed: () {},
             ),
 
             /// 🔹 สกิล
-            IconButton(
-              icon: const Icon(Icons.flash_on),
-              color: Colors.white,
-              splashRadius: 20,
-              onPressed: widget.onSkillTap,
+            GestureDetector(
+              onTap: widget.onSkillTap,
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: Center(
+                  child: SvgPicture.asset(
+                    'assets/icons/skill-icon.svg',
+                    width: 24,
+                    height: 24,
+                    colorFilter: const ColorFilter.mode(
+                      Colors.white,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                ),
+              ),
             ),
+
 
             const SizedBox(width: 6),
 

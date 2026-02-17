@@ -12,53 +12,57 @@ class PlayerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 87,
-      height: 110,
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Player number
-          Align(
-            alignment: Alignment.topLeft,
-            child: Text(
-              '$number',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
+          /// 🔹 เลข + ชื่อ (ดำ / ตัวหนา / ไม่มีเงา)
+          Row(
+            children: [
+              Text(
+                number.toString(),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                  height: 1.2,
+                ),
               ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const Spacer(),
+
+          /// 🔹 Avatar (defaultPlayer.png)
+          Center(
+            child: Image.asset(
+              'assets/images/defaultPlayer.png',
+              width: 46,
+              height: 46,
+              fit: BoxFit.contain,
             ),
           ),
 
-          const SizedBox(height: 4),
-
-          // Avatar
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.grey.shade300,
-            ),
-            child: const Icon(
-              Icons.person,
-              size: 36,
-              color: Colors.black54,
-            ),
-          ),
-
-          const SizedBox(height: 6),
-
-          // Player name
-          Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.black,
-            ),
-          ),
+          const Spacer(),
         ],
       ),
     );

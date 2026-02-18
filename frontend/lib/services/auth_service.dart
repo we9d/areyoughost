@@ -1,10 +1,14 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:areyoughost/services/session_manager.dart';
 import 'package:areyoughost/services/rust_api.dart';
-// import 'package:areyoughost/services/mock_user_database.dart'; // Removed
+import 'package:areyoughost/src/rust/models.dart';
 
 class AuthService {
+  // Global auth state
+  static final ValueNotifier<User?> currentUser = ValueNotifier<User?>(null);
+
   // Username validation: Allow any characters
   static String? validateUsername(String? username) {
     if (username == null || username.trim().isEmpty) {
@@ -56,6 +60,25 @@ class AuthService {
     return digest.toString();
   }
 
+  // Check login status on app start
+  static Future<void> checkLoginStatus() async {
+    final session = await SessionManager.getSession();
+    if (session != null) {
+      // Restore user state from session
+      // Note: We create a partial User object here since we don't store full info in session
+      // Ideally, we might want to fetch full profile from API if possible, but this is enough for UI display
+      currentUser.value = User(
+        userId: session['userId']!,
+        username: session['username']!,
+        passwordHash: '', // Not needed for display
+        createdAt: '', // Not needed for display
+        lastLogin: null,
+      );
+    } else {
+      currentUser.value = null;
+    }
+  }
+
   // Login function
   static Future<Map<String, dynamic>> login({
     required String username,
@@ -64,51 +87,35 @@ class AuthService {
     // Validate username
     final usernameError = validateUsername(username);
     if (usernameError != null) {
-      return {
-        'success': false,
-        'error': usernameError,
-      };
+      return {'success': false, 'error': usernameError};
     }
 
     // Validate password
     final passwordError = validatePassword(password);
     if (passwordError != null) {
-      return {
-        'success': false,
-        'error': passwordError,
-      };
+      return {'success': false, 'error': passwordError};
     }
 
-    // Hash password (Client side hash mainly for avoiding plain text in memory/transit if not using TLS, 
-    // but usually better to send plain over TLS and hash in backend.
-    // However, backend expects hashed password for now? 
-    // Wait, backend `login` implementation in api.rs checks `user.password_hash == password`.
-    // It expects whatever we send to match DB.
-    // In `register`, it stores `password_hash = password`.
-    // So if frontend hashes, backend stores hash.
-    // I'll keep client-side hashing to match existing logic.)
     final hashedPassword = hashPassword(password);
 
     try {
-      final user = await RustApi.instance.login(username: username, password: hashedPassword);
-      
-      // Login successful
-      final userId = user.userId; // Now String
-
-      // Save session
-      await SessionManager.saveSession(
-        userId: userId,
-        username: user.username,
+      final user = await RustApi.instance.login(
+        username: username,
+        password: hashedPassword,
       );
 
-      return {
-        'success': true,
-        'userId': userId,
-        'username': user.username,
-      };
+      // Login successful
+      final userId = user.userId;
+
+      // Save session
+      await SessionManager.saveSession(userId: userId, username: user.username);
+
+      // Update state
+      currentUser.value = user;
+
+      return {'success': true, 'userId': userId, 'username': user.username};
     } catch (e) {
-       // Extract helpful message if possible
-       return {
+      return {
         'success': false,
         'error': e.toString().replaceAll('Exception: ', ''),
       };
@@ -123,43 +130,33 @@ class AuthService {
     // Validate username
     final usernameError = validateUsername(username);
     if (usernameError != null) {
-      return {
-        'success': false,
-        'error': usernameError,
-      };
+      return {'success': false, 'error': usernameError};
     }
-
-    // Note: Rust `register` method will check availability/uniqueness constraints via DB UNIQUE constraint.
-    // So we don't need separate checkUsernameAvailability call anymore, we can just catch the error.
 
     // Validate password
     final passwordError = validatePassword(password);
     if (passwordError != null) {
-      return {
-        'success': false,
-        'error': passwordError,
-      };
+      return {'success': false, 'error': passwordError};
     }
 
     // Hash password
     final hashedPassword = hashPassword(password);
 
     try {
-      final user = await RustApi.instance.register(username: username, password: hashedPassword);
-      
-      final userId = user.userId; // Now String
-
-      // Save session
-      await SessionManager.saveSession(
-        userId: userId,
-        username: user.username,
+      final user = await RustApi.instance.register(
+        username: username,
+        password: hashedPassword,
       );
 
-      return {
-        'success': true,
-        'userId': userId,
-        'username': user.username,
-      };
+      final userId = user.userId;
+
+      // Save session
+      await SessionManager.saveSession(userId: userId, username: user.username);
+
+      // Update state
+      currentUser.value = user;
+
+      return {'success': true, 'userId': userId, 'username': user.username};
     } catch (e) {
       return {
         'success': false,
@@ -171,6 +168,50 @@ class AuthService {
   // Logout function
   static Future<void> logout() async {
     await SessionManager.clearSession();
+    currentUser.value = null;
+  }
+
+  // Update username function
+  static Future<Map<String, dynamic>> updateUsername(String newUsername) async {
+    final user = currentUser.value;
+    if (user == null) {
+      return {'success': false, 'error': 'ยังไม่ได้ทำการเข้าสู่ระบบ'};
+    }
+
+    // Validate new username
+    final usernameError = validateUsername(newUsername);
+    if (usernameError != null) {
+      return {'success': false, 'error': usernameError};
+    }
+
+    try {
+      await RustApi.instance.updateUsername(
+        userId: user.userId,
+        newUsername: newUsername,
+      );
+
+      // Update session and state
+      await SessionManager.saveSession(
+        userId: user.userId,
+        username: newUsername,
+      );
+
+      // Create new user object with updated username
+      currentUser.value = User(
+        userId: user.userId,
+        username: newUsername,
+        passwordHash: user.passwordHash,
+        createdAt: user.createdAt,
+        lastLogin: user.lastLogin,
+      );
+
+      return {'success': true};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': e.toString().replaceAll('Exception: ', ''),
+      };
+    }
   }
 
   // Check if user is logged in

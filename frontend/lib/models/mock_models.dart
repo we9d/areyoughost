@@ -45,6 +45,16 @@ class Role {
   });
 }
 
+class PlayerModel {
+  final int number;
+  final String name;
+
+  PlayerModel({
+    required this.number,
+    required this.name,
+  });
+}
+
 class GameParticipant {
   final String userId;
   final String username;

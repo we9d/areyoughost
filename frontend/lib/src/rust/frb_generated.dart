@@ -65,7 +65,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1533082243;
+  int get rustContentHash => 1105343733;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -136,6 +136,12 @@ abstract class RustLibApi extends BaseApi {
   Future<String> crateApiApiTestConnection({required Api that});
 
   Future<String> crateApiApiTestDb({required Api that});
+
+  Future<void> crateApiApiUpdateUsername({
+    required Api that,
+    required String userId,
+    required String newUsername,
+  });
 
   RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_Api;
 
@@ -652,6 +658,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiApiTestDbConstMeta =>
       const TaskConstMeta(debugName: "Api_test_db", argNames: ["that"]);
 
+  @override
+  Future<void> crateApiApiUpdateUsername({
+    required Api that,
+    required String userId,
+    required String newUsername,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          sse_encode_String(newUsername, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiUpdateUsernameConstMeta,
+        argValues: [that, userId, newUsername],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiApiUpdateUsernameConstMeta => const TaskConstMeta(
+    debugName: "Api_update_username",
+    argNames: ["that", "userId", "newUsername"],
+  );
+
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_Api => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi;
@@ -1131,7 +1176,6 @@ class ApiImpl extends RustOpaque implements Api {
     targetId: targetId,
   );
 
-  /// Host: Start a TCP server on port 27015
   Future<String> createRoom({
     required String roomName,
     required int maxPlayers,
@@ -1150,7 +1194,6 @@ class ApiImpl extends RustOpaque implements Api {
   Future<List<String>> getLocalIps() =>
       RustLib.instance.api.crateApiApiGetLocalIps(that: this);
 
-  /// Peer: Connect to a host IP on port 27015
   Future<String> joinRoom({required String hostIp}) =>
       RustLib.instance.api.crateApiApiJoinRoom(that: this, hostIp: hostIp);
 
@@ -1201,4 +1244,14 @@ class ApiImpl extends RustOpaque implements Api {
 
   /// Test database connection
   Future<String> testDb() => RustLib.instance.api.crateApiApiTestDb(that: this);
+
+  /// Update username
+  Future<void> updateUsername({
+    required String userId,
+    required String newUsername,
+  }) => RustLib.instance.api.crateApiApiUpdateUsername(
+    that: this,
+    userId: userId,
+    newUsername: newUsername,
+  );
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:areyoughost/models/mock_models.dart';
 import 'package:areyoughost/ui/game/game_screen.dart';
+import 'package:areyoughost/ui/game/random_role_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
@@ -52,7 +53,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
             // Navigate to creating a room (mock)
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const GameScreen(roomId: 'new_room')));
+            Navigator.push(context, MaterialPageRoute(builder: (context) => RandomRoleScreen(roomId: 'new_room')));
         },
         label: const Text('Create Room'),
         icon: const Icon(Icons.add),
@@ -77,7 +78,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           const SizedBox(height: 12),
           ElevatedButton(
             onPressed: () {
-               Navigator.push(context, MaterialPageRoute(builder: (context) => const GameScreen(roomId: 'quick_play')));
+               Navigator.push(context, MaterialPageRoute(builder: (context) => RandomRoleScreen(roomId: 'quick_play')));
             },
             child: const Text('QUICK PLAY'),
           ),
@@ -95,7 +96,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       child: InkWell(
         onTap: () {
           if (!isFull) {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => GameScreen(roomId: room.roomId)));
+            Navigator.push(context, MaterialPageRoute(builder: (context) => RandomRoleScreen(roomId: room.roomId)));
           }
         },
         borderRadius: BorderRadius.circular(12),

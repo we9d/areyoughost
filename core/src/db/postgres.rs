@@ -84,6 +84,18 @@ impl PostgresDb {
         Ok(())
     }
 
+    /// Update username
+    pub async fn update_username(&self, user_id: &str, new_username: &str) -> DbResult<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+        sqlx::query("UPDATE players SET username = $1, updated_at = $2 WHERE player_id = $3")
+            .bind(new_username)
+            .bind(&now)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     /// Create a new game
     pub async fn create_game(&self, room_id: &str) -> DbResult<String> {
         let game_id = Uuid::new_v4().to_string();

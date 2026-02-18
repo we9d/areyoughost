@@ -38,3 +38,23 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
+
+# --- ADDED BY ANTIGRAVITY ---
+# Copy the Rust DLL to the build directory
+set(RUST_LIB_NAME "areyoughost_core.dll")
+# Assuming CMake is run from frontend/windows
+# Core is part of a workspace, so artifacts are in root/target, not core/target
+# CMAKE_SOURCE_DIR = frontend/windows, so ../../target = areyoughost/target
+set(RUST_BUILD_DIR "${CMAKE_SOURCE_DIR}/../../target")
+
+# Use generator expression to handle Multi-Config generators (VS)
+# Rust uses lowercase 'debug'/'release', VS uses 'Debug'/'Release'
+set(RUST_LIB_SOURCE "${RUST_BUILD_DIR}/$<LOWER_CASE:$<CONFIG>>/${RUST_LIB_NAME}")
+
+add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${RUST_LIB_SOURCE}"
+    "$<TARGET_FILE_DIR:${BINARY_NAME}>/${RUST_LIB_NAME}"
+    COMMENT "Copying ${RUST_LIB_NAME} to output directory"
+)
+# ----------------------------

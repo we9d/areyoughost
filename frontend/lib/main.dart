@@ -1,5 +1,5 @@
 /// Are You Ghost? - A desktop-first multiplayer social deduction game
-/// 
+///
 /// This is the main entry point for the Flutter frontend application.
 /// The app uses a mobile-like display (390x844) centered on desktop screens.
 import 'package:flutter/material.dart';
@@ -18,6 +18,9 @@ Future<void> main() async {
   // Initialize Rust API (Database, etc.)
   // This also initializes RustLib internally
   await RustApi.init();
+
+  // Check login status
+  await AuthService.checkLoginStatus();
 
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
@@ -53,7 +56,6 @@ class AreYouGhostApp extends StatelessWidget {
         return MobileWrapper(child: child!);
       },
       home: const HomeScreen(),
-
     );
   }
 }

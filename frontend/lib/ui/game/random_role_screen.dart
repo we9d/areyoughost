@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'role_result_card.dart';
 import 'package:areyoughost/ui/game/game_screen.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class RandomRoleScreen extends StatefulWidget {
   final String? roomId;
@@ -34,7 +35,6 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
 
   late final AnimationController _controller;
   late final ScrollController _scrollController;
-
   int _finalIndex = 0;
 
   @override
@@ -47,7 +47,6 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
       duration: const Duration(seconds: 4),
     )..addListener(_onAnimate);
 
-    // show result when animation completes (wait 2s before showing)
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         Future.delayed(const Duration(seconds: 2), () {
@@ -79,6 +78,11 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
     _scrollController.jumpTo(value);
   }
 
+  void _onPlayerTap() {
+    debugPrint('Players icon tapped');
+  }
+
+
   @override
   void dispose() {
     _controller.dispose();
@@ -86,10 +90,8 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
     super.dispose();
   }
 
-
   void _showRoleResult() {
     final role = roles[_finalIndex];
-    const placeholderImage = 'assets/images/Login-Register.jpg';
 
     showDialog<void>(
       context: context,
@@ -100,14 +102,17 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
         child: RoleResultCard(
           roleName: role,
           description: 'คุณได้รับบทบาท $role',
-          imagePath: placeholderImage,
+          imagePath: 'assets/images/Login-Register.jpg',
           showDuration: const Duration(seconds: 5),
           onComplete: () {
             if (!mounted) return;
             Navigator.of(context, rootNavigator: true).pop();
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
-                builder: (_) => GameScreen(roomId: widget.roomId ?? 'quick-room', role: role),
+                builder: (_) => GameScreen(
+                  roomId: widget.roomId ?? 'quick-room',
+                  role: role,
+                ),
               ),
             );
           },
@@ -115,12 +120,13 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
       ),
     );
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          // ================= Background =================
+          // ===== BG =====
           Positioned.fill(
             child: Image.asset(
               'assets/images/RandomRoleBg.jpg',
@@ -129,19 +135,41 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
             ),
           ),
 
-          // ================= Dark Overlay =================
+          // ===== DARK OVERLAY =====
           Positioned.fill(
             child: Container(
               color: Colors.black.withOpacity(0.35),
             ),
           ),
 
+          // ===== ICON =====
+          Positioned(
+            top: 24,
+            right: 6,
+            child: SafeArea(
+              child: GestureDetector(
+                onTap: _onPlayerTap,
+                behavior: HitTestBehavior.opaque,
+                child: SizedBox(
+                  width: 32,
+                  child: Icon(
+                    PhosphorIcons.usersThree(),
+                    size: 32.0,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+
+          // ===== CONTENT =====
           SafeArea(
             child: Column(
               children: [
                 const Spacer(),
 
-                // ================= Title =================
+                // ===== TITLE =====
                 const Text(
                   'สุ่มบทบาท',
                   style: TextStyle(
@@ -152,35 +180,33 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
                       Shadow(
                         blurRadius: 6,
                         color: Colors.black87,
-                      )
+                      ),
                     ],
                   ),
                 ),
 
                 const SizedBox(height: 20),
 
-                // ================= Slot Box =================
+                // ===== SLOT BOX =====
                 Center(
                   child: Container(
-                    width: 240,
+                    width: 260,
                     height: 48,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: Row(
                       children: [
-                        // ---------- Arrow Icon ----------
                         const Icon(
                           Icons.arrow_forward_ios,
                           size: 16,
                           color: Colors.black,
                         ),
+                        const SizedBox(width: 12),
 
-                        const SizedBox(width: 10),
-
-                        // ---------- Slot Text ----------
+                        // ===== TEXT =====
                         Expanded(
                           child: ClipRect(
                             child: ListView.builder(
@@ -192,10 +218,10 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
                                 final role = roles[i % roles.length];
                                 return SizedBox(
                                   height: 48,
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
+                                  child: Center(
                                     child: Text(
                                       role,
+                                      textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w600,
@@ -208,6 +234,7 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
                             ),
                           ),
                         ),
+                        const SizedBox(width: 28), 
                       ],
                     ),
                   ),

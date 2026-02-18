@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart' as m;
-import 'shadow_button.dart';
 import 'random_role_screen.dart';
+
+import 'package:areyoughost/ui/widgets/buttons/playnow_button.dart';
+import 'package:areyoughost/ui/widgets/buttons/playtogether_button.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ModeSelectScreen extends m.StatelessWidget {
   const ModeSelectScreen({super.key});
@@ -10,7 +13,7 @@ class ModeSelectScreen extends m.StatelessWidget {
     return m.Scaffold(
       body: m.Stack(
         children: [
-          // ===== BG =====
+          // BG
           m.Positioned.fill(
             child: m.Image.asset(
               'assets/images/ModeSelectBg.jpg',
@@ -18,31 +21,37 @@ class ModeSelectScreen extends m.StatelessWidget {
             ),
           ),
 
-          // ===== DARK OVERLAY =====
+          // DARK OVERLAY
           m.Positioned.fill(
             child: m.Container(
               color: m.Colors.black.withOpacity(0.55),
             ),
           ),
 
+          // ===== CONTENT =====
           m.SafeArea(
             child: m.Column(
               children: [
-                // ===== BACK =====
-                m.Align(
-                  alignment: m.Alignment.centerLeft,
-                  child: m.IconButton(
-                    icon: const m.Icon(
-                      m.Icons.arrow_back_ios_new,
-                      color: m.Colors.white,
+                // BACK (lowered)
+                m.Padding(
+                  padding: const m.EdgeInsets.only(top: 24, left: 6),
+                  child: m.Align(
+                    alignment: m.Alignment.centerLeft,
+                    child: m.IconButton(
+                      icon: m.Icon(
+                        PhosphorIcons.caretLeft(),
+                        size: 32,
+                        color: m.Colors.white,
+                      ),
+                      splashRadius: 20,
+                      onPressed: () => m.Navigator.pop(context),
                     ),
-                    onPressed: () => m.Navigator.pop(context),
                   ),
                 ),
 
                 const m.Spacer(),
 
-                // ===== TITLE =====
+                // TITLE
                 const m.Text(
                   'เลือกโหมด',
                   style: m.TextStyle(
@@ -61,20 +70,7 @@ class ModeSelectScreen extends m.StatelessWidget {
 
                 const m.SizedBox(height: 36),
 
-                // ===== PLAY NOW =====
-                ShadowButton(
-                  width: 240,
-                  height: 62,
-                  color: const m.Color(0xFF3A5A7A), // ✅ น้ำเงิน
-                  gradient: m.LinearGradient(
-                    begin: m.Alignment.topCenter,
-                    end: m.Alignment.bottomCenter,
-                    colors: [
-                      m.Colors.white.withOpacity(0.25),
-                      m.Colors.transparent,
-                      m.Colors.black.withOpacity(0.65),
-                    ],
-                  ),
+                PlaynowButton(
                   onPressed: () {
                     m.Navigator.push(
                       context,
@@ -84,50 +80,11 @@ class ModeSelectScreen extends m.StatelessWidget {
                       ),
                     );
                   },
-                  child: const m.Text(
-                    'เล่นทันที',
-                    style: m.TextStyle(
-                      fontSize: 22,
-                      fontWeight: m.FontWeight.w800,
-                      color: m.Colors.white,
-                      letterSpacing: 0.3,
-                      shadows: [
-                        m.Shadow(
-                          blurRadius: 4,
-                          color: m.Colors.black87,
-                          offset: m.Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
 
                 const m.SizedBox(height: 18),
 
-                // ===== PLAY WITH FRIENDS (DISABLED) =====
-                ShadowButton(
-                  width: 240,
-                  height: 62,
-                  color: const m.Color(0xFF6A1F2B), // ✅ แดง
-                  gradient: m.LinearGradient(
-                    begin: m.Alignment.topCenter,
-                    end: m.Alignment.bottomCenter,
-                    colors: [
-                      m.Colors.white.withOpacity(0.12),
-                      m.Colors.transparent,
-                      m.Colors.black.withOpacity(0.55),
-                    ],
-                  ),
-                  onPressed: null,
-                  child: const m.Text(
-                    'เล่นกับเพื่อน',
-                    style: m.TextStyle(
-                      fontSize: 22,
-                      fontWeight: m.FontWeight.w800,
-                      color: m.Colors.white54,
-                    ),
-                  ),
-                ),
+                PlaytogetherButton(onPressed: () {}),
 
                 const m.Spacer(flex: 2),
               ],

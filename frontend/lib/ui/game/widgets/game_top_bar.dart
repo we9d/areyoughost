@@ -18,49 +18,65 @@ class GameTopBar extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+        padding: const EdgeInsets.fromLTRB(
+          14,
+          24,
+          14,
+          6,
+        ),
         child: SizedBox(
-          height: 36, // ⬅️ ต่ำกว่าเดิม ดูโปรกว่า
+          height: 40,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              /// 🚪 ออกจากเกม
+              /// 🚪 EXIT
               GestureDetector(
                 onTap: onExitTap,
                 behavior: HitTestBehavior.opaque,
                 child: SizedBox(
-                  width: 32,
+                  width: 36,
+                  height: 36,
                   child: Icon(
                     PhosphorIcons.signOut(),
-                    size: 32.0,
+                    size: 25, // 👈 Size 25
                     color: Colors.white,
                   ),
                 ),
               ),
 
-              /// ⏱ เวลากลางคืน
+              /// ⏱ TITLE
               Expanded(
-                child: Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14, // ⬅️ Figma ใกล้ 14 มากกว่า
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.2,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4), 
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18, // 👈 Larger
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.2,
+                      shadows: [
+                        Shadow(
+                          blurRadius: 6,
+                          color: Colors.black87,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
 
-              /// 👥 รายชื่อผู้เล่น
+              /// 👥 PLAYERS
               GestureDetector(
                 onTap: onPlayerTap,
                 behavior: HitTestBehavior.opaque,
                 child: SizedBox(
-                  width: 32,
+                  width: 36,
+                  height: 36,
                   child: Icon(
                     PhosphorIcons.usersThree(),
-                    size: 32.0,
+                    size: 25, // 👈 Size 25
                     color: Colors.white,
                   ),
                 ),

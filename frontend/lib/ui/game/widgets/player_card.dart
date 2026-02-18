@@ -13,56 +13,42 @@ class PlayerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: const Color(0xFFD9D9D9),
+        borderRadius: BorderRadius.circular(14),
       ),
+      clipBehavior: Clip.hardEdge,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// 🔹 เลข + ชื่อ (ดำ / ตัวหนา / ไม่มีเงา)
-          Row(
-            children: [
-              Text(
-                number.toString(),
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                  height: 1.2,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                    height: 1.2,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          const SizedBox(height: 6),
 
-          const Spacer(),
-
-          /// 🔹 Avatar (defaultPlayer.png)
-          Center(
-            child: Image.asset(
-              'assets/images/defaultPlayer.png',
-              width: 46,
-              height: 46,
-              fit: BoxFit.contain,
+          /// 🔹 Text 
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Text(
+              '$number $name',
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                height: 1.2,
+                color: Colors.black,
+              ),
             ),
           ),
 
-          const Spacer(),
+          const SizedBox(height: 4),
+
+          /// รูปคนสีดำ default
+          Expanded(
+            child: Image.asset(
+              'assets/images/defaultPlayer.png',
+              fit: BoxFit.cover, 
+              alignment: Alignment.bottomCenter,
+            ),
+          ),
         ],
       ),
     );

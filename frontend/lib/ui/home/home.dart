@@ -7,6 +7,7 @@ import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:areyoughost/ui/widgets/buttons/start_buttons.dart';
 import 'package:areyoughost/ui/widgets/buttons/rules_buttons.dart';
 import 'package:areyoughost/ui/widgets/buttons/roles_buttons.dart';
+import 'package:areyoughost/ui/game/mode_select_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -59,15 +60,12 @@ class HomeScreen extends StatelessWidget {
                       children: [
                         StartButton(
                           onPressed: () {
-                            // ลบ comments ตรงด้านล่างออกเพื่อให้ปุ่มนำทางไปยังหน้าเลือกโหมด <ของปลาดาว>
-                            // Navigator.push(
-                            //   context,
-                            //   MaterialPageRoute(
-                            //     builder: (_) =>
-                            //         const <ชื่อคลาสของหน้าเลือกโหมด>,
-                            //   ),
-                            // );
-                            // ไปหน้าเลือกโหมด
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ModeSelectScreen(),
+                              ),
+                            );
                           },
                         ),
                         const SizedBox(height: 16),

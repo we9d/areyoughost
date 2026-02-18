@@ -11,79 +11,75 @@ class PlayerGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 4,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 0.68, // สัดส่วนใกล้ Figma และไม่ overflow
-        ),
-        itemCount: players.length,
-        itemBuilder: (context, index) {
-          final p = players[index];
+    const int crossAxisCount = 4;
+    final int rowCount = (players.length / crossAxisCount).ceil();
 
-          return Container(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                /// 🔹 เลข + ชื่อ (ชิดบน / แถวเดียว / สีดำทั้งหมด)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      p.number.toString(),
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black,
-                        height: 1.2,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Column(
+        children: List.generate(rowCount, (rowIndex) {
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: rowIndex < rowCount - 1 ? 8 : 0),
+              child: Row(
+                children: List.generate(crossAxisCount, (colIndex) {
+                  final index = rowIndex * crossAxisCount + colIndex;
+                  if (index >= players.length) return const Expanded(child: SizedBox());
+
+                  final p = players[index];
+
+                  return Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: colIndex < crossAxisCount - 1 ? 8 : 0,
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        p.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black,
-                          height: 1.2,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD9D9D9),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        clipBehavior: Clip.hardEdge,
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 6),
+
+                            /// 🔹 เลข + ชื่อ
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              child: Text(
+                                '${p.number} ${p.name}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.1,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 2),
+
+                            /// 🔹รูปคนสีดำ default
+                            Expanded(
+                              child: Image.asset(
+                                'assets/images/defaultPlayer.png',
+                                fit: BoxFit.cover,
+                                alignment: Alignment.bottomCenter,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ),
-
-                const Spacer(),
-
-                /// 🔹 Avatar (วงกลมดำ ขนาด fix ตาม Figma)
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-
-                const Spacer(),
-              ],
+                  );
+                }),
+              ),
             ),
           );
-        },
+        }),
       ),
     );
   }

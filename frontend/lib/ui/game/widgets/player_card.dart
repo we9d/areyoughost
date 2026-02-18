@@ -12,19 +12,28 @@ class PlayerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 87,
-      height: 110,
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFD9D9D9),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      clipBehavior: Clip.hardEdge,
       child: Column(
         children: [
-          // Player number
-          Align(
-            alignment: Alignment.topLeft,
+          const SizedBox(height: 6),
+
+          /// 🔹 Text 
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Text(
-              '$number',
+              '$number $name',
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                height: 1.2,
                 color: Colors.black,
               ),
             ),
@@ -32,31 +41,12 @@ class PlayerCard extends StatelessWidget {
 
           const SizedBox(height: 4),
 
-          // Avatar
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.grey.shade300,
-            ),
-            child: const Icon(
-              Icons.person,
-              size: 36,
-              color: Colors.black54,
-            ),
-          ),
-
-          const SizedBox(height: 6),
-
-          // Player name
-          Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.black,
+          /// รูปคนสีดำ default
+          Expanded(
+            child: Image.asset(
+              'assets/images/defaultPlayer.png',
+              fit: BoxFit.cover, 
+              alignment: Alignment.bottomCenter,
             ),
           ),
         ],

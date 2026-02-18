@@ -103,6 +103,18 @@ impl Api {
         })
     }
 
+    /// Update username
+    pub fn update_username(&self, user_id: String, new_username: String) -> Result<()> {
+        let db = self.db.clone();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+
+        runtime.block_on(async {
+            db.update_username(&user_id, &new_username)
+                .await
+                .map_err(|e| anyhow!("Failed to update username: {}", e))
+        })
+    }
+
     // --- Legacy P2P / Local methods (Stubbed or Redirected) ---
 
     pub async fn create_room(&self, room_name: String, max_players: i32) -> Result<String> {

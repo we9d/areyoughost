@@ -2,7 +2,9 @@ import 'package:areyoughost/ui/widgets/buttons/decoration/shadow.dart';
 import 'package:flutter/material.dart';
 
 class LogoutButton extends StatelessWidget {
-  const LogoutButton({super.key});
+  final VoidCallback onPressed;
+
+  const LogoutButton({super.key, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +17,7 @@ class LogoutButton extends StatelessWidget {
         colors: [Color.fromARGB(255, 119, 41, 41), Color(0xFFC0392B)],
         stops: [0.0, 1.5],
       ),
-      onPressed: () => Navigator.pop(context), //  ปิด popup
+      onPressed: onPressed,
       child: const Text(
         "ออกจากระบบ",
         style: TextStyle(

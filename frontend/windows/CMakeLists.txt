@@ -91,7 +91,18 @@ endif()
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"
    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-   COMPONENT Runtime)
+   COMPONENT Runtime
+   OPTIONAL)
+
+# --- ADDED BY ANTIGRAVITY ---
+# Install the Rust DLL from the workspace target directory
+# Core is part of a Cargo workspace, so artifacts are in root/target
+set(RUST_WORKSPACE_TARGET "${CMAKE_CURRENT_SOURCE_DIR}/../../target")
+install(FILES
+    "$<IF:$<CONFIG:Debug>,${RUST_WORKSPACE_TARGET}/debug/areyoughost_core.dll,${RUST_WORKSPACE_TARGET}/release/areyoughost_core.dll>"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+# ----------------------------
 
 # Fully re-copy the assets directory on each build to avoid having stale files
 # from a previous install.

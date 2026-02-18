@@ -38,3 +38,18 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
+
+# logic to determine if we are in debug or release mode for rust
+string(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_LOWER)
+if (CMAKE_BUILD_TYPE_LOWER MATCHES "release" OR CMAKE_BUILD_TYPE_LOWER MATCHES "relwithdebinfo" OR CMAKE_BUILD_TYPE_LOWER MATCHES "minsizerel")
+    set(RUST_BUILD_MODE "release")
+else()
+    set(RUST_BUILD_MODE "debug")
+endif()
+
+# Copy the Rust DLL to the executable directory
+add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+  "${CMAKE_SOURCE_DIR}/../../target/${RUST_BUILD_MODE}/areyoughost_core.dll"
+  "$<TARGET_FILE_DIR:${BINARY_NAME}>/areyoughost_core.dll"
+)

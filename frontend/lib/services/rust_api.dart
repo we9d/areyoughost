@@ -22,7 +22,9 @@ class RustApi {
     // Windows uses localhost
     // We can detecting platform to switch string if needed, 
     // but for Windows dev:
-    const connectionString = "postgres://postgres:password@localhost/areyoughost";
+
+    // const connectionString = "postgres://postgres:password@localhost/areyoughost";
+    const connectionString = "postgres://postgres:password@localhost:5433/areyoughost";
 
     // Initialize the Rust Api object
     try {

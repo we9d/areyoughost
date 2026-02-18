@@ -37,86 +37,89 @@ class _ChatInputRowState extends State<ChatInputRow> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 72,
+      height: 56, // 👈 Reduced height
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 8), // 👈 Tighter padding
         child: Row(
           children: [
             /// 🔹 บทบาท
             IconButton(
+              padding: const EdgeInsets.all(4), // 👈 Tighter spacing
+              constraints: const BoxConstraints(), // 👈 No extra size
               icon: Icon(
                 PhosphorIcons.maskHappy(),
-                size: 32.0,
+                size: 25.0, // 👈 Size 25
                 color: Colors.white,
               ),
-              splashRadius: 20,
               onPressed: widget.onRoleInfoTap,
             ),
 
             /// 🔹 แชท (icon กลาง)
             IconButton(
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(),
               icon: Icon(
                 PhosphorIcons.wechatLogo(),
-                size: 32.0,
+                size: 25.0, // 👈 Size 25
                 color: Colors.white,
               ),
-              splashRadius: 20,
               onPressed: () {},
             ),
 
             /// 🔹 สกิล
             GestureDetector(
               onTap: widget.onSkillTap,
-              child: SizedBox(
-                width: 40,
-                height: 40,
-                child: Center(
-                  child: SvgPicture.asset(
-                    'assets/icons/skill-icon.svg',
-                    width: 24,
-                    height: 24,
-                    colorFilter: const ColorFilter.mode(
-                      Colors.white,
-                      BlendMode.srcIn,
-                    ),
+              child: Container(
+                width: 34, // 👈 Tighter
+                height: 34,
+                alignment: Alignment.center,
+                child: SvgPicture.asset(
+                  'assets/icons/skill-icon.svg',
+                  width: 25, // 👈 Size 25
+                  height: 25,
+                  colorFilter: const ColorFilter.mode(
+                    Colors.white,
+                    BlendMode.srcIn,
                   ),
                 ),
               ),
             ),
 
-
-            const SizedBox(width: 6),
+            const SizedBox(width: 8), // 👈 Balanced gap
 
             /// 🔹 Input box
             Expanded(
               child: Container(
-                height: 40,
+                height: 36, // 👈 Slightly shorter box
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(18),
                 ),
                 alignment: Alignment.center,
                 child: TextField(
                   controller: _controller,
                   textInputAction: TextInputAction.send,
+                  textAlignVertical: TextAlignVertical.center, // 👈 Better alignment
                   decoration: const InputDecoration(
-                    hintText: 'ส่งข้อความ', // ✅ ตามที่ขอ
+                    hintText: 'ส่งข้อความ',
                     hintStyle: TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       color: Colors.black38,
                     ),
                     border: InputBorder.none,
-                    isDense: true,
+                    isCollapsed: true, // 👈 Tighter layout
                   ),
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     color: Colors.black,
                   ),
                   onSubmitted: (_) => _handleSend(),
                 ),
               ),
             ),
+            
+            const SizedBox(width: 4),
           ],
         ),
       ),

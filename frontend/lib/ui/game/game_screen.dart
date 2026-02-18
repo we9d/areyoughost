@@ -36,95 +36,102 @@ class _GameScreenState extends State<GameScreen> {
 
     players = List.generate(
       16,
-      (i) => PlayerModel(
-        number: i + 1,
-        name: 'Player',
-      ),
+      (i) => PlayerModel(number: i + 1, name: 'Player'),
     );
 
-    chatMessages = [
-      ChatMessage(
-        messageId: '1',
-        senderId: '1',
-        senderName: 'Player 1',
-        message: 'Hello!',
-        phaseType: 'night',
-        createdAt: DateTime.now(),
-      ),
-    ];
+    chatMessages = []; // 👈 Empty for now
 
     allRoles = [
-      RoleInfo(
-        name: 'Villager',
-        description: 'A simple villager',
-      ),
+      RoleInfo(name: 'Villager', description: 'A simple villager'),
     ];
 
     currentRoleSkills = [
-      SkillOption(
-        name: 'Investigate',
-        description: 'Investigate a player',
-      ),
-      SkillOption(
-        name: 'Protect',
-        description: 'Protect a player',
-      ),
+      SkillOption(name: 'Investigate', description: 'Investigate a player'),
+      SkillOption(name: 'Protect', description: 'Protect a player'),
     ];
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenH = MediaQuery.of(context).size.height;
+    
     return Scaffold(
       backgroundColor: Colors.black,
-      body: SafeArea(
+      body: Center(
         child: Container(
-          decoration: const BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage('assets/images/NightTimeBg.jpg'),
-              fit: BoxFit.cover,
-            ),
+          width: 390,
+      
+          height: screenH > 844 ? 844 : screenH,
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(24),
           ),
-          child: Column(
+          clipBehavior: Clip.hardEdge,
+          child: Stack(
             children: [
-              /// 🔹 TOP BAR
-              GameTopBar(
-                title: 'เวลากลางคืน 20 วินาที',
-                onExitTap: () {},
-                onPlayerTap: () {},
+              // Background Image
+              Positioned.fill(
+                child: Image.asset(
+                  'assets/images/NightTimeBg.jpg',
+                  fit: BoxFit.cover,
+                ),
               ),
-
-              const SizedBox(height: 8),
-
-              /// 🔹 PLAYER GRID
-              PlayerGrid(players: players),
-
-              const SizedBox(height: 8),
-
-              /// 🔹 CHAT BOX
-              Expanded(
-                child: ChatBox(messages: chatMessages),
-              ),
-
-              const SizedBox(height: 4),
-
-              /// 🔹 CHAT INPUT
-              ChatInputRow(
-                onRoleInfoTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (_) => RoleInfoDialog(roles: allRoles),
-                  );
-                },
-                onSkillTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (_) => SkillSelectDialog(
-                      skills: currentRoleSkills,
-                      onSelect: (skill) {},
+              
+              // Main Layout
+              Positioned.fill(
+                child: Column(
+                  children: [
+                    /// TOP BAR
+                    GameTopBar(
+                      title: 'เวลากลางคืน 20 วินาที',
+                      onExitTap: () {},
+                      onPlayerTap: () {},
                     ),
-                  );
-                },
-                onSend: (text) {},
+  
+                    const SizedBox(height: 6),
+  
+                    /// PLAYER GRID
+                    Expanded(
+                      flex: 5,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: PlayerGrid(players: players),
+                      ),
+                    ),
+  
+                    const SizedBox(height: 2), // 👈 Reduced gap
+  
+                    /// CHAT BOX
+                    SizedBox(
+                      height: 220, // 👈 Increased height 
+                      child: ChatBox(messages: chatMessages),
+                    ),
+  
+                    const SizedBox(height: 4), // 👈 Reduced gap
+  
+                    /// CHAT INPUT
+                    ChatInputRow(
+                      onRoleInfoTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => RoleInfoDialog(roles: allRoles),
+                        );
+                      },
+                      onSkillTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => SkillSelectDialog(
+                            skills: currentRoleSkills,
+                            onSelect: (_) {},
+                          ),
+                        );
+                      },
+                      onSend: (_) {},
+                    ),
+  
+                    const SizedBox(height: 10),
+                  ],
+                ),
               ),
             ],
           ),

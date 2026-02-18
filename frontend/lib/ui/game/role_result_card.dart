@@ -121,24 +121,21 @@ class _RoleResultCardState extends State<RoleResultCard>
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Column(
-                  children: const [
+                  children: [
                     Text(
-                      '- aaaa bbbb cccc -',
+                      '- ${widget.roleName} -',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFF2A2A2A),
                       ),
                     ),
-                    SizedBox(height: 10),
+                    const SizedBox(height: 10),
                     Text(
-                      'aaaa bbbb cccc\n'
-                      'aaaa bbbb cccc\n'
-                      'aaaa bbbb cccc\n'
-                      'aaaa bbbb cccc',
+                      widget.description,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 15,
                         height: 1.55,
                         color: Color(0xFF4F4F4F),

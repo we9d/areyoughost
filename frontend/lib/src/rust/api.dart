@@ -15,7 +15,6 @@ abstract class Api implements RustOpaqueInterface {
     required String targetId,
   });
 
-  /// Host: Start a TCP server on port 27015
   Future<String> createRoom({
     required String roomName,
     required int maxPlayers,
@@ -27,7 +26,6 @@ abstract class Api implements RustOpaqueInterface {
 
   Future<List<String>> getLocalIps();
 
-  /// Peer: Connect to a host IP on port 27015
   Future<String> joinRoom({required String hostIp});
 
   /// User authentication
@@ -59,4 +57,10 @@ abstract class Api implements RustOpaqueInterface {
 
   /// Test database connection
   Future<String> testDb();
+
+  /// Update username
+  Future<void> updateUsername({
+    required String userId,
+    required String newUsername,
+  });
 }

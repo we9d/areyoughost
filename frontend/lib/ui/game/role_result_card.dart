@@ -79,9 +79,12 @@ class _RoleResultCardState extends State<RoleResultCard>
                   color: Colors.black,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Image.asset(
-                  widget.imagePath,
-                  fit: BoxFit.contain,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'assets/images/V01.jpg',
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
 

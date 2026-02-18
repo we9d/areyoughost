@@ -10,10 +10,10 @@
 //! - Precise token tracking with nanosecond resolution
 //! - Thread-safe async implementation
 
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use std::collections::VecDeque;
 
 // Use tokio::time::Instant in tests for deterministic time control
 #[cfg(test)]
@@ -23,22 +23,22 @@ use tokio::time::Instant;
 #[cfg(not(test))]
 use std::time::Instant;
 
+use thiserror::Error;
 use tokio::sync::{Mutex, Notify};
 use tokio::time::{sleep, timeout};
-use thiserror::Error;
 
 /// Errors that can occur during bandwidth acquisition
 #[derive(Error, Debug, Clone)]
 pub enum AcquireError {
     #[error("Requested {requested} bytes exceeds capacity {capacity} bytes")]
     TooLarge { requested: u64, capacity: u64 },
-    
+
     #[error("Acquisition timed out after {0:?}")]
     Timeout(Duration),
-    
+
     #[error("Bandwidth limiter is closed")]
     Closed,
-    
+
     #[error("Insufficient tokens available right now")]
     Insufficient,
 }
@@ -158,7 +158,7 @@ impl BandwidthLimiter {
         } else {
             2000 // 2.0x default
         };
-        
+
         Self {
             config: Arc::new(LimiterConfig {
                 rate: AtomicU64::new(rate),
@@ -184,25 +184,27 @@ impl BandwidthLimiter {
     pub async fn set_limit(&self, rate: u64, capacity: u64) {
         self.config.rate.store(rate, Ordering::Relaxed);
         self.config.capacity.store(capacity, Ordering::Relaxed);
-        
+
         let burst_multiplier = if rate > 0 {
             ((capacity as u128 * 1000) / rate as u128) as u64
         } else {
             2000
         };
-        self.config.burst_multiplier_scaled.store(burst_multiplier, Ordering::Relaxed);
-        
+        self.config
+            .burst_multiplier_scaled
+            .store(burst_multiplier, Ordering::Relaxed);
+
         let mut state = self.state.lock().await;
         // Clamp tokens to new capacity (type-safe)
         let max_tokens = ScaledBytes::from_bytes(capacity);
         if state.tokens > max_tokens {
             state.tokens = max_tokens;
         }
-        
+
         // precise: Do NOT reset last_refill or remainder here.
         // This preserves the time base so pending elapsed time is credited correctly
         // (albeit at the new rate effective from the next refill check)
-        
+
         drop(state);
         // Notify all waiters that rate/capacity changed
         self.notify.notify_waiters();
@@ -227,7 +229,8 @@ impl BandwidthLimiter {
 
     /// Acquire tokens for sending data
     pub async fn acquire(&self, bytes: usize) -> Result<(), AcquireError> {
-        self.acquire_with_timeout(bytes, Duration::from_secs(30)).await
+        self.acquire_with_timeout(bytes, Duration::from_secs(30))
+            .await
     }
 
     /// Acquire tokens with timeout
@@ -269,24 +272,26 @@ impl BandwidthLimiter {
 
                 if state.tokens >= bytes_scaled {
                     state.tokens = state.tokens.sub(bytes_scaled);
-                    
-                    self.metrics.bytes_sent_total.fetch_add(bytes as u64, Ordering::Relaxed);
-                    
+
+                    self.metrics
+                        .bytes_sent_total
+                        .fetch_add(bytes as u64, Ordering::Relaxed);
+
                     drop(state);
-                    
+
                     let mut samples = self.metrics.usage_samples.lock().await;
                     samples.push_back((Instant::now(), bytes as u64));
-                    
+
                     while samples.len() > MAX_SAMPLES {
                         samples.pop_front();
                     }
-                    
+
                     return Ok(());
                 }
 
                 self.calculate_wait_time(bytes_scaled, state.tokens)
             };
-            
+
             // Wait for either:
             // 1. Notification (rate changed, tokens added manually, etc.)
             // 2. Timeout (refill time reached)
@@ -294,7 +299,7 @@ impl BandwidthLimiter {
                 tokio::select! {
                     _ = self.notify.notified() => {
                         // State changed, retry immediately
-                        continue; 
+                        continue;
                     }
                     _ = sleep(wait_time) => {
                         // Refill time reached, retry
@@ -317,43 +322,43 @@ impl BandwidthLimiter {
         }
 
         let rate = self.config.rate.load(Ordering::Relaxed) as u128;
-        
+
         if rate == 0 {
             state.last_refill = now;
             return;
         }
-        
+
         let capacity = self.config.capacity.load(Ordering::Relaxed) as u128;
         let max_tokens = ScaledBytes::from_bytes(capacity as u64);
         let max_elapsed_nanos = (MAX_ELAPSED_SECS as u128) * 1_000_000_000;
-        
+
         for _ in 0..MAX_REFILL_ROUNDS {
             let elapsed_nanos = remaining_elapsed.as_nanos();
-            
+
             if elapsed_nanos == 0 {
                 break;
             }
-            
+
             let elapsed_nanos_used = elapsed_nanos.min(max_elapsed_nanos);
-            
+
             let total_nanos = elapsed_nanos_used + state.remainder_nanos;
-            
+
             let add_raw = (rate * total_nanos * ScaledBytes::SCALE) / 1_000_000_000;
             let add_scaled = ScaledBytes::from_raw(add_raw);
-            
+
             state.remainder_nanos = total_nanos % 1_000_000_000;
 
             if add_raw > 0 {
                 state.tokens = state.tokens.add(add_scaled).min(max_tokens);
             }
-            
+
             let used_nanos = elapsed_nanos_used.min(u64::MAX as u128) as u64;
             state.last_refill = state.last_refill + Duration::from_nanos(used_nanos);
-            
+
             if state.tokens >= max_tokens {
                 break;
             }
-            
+
             remaining_elapsed = now.duration_since(state.last_refill);
         }
     }
@@ -369,10 +374,10 @@ impl BandwidthLimiter {
 
         // wait_nanos = deficit_raw / rate (scaled bytes / bytes per second = seconds * 1e9 = nanos)
         let wait_nanos = (deficit.as_raw() * 1_000_000_000) / (rate * ScaledBytes::SCALE);
-        
+
         let buffer_nanos = (wait_nanos / 10).clamp(100_000, 1_000_000);
         let wait_nanos = wait_nanos + buffer_nanos;
-        
+
         Duration::from_nanos(wait_nanos.min(u64::MAX as u128) as u64)
     }
 
@@ -386,7 +391,7 @@ impl BandwidthLimiter {
     pub async fn get_usage(&self) -> f64 {
         let tracking_start = self.metrics.tracking_start.lock().await;
         let elapsed = Instant::now().duration_since(*tracking_start);
-        
+
         if elapsed.as_secs_f64() < 0.001 {
             return 0.0;
         }
@@ -400,7 +405,7 @@ impl BandwidthLimiter {
         let mut samples = self.metrics.usage_samples.lock().await;
         let now = Instant::now();
         let cutoff = now - window;
-        
+
         while let Some((timestamp, _)) = samples.front() {
             if *timestamp <= cutoff {
                 samples.pop_front();
@@ -408,18 +413,18 @@ impl BandwidthLimiter {
                 break;
             }
         }
-        
+
         if samples.is_empty() {
             return 0.0;
         }
-        
+
         let total_bytes: u64 = samples.iter().map(|(_, bytes)| bytes).sum();
         let elapsed = now.duration_since(samples[0].0).as_secs_f64().max(0.05);
-        
+
         if elapsed < 0.001 {
             return 0.0;
         }
-        
+
         total_bytes as f64 / elapsed
     }
 
@@ -466,17 +471,19 @@ impl BandwidthLimiter {
 
         if state.tokens >= bytes_scaled {
             state.tokens = state.tokens.sub(bytes_scaled);
-            self.metrics.bytes_sent_total.fetch_add(bytes_u64, Ordering::Relaxed);
-            
+            self.metrics
+                .bytes_sent_total
+                .fetch_add(bytes_u64, Ordering::Relaxed);
+
             drop(state);
-            
+
             let mut samples = self.metrics.usage_samples.lock().await;
             samples.push_back((Instant::now(), bytes_u64));
-            
+
             while samples.len() > MAX_SAMPLES {
                 samples.pop_front();
             }
-            
+
             Ok(())
         } else {
             Err(AcquireError::Insufficient)
@@ -505,7 +512,6 @@ impl BandwidthLimiter {
         self.notify.clone()
     }
 }
-
 
 /// Priority levels for QoS
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -602,11 +608,11 @@ impl SharedQosBandwidthLimiter {
     pub async fn run_scheduler(&self) {
         // Weights (Quantum in bytes per round)
         const QUANTUM: [usize; 4] = [1000, 3000, 6000, 10000]; // Low, Med, High, Crit
-        
+
         let mut deficits = [0isize; 4];
-        
+
         // DRR Order: Crit, High, Med, Low
-        let priorities: [usize; 4] = [3, 2, 1, 0]; 
+        let priorities: [usize; 4] = [3, 2, 1, 0];
         let mut start_index = 0; // Rotate starting point for fairness
 
         loop {
@@ -621,15 +627,15 @@ impl SharedQosBandwidthLimiter {
 
                 let queue = self.queues[p].lock().await;
                 if queue.is_empty() {
-                    deficits[p] = 0; 
+                    deficits[p] = 0;
                     continue;
                 }
-                drop(queue); 
+                drop(queue);
 
                 queues_with_work = true;
                 deficits[p] += QUANTUM[p] as isize;
-                
-                // Cap deficit to prevent infinite accumulation? 
+
+                // Cap deficit to prevent infinite accumulation?
                 // e.g. max 2x Quantum to prevent huge bursts after idle.
                 // Keeping it simple for now.
 
@@ -639,7 +645,7 @@ impl SharedQosBandwidthLimiter {
                         let size = req.bytes;
                         if (size as isize) <= deficits[p] {
                             drop(queue);
-                            
+
                             match self.limiter.try_acquire(size).await {
                                 Ok(_) => {
                                     let mut queue = self.queues[p].lock().await;
@@ -648,7 +654,7 @@ impl SharedQosBandwidthLimiter {
                                         deficits[p] -= size as isize;
                                         work_done = true;
                                         all_blocked_on_tokens = false;
-                                        
+
                                         // If we successfully processed a packet, do we continue ONLY this queue?
                                         // Standard DRR continues until deficit empty.
                                         // But to prevent "Token Hogging" on slow links, we could yield?
@@ -656,10 +662,10 @@ impl SharedQosBandwidthLimiter {
                                     }
                                 },
                                 Err(AcquireError::Insufficient) => {
-                                    // Blocked on tokens. 
+                                    // Blocked on tokens.
                                     // Stop processing this queue for now.
                                     // But keep deficit.
-                                    break; 
+                                    break;
                                 },
                                 Err(e) => {
                                     let mut queue = self.queues[p].lock().await;
@@ -667,15 +673,15 @@ impl SharedQosBandwidthLimiter {
                                         let _ = popped.result_tx.send(Err(e));
                                     }
                                     break;
-                                }
+                                },
                             }
                         } else {
                             all_blocked_on_tokens = false; // Blocked on deficit
                             break;
                         }
                     } else {
-                         deficits[p] = 0;
-                         break;
+                        deficits[p] = 0;
+                        break;
                     }
                 }
             }
@@ -696,22 +702,24 @@ impl SharedQosBandwidthLimiter {
                     let queue = self.queues[p].lock().await;
                     if let Some(req) = queue.front() {
                         if (req.bytes as isize) <= deficits[p] {
-                             min_needed = min_needed.min(req.bytes);
+                            min_needed = min_needed.min(req.bytes);
                         }
                     }
                 }
-                
-                if min_needed == usize::MAX { min_needed = 1; }
+
+                if min_needed == usize::MAX {
+                    min_needed = 1;
+                }
 
                 let wait_duration = self.limiter.wait_time_for(min_needed).await;
-                
+
                 tokio::select! {
                      _ = sleep(wait_duration) => {},
                      _ = self.scheduler_notify.notified() => {},
                 }
             } else {
                 if !work_done {
-                     tokio::task::yield_now().await;
+                    tokio::task::yield_now().await;
                 }
             }
         }
@@ -735,8 +743,11 @@ mod tests {
         let elapsed = start.elapsed();
 
         // Allow 100ms jitter margin
-        assert!(elapsed >= Duration::from_millis(400), 
-            "Acquired tokens too fast: {:?} < 400ms (violates rate limit)", elapsed);
+        assert!(
+            elapsed >= Duration::from_millis(400),
+            "Acquired tokens too fast: {:?} < 400ms (violates rate limit)",
+            elapsed
+        );
     }
 
     #[tokio::test]
@@ -746,8 +757,7 @@ mod tests {
         tokio::time::sleep(Duration::from_secs(2)).await;
 
         let tokens = limiter.available_tokens().await;
-        assert!(tokens <= 1000, 
-            "Tokens {} exceed capacity 1000", tokens);
+        assert!(tokens <= 1000, "Tokens {} exceed capacity 1000", tokens);
     }
 
     #[tokio::test]
@@ -758,7 +768,7 @@ mod tests {
         limiter.acquire(1000).await.unwrap(); // drain
 
         let limiter_clone = limiter.clone();
-        let task = tokio::spawn(async move { 
+        let task = tokio::spawn(async move {
             limiter_clone.acquire(500).await.unwrap();
         });
 
@@ -774,7 +784,7 @@ mod tests {
     #[tokio::test]
     async fn test_too_large_request() {
         let limiter = BandwidthLimiter::with_capacity(1000, 500);
-        
+
         let result = limiter.acquire(1000).await;
         assert!(matches!(result, Err(AcquireError::TooLarge { .. })));
     }
@@ -782,27 +792,32 @@ mod tests {
     #[tokio::test]
     async fn test_timeout() {
         tokio::time::pause();
-        
+
         // Use very slow rate with no burst: 10 bytes/s, capacity = 10 bytes
         // This means need exactly 1000ms to refill 10 bytes
         let limiter = BandwidthLimiter::with_capacity(10, 10);
-        
+
         // Drain all tokens
         limiter.acquire(10).await.unwrap();
-        
+
         // Spawn task that will try to acquire with 50ms timeout
         let limiter_clone = limiter.clone();
         let handle = tokio::spawn(async move {
-            limiter_clone.acquire_with_timeout(10, Duration::from_millis(50)).await
+            limiter_clone
+                .acquire_with_timeout(10, Duration::from_millis(50))
+                .await
         });
-        
+
         // Advance time past timeout (51ms)
         tokio::time::advance(Duration::from_millis(51)).await;
-        
+
         // Task should have timed out
         let result = handle.await.unwrap();
-        assert!(matches!(result, Err(AcquireError::Timeout(_))),
-            "Expected Timeout error, got: {:?}", result);
+        assert!(
+            matches!(result, Err(AcquireError::Timeout(_))),
+            "Expected Timeout error, got: {:?}",
+            result
+        );
     }
 
     #[tokio::test]
@@ -818,7 +833,7 @@ mod tests {
     async fn test_close() {
         let limiter = BandwidthLimiter::new(1000);
         limiter.close().await;
-        
+
         let result = limiter.acquire(100).await;
         assert!(matches!(result, Err(AcquireError::Closed)));
     }
@@ -826,12 +841,12 @@ mod tests {
     #[tokio::test]
     async fn test_usage_tracking() {
         let limiter = BandwidthLimiter::new(10000); // 10KB/s
-        
+
         limiter.reset_stats().await;
         let _ = limiter.acquire(1000).await;
-        
+
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         let usage = limiter.get_usage().await;
         assert!(usage > 0.0);
     }
@@ -839,8 +854,8 @@ mod tests {
     #[tokio::test]
     async fn test_qos_limiter() {
         let qos = SharedQosBandwidthLimiter::new(1000);
-        
-        // Critical should get access. 
+
+        // Critical should get access.
         // Note: With shared limiter, priority is about ordering, not just partition.
         // But since we use a single bucket, both should eventually succeed if rate allows.
         assert!(qos.acquire(250, Priority::Critical).await.is_ok());
@@ -851,7 +866,7 @@ mod tests {
     async fn test_qos_fairness() {
         tokio::time::pause();
         let qos = SharedQosBandwidthLimiter::new(100); // 100 bytes/s
-        
+
         // Queue many Critical requests (should saturate bandwidth)
         for _ in 0..10 {
             let qos_c = qos.clone();
@@ -859,13 +874,11 @@ mod tests {
                 let _ = qos_c.acquire(100, Priority::Critical).await;
             });
         }
-        
+
         // Queue one Low request
         let qos_l = qos.clone();
-        let low_task = tokio::spawn(async move {
-            qos_l.acquire(50, Priority::Low).await
-        });
-        
+        let low_task = tokio::spawn(async move { qos_l.acquire(50, Priority::Low).await });
+
         // Advance time.
         // Critical weight = 10000. Low = 1000.
         // Critical will drain tokens initially.
@@ -885,13 +898,13 @@ mod tests {
         // Yes, standard DRR exhausts quantum before switching if backlog exists.
         // So Critical runs for 100 seconds? (100 x 100 bytes / 100 rate).
         // This means "latency" for Low is high, but "Bandwidth Share" is fair over long term.
-        
+
         // Wait enough time for Critical to finish SOME, but ensure Low also finishes?
         // Actually, with such high weight diff (10:1), Critical dominates.
         // But Low *will* run eventually.
-        
+
         tokio::time::advance(Duration::from_secs(60)).await;
-        
+
         // Low needs 50 bytes = 0.5s.
         // Even if deep in queue, 60s is enough?
         // 10 Critical x 100 = 1000 bytes = 10s.
@@ -903,10 +916,10 @@ mod tests {
     #[tokio::test]
     async fn test_try_acquire_insufficient() {
         let limiter = BandwidthLimiter::new(1000);
-        
+
         // Drain all tokens
         limiter.acquire(2000).await.unwrap();
-        
+
         // try_acquire should return Insufficient immediately
         let result = limiter.try_acquire(100).await;
         assert!(matches!(result, Err(AcquireError::Insufficient)));
@@ -915,15 +928,15 @@ mod tests {
     #[tokio::test]
     async fn test_multi_round_refill_recovery() {
         tokio::time::pause();
-        
+
         let limiter = BandwidthLimiter::with_capacity(1000, 1000);
-        
+
         // Drain tokens
         limiter.acquire(1000).await.unwrap();
-        
+
         // Simulate long pause (60 seconds)
         tokio::time::advance(Duration::from_secs(60)).await;
-        
+
         // Should be able to acquire immediately (multi-round refill catches up)
         let limiter_clone = limiter.clone();
         let task = tokio::spawn(async move {
@@ -931,16 +944,19 @@ mod tests {
             limiter_clone.acquire(1000).await.unwrap();
             start.elapsed()
         });
-        
+
         // Allow task to run
         tokio::time::sleep(Duration::from_millis(10)).await;
-        
+
         let elapsed = task.await.unwrap();
-        
+
         // Should complete quickly with paused time (not wait for 60 rounds)
-        assert!(elapsed < Duration::from_millis(100), 
-            "Multi-round refill should catch up quickly, took {:?}", elapsed);
-        
+        assert!(
+            elapsed < Duration::from_millis(100),
+            "Multi-round refill should catch up quickly, took {:?}",
+            elapsed
+        );
+
         // But should not exceed capacity
         let tokens = limiter.available_tokens().await;
         assert!(tokens <= 1000);

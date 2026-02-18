@@ -27,19 +27,17 @@
 //! # }
 //! ```
 
-pub mod message;
-pub mod tcp_server;
-pub mod tcp_client;
 pub mod bandwidth;
 #[cfg(test)]
 pub mod benchmarks;
+pub mod message;
+pub mod tcp_client;
+pub mod tcp_server;
 
-pub use message::{Message, MessageType};
-pub use tcp_server::TcpServer;
-pub use tcp_client::TcpClient;
 pub use bandwidth::BandwidthLimiter;
-
-
+pub use message::{Message, MessageType};
+pub use tcp_client::TcpClient;
+pub use tcp_server::TcpServer;
 
 /// Network statistics for monitoring
 #[derive(Debug, Clone)]

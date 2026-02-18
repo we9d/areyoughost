@@ -1,93 +1,39 @@
-/// Rust API Service Layer
-///
-/// This service provides the interface between the Flutter frontend and
-/// the Rust backend core engine via FFI (Foreign Function Interface).
-///
-/// Currently using mock implementations while the flutter_rust_bridge
-/// integration is being completed. Once FFI is fully set up, these methods
-/// will call the actual Rust functions from the core library.
-///
-/// Architecture:
-/// Flutter UI -> RustApi (this file) -> FFI Bridge -> Rust Core Engine
+import 'package:areyoughost/src/rust/api.dart'; // Import generated bindings
+import 'package:areyoughost/src/rust/frb_generated.dart'; // Import RustLib
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-import 'package:areyoughost/models/mock_models.dart';
-
-/// Singleton service for communicating with the Rust backend
-///
-/// Provides methods for:
-/// - User authentication (login/register)
-/// - Room management (list/create/join)
-/// - Game actions (chat/voting)
 class RustApi {
-  // Singleton pattern
-  static final RustApi _instance = RustApi._internal();
-  factory RustApi() => _instance;
-  RustApi._internal();
+  static Api? _api;
 
-  // Mock implementations - will be replaced with actual FFI calls
-  Future<User?> login(String username, String password) async {
-    // TODO: Call Rust via FFI
-    await Future.delayed(const Duration(milliseconds: 500));
-    return User(
-      userId: '1',
-      username: username,
-      displayName: username,
-    );
+  static Api get instance {
+    if (_api == null) {
+      throw Exception('RustApi not initialized. Call init() first.');
+    }
+    return _api!;
   }
 
-  Future<User?> register(String username, String password) async {
-    // TODO: Call Rust via FFI
-    await Future.delayed(const Duration(milliseconds: 500));
-    return User(
-      userId: '1',
-      username: username,
-      displayName: username,
-    );
-  }
+  static Future<void> init() async {
+    if (_api != null) return;
 
-  Future<List<Room>> getRooms() async {
-    // TODO: Call Rust via FFI
-    await Future.delayed(const Duration(milliseconds: 300));
-    return [
-      Room(
-        roomId: '101',
-        roomName: "Beginner's Den",
-        maxPlayers: 16,
-        currentPlayers: 12,
-        isPublic: true,
-        status: 'waiting',
-      ),
-      Room(
-        roomId: '102',
-        roomName: "Ranked Match #552",
-        maxPlayers: 16,
-        currentPlayers: 16,
-        isPublic: true,
-        status: 'playing',
-      ),
-    ];
-  }
+    // For local Docker Postgres, use default connection string
+    // In production, this should come from config/env
+    // Android emulator needs 10.0.2.2 to access host localhost
+    // iOS simulator uses localhost
+    // Windows uses localhost
+    // We can detecting platform to switch string if needed, 
+    // but for Windows dev:
 
-  Future<Room> createRoom(String roomName, int maxPlayers) async {
-    // TODO: Call Rust via FFI
-    await Future.delayed(const Duration(milliseconds: 500));
-    return Room(
-      roomId: 'new_${DateTime.now().millisecondsSinceEpoch}',
-      roomName: roomName,
-      maxPlayers: maxPlayers,
-      currentPlayers: 1,
-      isPublic: true,
-      status: 'waiting',
-    );
-  }
+    // const connectionString = "postgres://postgres:password@localhost/areyoughost";
+    const connectionString = "postgres://postgres:password@localhost:5433/areyoughost";
 
-  Future<void> sendMessage(String roomId, String message) async {
-    // TODO: Call Rust via FFI
-    await Future.delayed(const Duration(milliseconds: 100));
-  }
-
-  Future<void> castVote(String roomId, String targetUserId) async {
-    // TODO: Call Rust via FFI
-    await Future.delayed(const Duration(milliseconds: 200));
+    // Initialize the Rust Api object
+    try {
+      await RustLib.init(); // Initialize FRB
+      _api = await Api.newInstance(databaseUrl: connectionString);
+      print('Rust API initialized with DB: $connectionString');
+    } catch (e) {
+      print('Failed to initialize Rust API: $e');
+      rethrow;
+    }
   }
 }

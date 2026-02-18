@@ -1,0 +1,27 @@
+services:
+  db:
+    image: postgres:16
+    container_name: areyoughost_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: areyoughost
+    ports:
+      # - "5432:5432"
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: areyoughost_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@areyoughost.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

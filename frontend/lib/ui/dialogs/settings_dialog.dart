@@ -1,6 +1,5 @@
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/ui/dialogs/change_username_dialog.dart';
-import 'package:areyoughost/ui/home/home.dart';
 import 'package:areyoughost/ui/login/login_screen.dart';
 import 'package:areyoughost/ui/widgets/buttons/logout_buttons.dart';
 import 'package:areyoughost/ui/widgets/settings_title.dart';
@@ -9,7 +8,6 @@ import 'package:areyoughost/ui/widgets/volume_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:areyoughost/ui/widgets/buttons/login_buttons.dart';
 
-import '../../services/auth_service.dart';
 
 class SettingsIcon extends StatelessWidget {
   final IconData icon;
@@ -89,8 +87,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             controller: usernameController,
                             canEdit: false,
                             onEditPressed: () {
-                              if (!isLoggedIn)
+                              if (!isLoggedIn) {
                                 return; // Cannot edit if not logged in
+                              }
 
                               showDialog(
                                 context: context,

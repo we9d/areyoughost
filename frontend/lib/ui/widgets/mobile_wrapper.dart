@@ -11,6 +11,7 @@
 ///
 /// This approach allows for a consistent mobile-first design while
 /// providing an enhanced desktop experience.
+library;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

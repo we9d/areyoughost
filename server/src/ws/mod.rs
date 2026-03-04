@@ -1,31 +1,32 @@
 use std::sync::Arc;
-use axum::extract::ws::{WebSocketUpgrade, WebSocket, Message};
-use axum::{extract::State, response::IntoResponse};
-use tokio::sync::mpsc;
-use futures::{StreamExt, SinkExt};
-use serde_json::json;
 
-use crate::state::manager::GameRoomManager;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::{extract::State, response::IntoResponse};
+use futures::{SinkExt, StreamExt};
+use serde_json::json;
+use tokio::sync::mpsc;
+
+use crate::auth::verify_jwt;
+use crate::state::manager::AppState;
 
 pub mod messages;
-
 use messages::{ClientMessage, ServerMessage};
 
 pub async fn ws_handler(
-    State(manager): State<Arc<GameRoomManager>>,
+    State(state): State<Arc<AppState>>,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, manager))
+    ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
 
-pub async fn handle_socket(socket: WebSocket, manager: Arc<GameRoomManager>) {
+pub async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     tracing::info!("New WebSocket connection established");
 
     let (mut sender, mut receiver) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
 
-    // Spawn task to forward messages to WebSocket
-    let mut send_task = tokio::spawn(async move {
+    // Forward outgoing messages to socket
+    let send_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             if sender.send(msg).await.is_err() {
                 break;
@@ -33,99 +34,139 @@ pub async fn handle_socket(socket: WebSocket, manager: Arc<GameRoomManager>) {
         }
     });
 
-    // Wait for auth.hello message (must be first)
-    let player_id = match wait_for_auth(&mut receiver, &tx).await {
-        Some(id) => id,
+    // ── Phase 3: verify JWT before allowing any other message ─────
+    let (player_id, username) = match wait_for_auth(&mut receiver, &tx, &state.jwt_secret).await {
+        Some(claims) => (claims.0, claims.1),
         None => {
             tracing::warn!("Connection closed before authentication");
             return;
         }
     };
 
-    tracing::info!("Player {} authenticated", player_id);
+    tracing::info!("Player '{}' (id={}) authenticated via JWT", username, player_id);
 
     // Register connection
-    manager.connections.insert(player_id.clone(), tx.clone());
+    state.connections.insert(player_id.clone(), tx.clone());
 
-    // Send authentication success
-    let auth_response = ServerMessage::new("auth.authenticated", json!({
-        "playerId": player_id,
-        "status": "ok"
-    }));
-    let _ = tx.send(Message::Text(serde_json::to_string(&auth_response).unwrap()));
+    // Confirm auth success
+    let _ = tx.send(Message::Text(
+        serde_json::to_string(&ServerMessage::new(
+            "auth.ok",
+            json!({ "playerId": player_id, "username": username }),
+        ))
+        .unwrap(),
+    ));
 
-    // Message handling loop
+    // ── Main message loop ─────────────────────────────────────────
     while let Some(msg) = receiver.next().await {
         match msg {
             Ok(Message::Text(text)) => {
-                // Parse client message
                 match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(client_msg) => {
-                        tracing::info!("Received message type: {}", client_msg.msg_type);
-                        handle_client_message(client_msg, &player_id, &manager, &tx).await;
+                        tracing::info!("Msg '{}' from player '{}'", client_msg.msg_type, player_id);
+                        handle_client_message(client_msg, &player_id, &username, &state, &tx).await;
                     }
                     Err(e) => {
-                        tracing::error!("Failed to parse message: {:?}", e);
-                        let error_msg = ServerMessage::error("INVALID_MESSAGE", "Failed to parse JSON");
-                        let _ = tx.send(Message::Text(serde_json::to_string(&error_msg).unwrap()));
+                        tracing::error!("JSON parse error: {e:?}");
+                        let _ = tx.send(Message::Text(
+                            serde_json::to_string(&ServerMessage::error(
+                                "INVALID_MESSAGE",
+                                "Failed to parse JSON",
+                            ))
+                            .unwrap(),
+                        ));
                     }
                 }
             }
             Ok(Message::Close(_)) => {
-                tracing::info!("Player {} closed connection", player_id);
+                tracing::info!("Player '{}' closed connection", player_id);
                 break;
             }
             Err(e) => {
-                tracing::error!("WebSocket error: {:?}", e);
+                tracing::error!("WebSocket error: {e:?}");
                 break;
             }
             _ => {}
         }
     }
 
-    // Cleanup on disconnect
-    tracing::info!("Cleaning up connection for player {}", player_id);
-    manager.connections.remove(&player_id);
-    
-    // Remove from queue if present
+    // ── Cleanup ───────────────────────────────────────────────────
+    tracing::info!("Cleaning up connection for player '{}'", player_id);
+    state.connections.remove(&player_id);
+
     {
-        let mut queue = manager.queue.lock().await;
+        let mut queue = state.queue.lock().await;
         queue.retain(|id| id != &player_id);
     }
-    
-    // Leave room if in one
-    if let Some((_, room_id)) = manager.player_rooms.remove(&player_id) {
-        if let Some(mut room) = manager.rooms.get_mut(&room_id) {
-            room.players.retain(|p| p.player_id != player_id);
-            // Broadcast player left
-            // TODO: Implement in Commit 5
+
+    if let Some(room_id) = state.leave_room(&player_id).await {
+        // Broadcast that player left to the rest of the room
+        let left_msg = ServerMessage::new(
+            "room.player_left",
+            serde_json::json!({ "playerId": player_id }),
+        );
+        state.broadcast_to_room(&room_id, &serde_json::to_string(&left_msg).unwrap());
+
+        // Broadcast updated room state
+        if let Some(room_state) = state.get_room_state(&room_id) {
+            let state_msg = ServerMessage::new("room.state", room_state);
+            state.broadcast_to_room(&room_id, &serde_json::to_string(&state_msg).unwrap());
         }
     }
 
     send_task.abort();
 }
 
+/// Wait for `auth.hello { token: "..." }`, verify JWT, return (player_id, username).
+/// Sends an error and returns None if token is missing or invalid.
 async fn wait_for_auth(
     receiver: &mut futures::stream::SplitStream<WebSocket>,
     tx: &mpsc::UnboundedSender<Message>,
-) -> Option<String> {
-    // Wait for first message (must be auth.hello)
+    jwt_secret: &str,
+) -> Option<(String, String)> {
     match receiver.next().await {
         Some(Ok(Message::Text(text))) => {
             match serde_json::from_str::<ClientMessage>(&text) {
                 Ok(msg) if msg.msg_type == "auth.hello" => {
-                    // Extract player_id from payload
-                    if let Some(player_id) = msg.payload.get("playerId").and_then(|v| v.as_str()) {
-                        Some(player_id.to_string())
-                    } else {
-                        let error_msg = ServerMessage::error("INVALID_AUTH", "Missing playerId");
-                        let _ = tx.send(Message::Text(serde_json::to_string(&error_msg).unwrap()));
-                        None
+                    // Extract token from payload
+                    let token = match msg.payload.get("token").and_then(|v| v.as_str()) {
+                        Some(t) => t.to_string(),
+                        None => {
+                            let _ = tx.send(Message::Text(
+                                serde_json::to_string(&ServerMessage::error(
+                                    "INVALID_AUTH",
+                                    "Missing token in auth.hello payload",
+                                ))
+                                .unwrap(),
+                            ));
+                            return None;
+                        }
+                    };
+
+                    // Verify JWT
+                    match verify_jwt(&token, jwt_secret) {
+                        Ok(claims) => Some((claims.sub, claims.username)),
+                        Err(e) => {
+                            tracing::warn!("JWT verify failed: {e}");
+                            let _ = tx.send(Message::Text(
+                                serde_json::to_string(&ServerMessage::error(
+                                    "UNAUTHORIZED",
+                                    "Invalid or expired token",
+                                ))
+                                .unwrap(),
+                            ));
+                            None
+                        }
                     }
                 }
                 _ => {
-                    let error_msg = ServerMessage::error("UNAUTHORIZED", "First message must be auth.hello");
-                    let _ = tx.send(Message::Text(serde_json::to_string(&error_msg).unwrap()));
+                    let _ = tx.send(Message::Text(
+                        serde_json::to_string(&ServerMessage::error(
+                            "UNAUTHORIZED",
+                            "First message must be auth.hello { token }",
+                        ))
+                        .unwrap(),
+                    ));
                     None
                 }
             }
@@ -137,112 +178,198 @@ async fn wait_for_auth(
 async fn handle_client_message(
     msg: ClientMessage,
     player_id: &str,
-    manager: &Arc<GameRoomManager>,
+    username: &str,
+    state: &Arc<AppState>,
     tx: &mpsc::UnboundedSender<Message>,
 ) {
     match msg.msg_type.as_str() {
         "mm.join_queue" => {
-            tracing::info!("Player {} joining queue", player_id);
-            
-            // Extract username from payload (optional)
-            let username = msg.payload.get("username")
-                .and_then(|v| v.as_str())
-                .unwrap_or(player_id)
-                .to_string();
+            tracing::info!("Player '{}' joining queue", player_id);
 
-            // Join queue and try to match
-            match manager.join_queue(player_id.to_string(), username).await {
+            match state
+                .join_queue(player_id.to_string(), username.to_string())
+                .await
+            {
                 Some(room_id) => {
-                    // Match found! Notify all players in the room
                     tracing::info!("Match found! Room: {}", room_id);
                     
-                    if let Some(room_state) = manager.get_room_state(&room_id) {
-                        // Send mm.matched to all players
-                        let matched_msg = ServerMessage::new("mm.matched", json!({
-                            "roomId": room_id
-                        }));
-                        manager.broadcast_to_room(&room_id, &serde_json::to_string(&matched_msg).unwrap());
-                        
-                        // Send room.state to all players
-                        let state_msg = ServerMessage::new("room.state", room_state);
-                        manager.broadcast_to_room(&room_id, &serde_json::to_string(&state_msg).unwrap());
+                    let matched_msg =
+                        ServerMessage::new("mm.matched", json!({ "roomId": room_id }));
+                    state.broadcast_to_room(
+                        &room_id,
+                        &serde_json::to_string(&matched_msg).unwrap(),
+                    );
+                    
+                    let members = state.load_room_members(&room_id).await;
+                    if let Some(room_state) = state.get_room_state(&room_id) {
+                        let mut state_json = room_state.clone();
+                        // Overwrite players with fresh DB truth
+                        if let Some(obj) = state_json.as_object_mut() {
+                            obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                        }
+
+                        let state_msg = ServerMessage::new("room.state", state_json);
+                        state.broadcast_to_room(
+                            &room_id,
+                            &serde_json::to_string(&state_msg).unwrap(),
+                        );
                     }
                 }
                 None => {
-                    // Still in queue, waiting for more players
-                    let queue_size = manager.queue.lock().await.len();
-                    let response = ServerMessage::new("mm.queued", json!({
-                        "status": "waiting",
-                        "queueSize": queue_size
-                    }));
+                    let queue_size = state.queue.lock().await.len();
+                    let response = ServerMessage::new(
+                        "mm.queued",
+                        json!({ "status": "waiting", "queueSize": queue_size }),
+                    );
                     let _ = tx.send(Message::Text(serde_json::to_string(&response).unwrap()));
                 }
             }
         }
+
         "mm.leave_queue" => {
-            tracing::info!("Player {} leaving queue", player_id);
-            let mut queue = manager.queue.lock().await;
+            let mut queue = state.queue.lock().await;
             queue.retain(|id| id != player_id);
-            let response = ServerMessage::new("mm.left_queue", json!({"status": "ok"}));
-            let _ = tx.send(Message::Text(serde_json::to_string(&response).unwrap()));
+            let _ = tx.send(Message::Text(
+                serde_json::to_string(&ServerMessage::new(
+                    "mm.left_queue",
+                    json!({ "status": "ok" }),
+                ))
+                .unwrap(),
+            ));
         }
+
         "room.create" => {
-            tracing::info!("Player {} creating room", player_id);
-            
-            let username = msg.payload.get("username")
-                .and_then(|v| v.as_str())
-                .unwrap_or(player_id)
-                .to_string();
-            
-            let max_players = msg.payload.get("maxPlayers")
+            let max_players = msg
+                .payload
+                .get("maxPlayers")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(16) as usize;
-            
-            let room_id = manager.create_room(player_id.to_string(), username, max_players);
-            
-            if let Some(room_state) = manager.get_room_state(&room_id) {
-                let response = ServerMessage::new("room.created", json!({
-                    "roomId": room_id,
-                    "room": room_state
-                }));
-                let _ = tx.send(Message::Text(serde_json::to_string(&response).unwrap()));
-            }
-        }
-        "room.join" => {
-            tracing::info!("Player {} joining room", player_id);
-            // TODO: Implement in next phase
-            let error_msg = ServerMessage::error("NOT_IMPLEMENTED", "Room joining not yet implemented");
-            let _ = tx.send(Message::Text(serde_json::to_string(&error_msg).unwrap()));
-        }
-        "room.leave" => {
-            tracing::info!("Player {} leaving room", player_id);
-            if let Some((_, room_id)) = manager.player_rooms.remove(player_id) {
-                if let Some(mut room) = manager.rooms.get_mut(&room_id) {
-                    room.players.retain(|p| p.player_id != player_id);
-                    
-                    // Broadcast player left
-                    let left_msg = ServerMessage::new("room.player_left", json!({
-                        "playerId": player_id
-                    }));
-                    manager.broadcast_to_room(&room_id, &serde_json::to_string(&left_msg).unwrap());
-                    
-                    // Send updated room state
-                    if let Some(room_state) = manager.get_room_state(&room_id) {
-                        let state_msg = ServerMessage::new("room.state", room_state);
-                        manager.broadcast_to_room(&room_id, &serde_json::to_string(&state_msg).unwrap());
+
+            match state.create_room(player_id.to_string(), username.to_string(), max_players).await {
+                Ok(room_id) => {
+                    let members = state.load_room_members(&room_id).await;
+                    if let Some(room_state) = state.get_room_state(&room_id) {
+                        let mut state_json = room_state.clone();
+                        if let Some(obj) = state_json.as_object_mut() {
+                            obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                        }
+
+                        let response = ServerMessage::new(
+                            "room.created",
+                            json!({ "roomId": room_id, "room": state_json }),
+                        );
+                        let _ = tx.send(Message::Text(serde_json::to_string(&response).unwrap()));
                     }
                 }
-                let response = ServerMessage::new("room.left", json!({"status": "ok"}));
-                let _ = tx.send(Message::Text(serde_json::to_string(&response).unwrap()));
-            } else {
-                let error_msg = ServerMessage::error("NOT_IN_ROOM", "You are not in a room");
-                let _ = tx.send(Message::Text(serde_json::to_string(&error_msg).unwrap()));
+                Err(e) => {
+                    tracing::error!("Failed to create room in DB: {}", e);
+                    let _ = tx.send(Message::Text(
+                        serde_json::to_string(&ServerMessage::error(
+                            "DB_ERROR",
+                            &format!("Failed to create room: {}", e),
+                        ))
+                        .unwrap(),
+                    ));
+                }
             }
         }
+
+        "room.join" => {
+            let target_room = msg.payload.get("roomId").and_then(|v| v.as_str());
+
+            if let Some(room_id) = target_room {
+                match state.join_room(room_id, player_id, username.to_string()).await {
+                    Ok(_) => {
+                        let joined_msg = ServerMessage::new(
+                            "room.player_joined",
+                            json!({ "playerId": player_id, "username": username }),
+                        );
+                        state.broadcast_to_room(
+                            room_id,
+                            &serde_json::to_string(&joined_msg).unwrap(),
+                        );
+
+                        let members = state.load_room_members(room_id).await;
+                        if let Some(room_state) = state.get_room_state(room_id) {
+                            let mut state_json = room_state.clone();
+                            if let Some(obj) = state_json.as_object_mut() {
+                                obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                            }
+
+                            let state_msg = ServerMessage::new("room.state", state_json);
+                            state.broadcast_to_room(
+                                room_id,
+                                &serde_json::to_string(&state_msg).unwrap(),
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Message::Text(
+                            serde_json::to_string(&ServerMessage::error("JOIN_FAILED", &e))
+                                .unwrap(),
+                        ));
+                    }
+                }
+            } else {
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::error(
+                        "INVALID_PAYLOAD",
+                        "Missing roomId in payload",
+                    ))
+                    .unwrap(),
+                ));
+            }
+        }
+
+        "room.leave" => {
+            if let Some(room_id) = state.leave_room(player_id).await {
+                let left_msg = ServerMessage::new(
+                    "room.player_left",
+                    json!({ "playerId": player_id }),
+                );
+                state.broadcast_to_room(
+                    &room_id,
+                    &serde_json::to_string(&left_msg).unwrap(),
+                );
+
+                let members = state.load_room_members(&room_id).await;
+                if let Some(room_state) = state.get_room_state(&room_id) {
+                    let mut state_json = room_state.clone();
+                    if let Some(obj) = state_json.as_object_mut() {
+                        obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                    }
+
+                    let state_msg = ServerMessage::new("room.state", state_json);
+                    state.broadcast_to_room(
+                        &room_id,
+                        &serde_json::to_string(&state_msg).unwrap(),
+                    );
+                }
+
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::new(
+                        "room.left",
+                        json!({ "status": "ok" }),
+                    ))
+                    .unwrap(),
+                ));
+            } else {
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::error("NOT_IN_ROOM", "You are not in a room"))
+                        .unwrap(),
+                ));
+            }
+        }
+
         _ => {
             tracing::warn!("Unknown message type: {}", msg.msg_type);
-            let error_msg = ServerMessage::error("UNKNOWN_MESSAGE_TYPE", &format!("Unknown type: {}", msg.msg_type));
-            let _ = tx.send(Message::Text(serde_json::to_string(&error_msg).unwrap()));
+            let _ = tx.send(Message::Text(
+                serde_json::to_string(&ServerMessage::error(
+                    "UNKNOWN_MESSAGE_TYPE",
+                    &format!("Unknown type: {}", msg.msg_type),
+                ))
+                .unwrap(),
+            ));
         }
     }
 }

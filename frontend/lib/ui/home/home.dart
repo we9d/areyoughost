@@ -1,4 +1,3 @@
-import 'package:areyoughost/ui/widgets/buttons/login_buttons.dart';
 import 'package:areyoughost/ui/widgets/icons/friend-icon.dart';
 import 'package:areyoughost/ui/widgets/icons/mail-icon.dart';
 import 'package:areyoughost/ui/widgets/icons/setting-icon.dart';

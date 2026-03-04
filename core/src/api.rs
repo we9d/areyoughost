@@ -24,96 +24,52 @@ use crate::game_logic::win_checker::WinChecker;
 
 /// Main API struct for FFI exports to Flutter
 pub struct Api {
-    // Network state (Host/Client)
-    // We use Arc<Mutex<Option<...>>> to allow interior mutability and sharing
-    server: Arc<Mutex<Option<TcpServer>>>,
-    client: Arc<Mutex<Option<TcpClient>>>,
-    // Database client
-    db: Arc<PostgresDb>,
-    // Game State
-    game_state: Arc<Mutex<Option<GameState>>>,
+  server: Arc<Mutex<Option<TcpServer>>>,
+  client: Arc<Mutex<Option<TcpClient>>>,
+  // db: Option<Arc<PostgresDb>>,
+  game_state: Arc<Mutex<Option<GameState>>>,
 }
 
 impl Api {
-    pub fn new(database_url: String) -> Self {
-        // Initialize Postgres DB (blocking waiting for connection/migration)
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-
-        let db = runtime
-            .block_on(async { PostgresDb::new(&database_url).await })
-            .expect("Failed to initialize Database");
-
-        Api {
-            server: Arc::new(Mutex::new(None)),
-            client: Arc::new(Mutex::new(None)),
-            db: Arc::new(db),
-            game_state: Arc::new(Mutex::new(None)),
-        }
+  /// Create a new Api instance. The database_url is ignored — DB is managed by the HTTP server.
+  pub fn new(_database_url: String) -> Self {
+    Api {
+      server: Arc::new(Mutex::new(None)),
+      client: Arc::new(Mutex::new(None)),
+      game_state: Arc::new(Mutex::new(None)),
     }
+  }
 
-    /// Test database connection
-    pub fn test_db(&self) -> Result<String> {
-        let db = self.db.clone();
-        let runtime = tokio::runtime::Runtime::new().unwrap();
+  /// Compatibility constructor used by Flutter bridge (database_url ignored — auth is HTTP-only now)
+  pub fn new_with_db(_database_url: String) -> Self {
+    Self::new(String::new())
+  }
 
-        runtime.block_on(async {
-            // Check connection by getting a player or running a query
-            // Simple check: Try to get a non-existent player
-            match db.get_player_by_username("test_check").await {
-                Ok(_) => Ok("Database connection active".to_string()),
-                Err(e) => Err(anyhow!("Database error: {}", e)),
-            }
-        })
-    }
+  /// Stub: auth is handled by HTTP POST /auth/login
+  pub fn login(&self, _username: String, _password: String) -> Result<User> {
+    Err(anyhow!("Use HTTP POST /auth/login instead"))
+  }
 
-    /// User authentication
-    pub fn login(&self, username: String, password: String) -> Result<User> {
-        let db = self.db.clone();
-        let runtime = tokio::runtime::Runtime::new().unwrap();
+  /// Stub: auth is handled by HTTP POST /auth/register
+  pub fn register(&self, _username: String, _password: String) -> Result<User> {
+    Err(anyhow!("Use HTTP POST /auth/register instead"))
+  }
 
-        runtime.block_on(async {
-            match db.get_player_by_username(&username).await? {
-                Some(user) => {
-                    // Verify password (Simple check for prototype)
-                    if user.password_hash == password {
-                        // Update last login
-                        let _ = db.update_last_login(&user.user_id).await;
-                        Ok(user)
-                    } else {
-                        Err(anyhow!("Invalid password"))
-                    }
-                },
-                None => Err(anyhow!("User not found")),
-            }
-        })
-    }
+  /// Stub: DB is server-side only
+  pub fn test_db(&self) -> Result<String> {
+    Ok("DB is managed by HTTP server — no local connection needed".to_string())
+  }
 
-    /// User registration
-    pub fn register(&self, username: String, password: String) -> Result<User> {
-        let db = self.db.clone();
-        let runtime = tokio::runtime::Runtime::new().unwrap();
+  /// Stub: profile updates not yet implemented
+  pub fn update_username(&self, _user_id: String, _new_username: String) -> Result<()> {
+    Err(anyhow!("update_username not yet implemented in HTTP server"))
+  }
+}
 
-        // In production, hash password here
-        let password_hash = password;
 
-        runtime.block_on(async {
-            db.create_player(&username, &password_hash)
-                .await
-                .map_err(|e| anyhow!("Registration failed: {}", e))
-        })
-    }
-
-    /// Update username
-    pub fn update_username(&self, user_id: String, new_username: String) -> Result<()> {
-        let db = self.db.clone();
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-
-        runtime.block_on(async {
-            db.update_username(&user_id, &new_username)
-                .await
-                .map_err(|e| anyhow!("Failed to update username: {}", e))
-        })
-    }
+impl Api {
+    // Note: Auth (login/register) is now handled by the HTTP server (POST /auth/login, POST /auth/register)
+    // WS events handle room and game state. This core/api.rs is legacy P2P + Game Engine only.
 
     // --- Legacy P2P / Local methods (Stubbed or Redirected) ---
 
@@ -175,38 +131,13 @@ impl Api {
         user_id: String,
         message: String,
     ) -> Result<ChatMessage> {
-        // DB Persistence: Save Chat
-        let db = self.db.clone();
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-
-        // We need game_id from state
-        let game_lock = self.game_state.lock().unwrap();
-        let game_id = if let Some(state) = game_lock.as_ref() {
-            state.game_id.clone()
-        } else {
-            String::new()
-        };
-
-        // Scope logic (simplified)
-        let scope = "LOBBY";
-
-        if !game_id.is_empty() {
-            let g_id = game_id.clone();
-            let u_id = user_id.clone();
-            let msg = message.clone();
-
-            runtime.block_on(async {
-                let _ = db.save_chat_message(&g_id, None, &u_id, scope, &msg).await;
-            });
-        }
-
         Ok(ChatMessage {
             message_id: "preview".to_string(),
             room_id,
             sender_id: user_id,
             sender_name: "Me".to_string(),
             message,
-            phase_type: "lobb".to_string(),
+            phase_type: "lobby".to_string(),
             created_at: chrono::Utc::now().to_rfc3339(),
         })
     }
@@ -251,45 +182,17 @@ impl Api {
             );
         }
 
-        // 2. Assign Roles
+        // Assign Roles
         let roles = RoleDistributor::assign_roles(participants.len());
-
         let mut role_iter = roles.into_iter();
-
-        // DB Persistence: Create Game
-        let db = self.db.clone();
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-        let game_id_db = runtime.block_on(async {
-            db.create_game(&room_id)
-                .await
-                .unwrap_or_else(|_| "offline_game".to_string())
-        });
-
-        for p in participants.values_mut() {
-            if let Some(r) = role_iter.next() {
-                p.role = Some(r.name.clone());
-
-                // DB Persistence: Add Participant
-                let pid_str = p.user_id.clone();
-                let r_name = r.name.clone();
-                let g_id = game_id_db.clone();
-                let seat = p.seat_number;
-
-                runtime.block_on(async {
-                    let _ = db
-                        .add_game_participant(&g_id, &pid_str, &r_name, true, seat)
-                        .await;
-                });
-            }
-        }
+        let game_id_db = "local_game".to_string();
 
         new_state.participants = participants;
         new_state.game_id = game_id_db.clone();
         *game_lock = Some(new_state);
 
-        // 3. Start Game Loop (Spawn thread)
+        // Start Game Loop (Spawn thread)
         let game_state_arc = self.game_state.clone();
-        let db_clone = self.db.clone();
 
         tokio::spawn(async move {
             loop {
@@ -351,8 +254,8 @@ impl Api {
                     }
                 };
 
-                if let Some((g_id, faction)) = game_ended {
-                    let _ = db_clone.end_game(&g_id, &faction).await;
+                if let Some((_g_id, faction)) = game_ended {
+                    println!("Game ended. Winner faction: {}", faction);
                     break;
                 }
             }

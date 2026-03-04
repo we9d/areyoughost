@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:areyoughost/models/mock_models.dart';
-import 'package:areyoughost/ui/game/game_screen.dart';
 import 'package:areyoughost/ui/game/random_role_screen.dart';
 
 class LobbyScreen extends StatefulWidget {

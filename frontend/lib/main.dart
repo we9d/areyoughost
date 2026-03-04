@@ -2,42 +2,21 @@
 ///
 /// This is the main entry point for the Flutter frontend application.
 /// The app uses a mobile-like display (390x844) centered on desktop screens.
+library;
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:areyoughost/theme/app_theme.dart';
-import 'package:areyoughost/ui/login/login_screen.dart';
-import 'package:areyoughost/ui/lobby/lobby_screen.dart';
 // removed unused import of GameScreen to avoid unresolved URI during analysis
-import 'package:areyoughost/ui/game/mode_select_screen.dart';
 import 'package:areyoughost/ui/widgets/mobile_wrapper.dart';
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/ui/home/home.dart';
-import 'package:areyoughost/src/rust/frb_generated.dart';
 import 'package:areyoughost/services/rust_api.dart';
 
 Future<void> main() async {
-  // Initialize Rust API (Database, etc.)
-  // This also initializes RustLib internally
-  await RustApi.init();
-
-  // Check login status
-  await AuthService.checkLoginStatus();
-
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
 
-  const double phoneWidth = 390;
-  const double phoneHeight = 844;
-
-  WindowOptions windowOptions = const WindowOptions(
-    minimumSize: Size(phoneWidth, phoneHeight),
-    center: true,
-  );
-
-  windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.show();
-    await windowManager.focus();
-  });
+  await AuthService.checkLoginStatus();
 
   runApp(const AreYouGhostApp());
 }

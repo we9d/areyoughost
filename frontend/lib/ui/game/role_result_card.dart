@@ -156,7 +156,7 @@ class _RoleResultCardState extends State<RoleResultCard>
         // ================= Waiting Text (Animated) =================
         AnimatedBuilder(
           animation: _dotAnimation,
-          builder: (_, __) {
+          builder: (_, _) {
             return Text(
               'รอเวลาสักครู่$dots',
               style: const TextStyle(

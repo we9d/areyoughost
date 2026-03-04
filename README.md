@@ -54,9 +54,9 @@ graph LR
 | **Frontend** | Flutter (Desktop), Dart |
 | **Backend** | Rust 2021, Tokio (async runtime) |
 | **Server** | Axum (HTTP/WebSocket framework) |
-| **Database** | PostgreSQL 16, sqlx |
+| **Database** | Supabase PostgreSQL 16, sqlx |
 | **FFI Bridge** | flutter_rust_bridge |
-| **Networking** | Custom TCP/UDP stack (OSI Layers 4-7) |
+| **Networking** | WebSockets for Real-Time Game Sync |
 
 **[→ Detailed Architecture Documentation](docs/ARCHITECTURE.md)**
 
@@ -255,39 +255,34 @@ areyoughost/
 
 ## 🌐 Network Protocol
 
-The game implements a **custom TCP-based protocol** with full control over OSI layers 4-7:
+The game implements a **custom WebSocket-based protocol** for real-time multiplayer synchronization:
 
-- **Layer 7 (Application):** Game messages (login, vote, chat)
-- **Layer 6 (Presentation):** Binary serialization, optional compression
-- **Layer 5 (Session):** Connection state, session management
-- **Layer 4 (Transport):** Raw TCP/UDP sockets, bandwidth control
-
-**Features:**
-- Custom packet format with sequence numbers
-- QoS priority levels (Critical → High → Medium → Low)
-- Configurable bandwidth throttling
-- Heartbeat and keepalive mechanisms
+- **Authentication:** JWT-based HTTP login and WS handshake
+- **Room Management:** Create, Join, Leave rooms with DB persistence
+- **State Broadcast:** Real-time JSON state updates to all room members
+- **Matchmaking:** Queue-based matching (In Progress)
 
 **[→ Protocol Specification](docs/PROTOCOL.md)**
 
 ## 🔧 Development Status
 
-**Current Phase:** Network Stack Implementation
+**Current Phase:** Frontend Integration (Phase 5)
 
 ### Completed ✅
 - [x] Project structure and workspace setup
 - [x] Flutter UI screens (Login, Lobby, Game)
 - [x] HTTP/WebSocket server with health checks
-- [x] Docker-based PostgreSQL setup
+- [x] Supabase PostgreSQL integration and schema migrations
 - [x] FFI bridge configuration
 - [x] Cloudflare Tunnel integration
+- [x] Real-time multiplayer room synchronization (WebSockets)
 - [x] Comprehensive documentation
 
 ### In Progress 🚧
-- [ ] Custom network stack (TCP/UDP)
+- [ ] Frontend to Backend FFI / WebSocket Integration
 - [ ] Game state machine implementation
-- [ ] Database schema and migrations
-- [ ] Real-time multiplayer synchronization
+- [ ] Matchmaking system
+- [ ] Voice/Text Chat integration
 - [ ] Role distribution system
 - [ ] Vote counting and win conditions
 

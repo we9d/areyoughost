@@ -49,7 +49,7 @@ class PlayerListDialog extends StatelessWidget {
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: players.length,
-                    separatorBuilder: (_, __) =>
+                    separatorBuilder: (_, _) =>
                         const Divider(height: 16),
                     itemBuilder: (context, index) {
                       final player = players[index];

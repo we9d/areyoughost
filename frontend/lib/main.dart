@@ -10,7 +10,6 @@ import 'package:areyoughost/theme/app_theme.dart';
 import 'package:areyoughost/ui/widgets/mobile_wrapper.dart';
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/ui/home/home.dart';
-import 'package:areyoughost/services/rust_api.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

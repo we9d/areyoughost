@@ -82,6 +82,9 @@ flutter:
     - assets/images/defaultPlayer.png
     - assets/icons/skill-icon.svg
     - assets/images/V01.jpg
+    - assets/images/InvitePage.jpg
+    - assets/images/DayTimeBg.jpg
+    - assets/images/logo.png
 
 
 

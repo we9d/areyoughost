@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:areyoughost/ui/home/home.dart';
 import 'package:areyoughost/ui/register/register_screen.dart';
 import 'package:areyoughost/ui/widgets/auth_button.dart';
@@ -86,22 +87,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 fit: BoxFit.cover,
               ),
 
-              Positioned(
-                top: 40,
-                left: 16,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const HomeScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
               Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -178,6 +163,27 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                   ),
+                ),
+              ),
+
+              /// Back Button (Moved to end of stack to be on top)
+              Positioned(
+                top: 40,
+                left: 16,
+                child: IconButton(
+                  icon: Icon(
+                    PhosphorIcons.caretLeft(),
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const HomeScreen(),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],

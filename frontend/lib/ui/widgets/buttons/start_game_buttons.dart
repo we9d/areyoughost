@@ -11,7 +11,7 @@ class StartGameButton extends StatelessWidget {
     return SizedBox(
       child: Shadow(
         height: 40,
-        width: 250,
+        width: 315,
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,

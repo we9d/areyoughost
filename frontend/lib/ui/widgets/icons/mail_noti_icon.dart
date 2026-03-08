@@ -1,3 +1,4 @@
+import 'package:areyoughost/ui/Invite_friend/Invite_friend.dart';
 import 'package:areyoughost/ui/widgets/buttons/accept_invite_button.dart';
 import 'package:areyoughost/ui/widgets/buttons/reject_invite_button.dart';
 import 'package:bootstrap_icons/bootstrap_icons.dart';
@@ -31,7 +32,16 @@ class MailNotiIcon extends StatelessWidget {
               inviterName: inviterName,
               onAccept: () {
                 Navigator.pop(context);
-                onAccept?.call();
+                if (onAccept != null) {
+                  onAccept!.call();
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const InviteFriendScreen(),
+                    ),
+                  );
+                }
               },
               onReject: () {
                 Navigator.pop(context);

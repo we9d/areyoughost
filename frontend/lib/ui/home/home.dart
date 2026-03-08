@@ -1,5 +1,6 @@
 import 'package:areyoughost/ui/widgets/icons/friend-icon.dart';
 import 'package:areyoughost/ui/widgets/icons/mail-icon.dart';
+import 'package:areyoughost/ui/widgets/icons/mail_noti_icon.dart';
 import 'package:areyoughost/ui/widgets/icons/setting-icon.dart';
 import 'package:flutter/material.dart';
 import 'package:bootstrap_icons/bootstrap_icons.dart';
@@ -14,11 +15,10 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black, // พื้นหลังรอบ ๆ
+      backgroundColor: Colors.black,
       body: Center(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // อัตราส่วนภาพ 390x844
             const double designWidth = 390;
             const double designHeight = 844;
 
@@ -27,7 +27,6 @@ class HomeScreen extends StatelessWidget {
               height: designHeight,
               child: Stack(
                 children: [
-                  // พื้นหลัง
                   Image.asset(
                     'assets/images/mobileBg.jpg',
                     fit: BoxFit.cover,
@@ -35,21 +34,21 @@ class HomeScreen extends StatelessWidget {
                     height: designHeight,
                   ),
 
-                  // icon มุมขวาบน
                   Positioned(
                     top: 48,
                     right: 10,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        MailIcon(), //Mail icon
+                        const MailNotiIcon(),
                         const SizedBox(width: 4),
-                        AddFriendIcon(), //Add friends /friends
+                        AddFriendIcon(),
                         const SizedBox(width: 6),
                         SettingsIcon(icon: BootstrapIcons.gear),
                       ],
                     ),
                   ),
+
                   Positioned(
                     top: designHeight * 0.54,
                     left: 0,

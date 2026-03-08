@@ -7,6 +7,7 @@ import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
 import 'package:areyoughost/ui/dialogs/skill_select_dialog.dart';
 import 'package:areyoughost/models/mock_models.dart';
 import 'package:areyoughost/ui/game/widgets/DayTimeAnimation.dart';
+import 'package:areyoughost/ui/game/widgets/NightTimeAnimation.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomId;
@@ -30,6 +31,9 @@ class _GameScreenState extends State<GameScreen> {
 
   int myPlayerNumber = 7;
   int? selectedTarget;
+
+  /// ใช้สลับกลางวัน / กลางคืน
+  bool isDay = true;
 
   @override
   void initState() {
@@ -79,12 +83,12 @@ class _GameScreenState extends State<GameScreen> {
               /// Background
               Positioned.fill(
                 child: Image.asset(
-                  'assets/images/NightTimeBg.jpg',
+                  isDay
+                      ? 'assets/images/DayTimeBg.jpg'
+                      : 'assets/images/NightTimeBg.jpg',
                   fit: BoxFit.cover,
                 ),
               ),
-
-              /// ☀️ Sun Animation (Moved to front below Main UI)
 
               /// Main UI
               Positioned.fill(
@@ -93,7 +97,9 @@ class _GameScreenState extends State<GameScreen> {
 
                     /// Top Bar
                     GameTopBar(
-                      title: 'เวลากลางคืน 20 วินาที',
+                      title: isDay
+                          ? 'เวลากลางวัน 20 วินาที'
+                          : 'เวลากลางคืน 20 วินาที',
                       onExitTap: () {},
                       onPlayerTap: () {},
                     ),
@@ -159,18 +165,25 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
 
-              /// ☀️ Sun Animation
-              Positioned(
-                top: 0,
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: const IgnorePointer(
-                  child: Center(
-                    child: DayTimeAnimation(),
+              /// 🌞 Day Animation
+              if (isDay)
+                const Positioned.fill(
+                  child: IgnorePointer(
+                    child: Center(
+                      child: DayTimeAnimation(),
+                    ),
                   ),
                 ),
-              ),
+
+              /// 🌙 Night Animation
+              if (!isDay)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Center(
+                      child: NightTimeAnimation(),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

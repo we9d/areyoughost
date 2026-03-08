@@ -14,7 +14,6 @@ import 'package:areyoughost/ui/home/home.dart';
 Future<void> main() async {
  // Initialize Rust API (Database, etc.)
   // This also initializes RustLib internally
-  await RustApi.init();
 
   // Check login status
   await AuthService.checkLoginStatus();

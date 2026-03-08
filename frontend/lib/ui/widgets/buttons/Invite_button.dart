@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:areyoughost/ui/widgets/buttons/decoration/shadow.dart';
 import 'package:areyoughost/ui/widgets/search_friend.dart';
+import 'package:areyoughost/ui/widgets/friend_status.dart';
 
 class InviteButton extends StatelessWidget {
   const InviteButton({super.key});
@@ -17,7 +18,7 @@ class InviteButton extends StatelessWidget {
     return SizedBox(
       child: Shadow(
         height: 40,
-        width: 250,
+        width: 315,
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
@@ -35,7 +36,6 @@ class InviteButton extends StatelessWidget {
             style: TextStyle(
               color: Colors.black,
               fontSize: 20,
-              fontFamily: 'Charmonman',
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -54,7 +54,7 @@ class _InviteDialog extends StatelessWidget {
       insetPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 90),
       backgroundColor: Colors.white,
       child: SizedBox(
-        width: 150,
+        width: 350,
         height: 550,
         child: Stack(
           children: [
@@ -89,12 +89,20 @@ class _InviteDialog extends StatelessWidget {
               ),
             ),
 
-            /// Search Friend (เรียกจากไฟล์อื่น)
+            /// Search Friend 
             const Positioned(
               top: 70,
               left: 20,
               right: 20,
               child: SearchFriend(),
+            ),
+
+            /// Friend Status
+            const Positioned(
+              top: 135,
+              left: 20,
+              right: 20,
+              child: FriendStatusList(),
             ),
 
           ],

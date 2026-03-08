@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-
 import 'package:areyoughost/ui/game/widgets/game_top_bar.dart';
 import 'package:areyoughost/ui/game/widgets/player_grid.dart';
 import 'package:areyoughost/ui/game/widgets/chat_box.dart';
 import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
-
 import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
 import 'package:areyoughost/ui/dialogs/skill_select_dialog.dart';
-
 import 'package:areyoughost/models/mock_models.dart';
 
 class GameScreen extends StatefulWidget {
@@ -30,6 +27,10 @@ class _GameScreenState extends State<GameScreen> {
   late List<RoleInfo> allRoles;
   late List<SkillOption> currentRoleSkills;
 
+  /// 👇 เพิ่ม
+  int myPlayerNumber = 7;
+  int? selectedTarget;
+
   @override
   void initState() {
     super.initState();
@@ -39,7 +40,7 @@ class _GameScreenState extends State<GameScreen> {
       (i) => PlayerModel(number: i + 1, name: 'Player'),
     );
 
-    chatMessages = []; // 👈 Empty for now
+    chatMessages = [];
 
     allRoles = [
       RoleInfo(name: 'Villager', description: 'A simple villager'),
@@ -54,13 +55,12 @@ class _GameScreenState extends State<GameScreen> {
   @override
   Widget build(BuildContext context) {
     final screenH = MediaQuery.of(context).size.height;
-    
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Center(
         child: Container(
           width: 390,
-      
           height: screenH > 844 ? 844 : screenH,
           decoration: BoxDecoration(
             color: Colors.black,
@@ -69,46 +69,64 @@ class _GameScreenState extends State<GameScreen> {
           clipBehavior: Clip.hardEdge,
           child: Stack(
             children: [
-              // Background Image
+
+              /// Background
               Positioned.fill(
                 child: Image.asset(
                   'assets/images/NightTimeBg.jpg',
                   fit: BoxFit.cover,
                 ),
               ),
-              
-              // Main Layout
+
+              /// Main Layout
               Positioned.fill(
                 child: Column(
                   children: [
+
                     /// TOP BAR
                     GameTopBar(
                       title: 'เวลากลางคืน 20 วินาที',
                       onExitTap: () {},
                       onPlayerTap: () {},
                     ),
-  
+
                     const SizedBox(height: 6),
-  
+
                     /// PLAYER GRID
                     Expanded(
                       flex: 5,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: PlayerGrid(players: players),
+                        child: PlayerGrid(
+                          players: players,
+                          myPlayerNumber: myPlayerNumber,
+                          selectedTarget: selectedTarget,
+
+                          /// 👇 เวลากดผู้เล่น
+                          onPlayerTap: (number) {
+
+                            /// ห้ามกดตัวเอง
+                            if (number == myPlayerNumber) return;
+
+                            setState(() {
+                              selectedTarget = number;
+                            });
+
+                          },
+                        ),
                       ),
                     ),
-  
-                    const SizedBox(height: 2), // 👈 Reduced gap
-  
+
+                    const SizedBox(height: 2),
+
                     /// CHAT BOX
                     SizedBox(
-                      height: 220, // 👈 Increased height 
+                      height: 220,
                       child: ChatBox(messages: chatMessages),
                     ),
-  
-                    const SizedBox(height: 4), // 👈 Reduced gap
-  
+
+                    const SizedBox(height: 4),
+
                     /// CHAT INPUT
                     ChatInputRow(
                       onRoleInfoTap: () {
@@ -128,7 +146,7 @@ class _GameScreenState extends State<GameScreen> {
                       },
                       onSend: (_) {},
                     ),
-  
+
                     const SizedBox(height: 10),
                   ],
                 ),

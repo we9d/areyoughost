@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:areyoughost/models/mock_models.dart';
+import 'package:areyoughost/ui/game/player_sign.dart';
 
 class PlayerGrid extends StatelessWidget {
   final List<PlayerModel> players;
 
+  /// 👇 เพิ่ม
+  final int myPlayerNumber;
+  final int? selectedTarget;
+  final Function(int) onPlayerTap;
+
   const PlayerGrid({
     super.key,
     required this.players,
+    required this.myPlayerNumber,
+    required this.selectedTarget,
+    required this.onPlayerTap,
   });
 
   @override
@@ -24,7 +33,9 @@ class PlayerGrid extends StatelessWidget {
               child: Row(
                 children: List.generate(crossAxisCount, (colIndex) {
                   final index = rowIndex * crossAxisCount + colIndex;
-                  if (index >= players.length) return const Expanded(child: SizedBox());
+                  if (index >= players.length) {
+                    return const Expanded(child: SizedBox());
+                  }
 
                   final p = players[index];
 
@@ -33,43 +44,57 @@ class PlayerGrid extends StatelessWidget {
                       padding: EdgeInsets.only(
                         right: colIndex < crossAxisCount - 1 ? 8 : 0,
                       ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFD9D9D9),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        clipBehavior: Clip.hardEdge,
-                        child: Column(
+                      child: GestureDetector(
+                        onTap: () {
+                          onPlayerTap(p.number);
+                        },
+                        child: Stack(
                           children: [
-                            const SizedBox(height: 6),
+                            /// กล่องผู้เล่น
+                            Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFD9D9D9),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              clipBehavior: Clip.hardEdge,
+                              child: Column(
+                                children: [
+                                  const SizedBox(height: 6),
 
-                            /// 🔹 เลข + ชื่อ
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 6),
-                              child: Text(
-                                '${p.number} ${p.name}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  height: 1.1,
-                                  color: Colors.black,
-                                ),
+                                  /// 🔹 เลข + ชื่อ
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                                    child: Text(
+                                      '${p.number} ${p.name}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        height: 1.1,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 2),
+
+                                  /// 🔹รูปคนสีดำ default
+                                  Expanded(
+                                    child: Image.asset(
+                                      'assets/images/defaultPlayer.png',
+                                      fit: BoxFit.cover,
+                                      alignment: Alignment.bottomCenter,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
 
-                            const SizedBox(height: 2),
-
-                            /// 🔹รูปคนสีดำ default
-                            Expanded(
-                              child: Image.asset(
-                                'assets/images/defaultPlayer.png',
-                                fit: BoxFit.cover,
-                                alignment: Alignment.bottomCenter,
-                              ),
-                            ),
+                            /// 🔹 ป้ายไม้
+                            if (p.number == myPlayerNumber && selectedTarget != null)
+                              PlayerSign(number: selectedTarget!),
                           ],
                         ),
                       ),

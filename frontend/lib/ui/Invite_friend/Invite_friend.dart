@@ -3,6 +3,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:areyoughost/ui/widgets/buttons/start_game_buttons.dart';
 import 'package:areyoughost/ui/widgets/buttons/Invite_button.dart';
 import 'package:areyoughost/ui/widgets/buttons/Invite_chat.dart';
+import 'package:areyoughost/ui/widgets/message.dart';
 
 class InviteFriendScreen extends StatefulWidget {
   const InviteFriendScreen({super.key});
@@ -58,11 +59,19 @@ class _InviteFriendScreenState extends State<InviteFriendScreen> {
                     "ยินดีต้อนรับเข้าสู่เกมใหม่ Ghost ป่ะคะ?",
                     style: TextStyle(
                       color: Color(0xFFF1C232),
-                      fontSize: 13,
+                      fontSize: 17,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
+              ),
+              
+              /// Message
+              const Positioned(
+                top: 100,
+                left: 30,
+                right: 20,
+                child: Message(),
               ),
 
               /// ปุ่มย้อนกลับ
@@ -84,7 +93,7 @@ class _InviteFriendScreenState extends State<InviteFriendScreen> {
 
               /// ปุ่ม Invite Friend
               Positioned(
-                top: 521, 
+                top: 668, 
                 left: 0,
                 right: 0,
                 child: const Center(

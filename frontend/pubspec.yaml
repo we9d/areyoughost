@@ -85,8 +85,15 @@ flutter:
     - assets/images/InvitePage.jpg
     - assets/images/DayTimeBg.jpg
     - assets/images/logo.png
-
-
+    - assets/images/draw.png
+    - assets/images/ghosts-defeat.png
+    - assets/images/ghosts-win.png
+    - assets/images/serialkiller-defeat.png
+    - assets/images/serialkiller-win.png
+    - assets/images/spirit-defeat.png
+    - assets/images/spirit-win.png
+    - assets/images/villagers-defeat.png
+    - assets/images/villagers-win.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -8,7 +8,6 @@ import 'package:areyoughost/ui/widgets/volume_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:areyoughost/ui/widgets/buttons/login_buttons.dart';
 
-
 class SettingsIcon extends StatelessWidget {
   final IconData icon;
   const SettingsIcon({super.key, required this.icon});

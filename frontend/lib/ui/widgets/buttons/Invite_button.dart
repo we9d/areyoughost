@@ -35,6 +35,7 @@ class InviteButton extends StatelessWidget {
             style: TextStyle(
               color: Colors.black,
               fontSize: 20,
+              fontFamily: 'Charmonman',
               fontWeight: FontWeight.bold,
             ),
           ),

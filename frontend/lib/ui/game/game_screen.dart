@@ -27,7 +27,7 @@ class _GameScreenState extends State<GameScreen> {
   late List<RoleInfo> allRoles;
   late List<SkillOption> currentRoleSkills;
 
-  /// 👇 เพิ่ม
+  /// หมายเลขผู้เล่นของเรา
   int myPlayerNumber = 7;
   int? selectedTarget;
 
@@ -102,9 +102,8 @@ class _GameScreenState extends State<GameScreen> {
                           myPlayerNumber: myPlayerNumber,
                           selectedTarget: selectedTarget,
 
-                          /// 👇 เวลากดผู้เล่น
+                          /// เวลากดผู้เล่น
                           onPlayerTap: (number) {
-
                             /// ห้ามกดตัวเอง
                             if (number == myPlayerNumber) return;
 
@@ -112,6 +111,7 @@ class _GameScreenState extends State<GameScreen> {
                               selectedTarget = number;
                             });
 
+                            // TODO: ใส่ logic เกม เช่น เลือกเป้าหมาย skill หรือ vote
                           },
                         ),
                       ),

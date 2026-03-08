@@ -5,7 +5,6 @@ import 'package:areyoughost/ui/game/player_sign.dart';
 class PlayerGrid extends StatelessWidget {
   final List<PlayerModel> players;
 
-  /// 👇 เพิ่ม
   final int myPlayerNumber;
   final int? selectedTarget;
   final Function(int) onPlayerTap;
@@ -29,10 +28,11 @@ class PlayerGrid extends StatelessWidget {
         children: List.generate(rowCount, (rowIndex) {
           return Expanded(
             child: Padding(
-              padding: EdgeInsets.only(bottom: rowIndex < rowCount - 1 ? 8 : 0),
+              padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 children: List.generate(crossAxisCount, (colIndex) {
                   final index = rowIndex * crossAxisCount + colIndex;
+
                   if (index >= players.length) {
                     return const Expanded(child: SizedBox());
                   }
@@ -41,9 +41,7 @@ class PlayerGrid extends StatelessWidget {
 
                   return Expanded(
                     child: Padding(
-                      padding: EdgeInsets.only(
-                        right: colIndex < crossAxisCount - 1 ? 8 : 0,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: GestureDetector(
                         onTap: () {
                           onPlayerTap(p.number);
@@ -61,7 +59,7 @@ class PlayerGrid extends StatelessWidget {
                                 children: [
                                   const SizedBox(height: 6),
 
-                                  /// 🔹 เลข + ชื่อ
+                                  /// เลข + ชื่อ
                                   Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 6),
                                     child: Text(
@@ -80,7 +78,7 @@ class PlayerGrid extends StatelessWidget {
 
                                   const SizedBox(height: 2),
 
-                                  /// 🔹รูปคนสีดำ default
+                                  /// รูปผู้เล่น
                                   Expanded(
                                     child: Image.asset(
                                       'assets/images/defaultPlayer.png',
@@ -92,9 +90,16 @@ class PlayerGrid extends StatelessWidget {
                               ),
                             ),
 
-                            /// 🔹 ป้ายไม้
-                            if (p.number == myPlayerNumber && selectedTarget != null)
-                              PlayerSign(number: selectedTarget!),
+                            /// ป้ายไม้
+                            if (p.number == myPlayerNumber)
+                              // เราชูป้ายบอกเลขที่เราเลือก (ถ้ามี)
+                              if (selectedTarget != null)
+                                PlayerSign(number: selectedTarget!)
+                              else
+                                const SizedBox()
+                            else
+                              // คนอื่นชูป้ายเลขสมมติ 
+                              PlayerSign(number: (p.number * 3) % 16 + 1),
                           ],
                         ),
                       ),

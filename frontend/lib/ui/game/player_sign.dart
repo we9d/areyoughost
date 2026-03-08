@@ -10,33 +10,33 @@ class PlayerSign extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Positioned.fill(
+    return Positioned(
+      bottom: -8.5,
+      left: 2.5,
+      right: 0,
       child: Center(
-        child: Transform.translate(
-          offset: const Offset(1.5, 38),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              /// ป้ายไม้
-              Image.asset(
-                "assets/images/Sign.png",
-                width: 180,
-              ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            /// ป้ายไม้
+            Image.asset(
+              "assets/images/Sign.png",
+              width: 180,
+            ),
 
-              /// ตัวเลขบนป้าย
-              Transform.translate(
-                offset: const Offset(-1.5, -1),
-                child: Text(
-                  "$number",
-                  style: const TextStyle(
-                    fontSize: 23,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+            /// ตัวเลข
+            Transform.translate(
+              offset: const Offset(-2, -0.5), // <--- ขยับแกน X (ซ้าย-) และ แกน Y (ลง+)
+              child: Text(
+                "$number",
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

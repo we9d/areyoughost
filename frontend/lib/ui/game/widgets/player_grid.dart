@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:areyoughost/models/mock_models.dart';
 import 'package:areyoughost/ui/game/player_sign.dart';
+import 'package:areyoughost/ui/game/widgets/point_hand.dart';
 
 class PlayerGrid extends StatelessWidget {
   final List<PlayerModel> players;
-
   final int myPlayerNumber;
   final int? selectedTarget;
   final Function(int) onPlayerTap;
@@ -48,6 +48,7 @@ class PlayerGrid extends StatelessWidget {
                         },
                         child: Stack(
                           children: [
+
                             /// กล่องผู้เล่น
                             Container(
                               decoration: BoxDecoration(
@@ -92,14 +93,16 @@ class PlayerGrid extends StatelessWidget {
 
                             /// ป้ายไม้
                             if (p.number == myPlayerNumber)
-                              // เราชูป้ายบอกเลขที่เราเลือก (ถ้ามี)
                               if (selectedTarget != null)
                                 PlayerSign(number: selectedTarget!)
                               else
                                 const SizedBox()
                             else
-                              // คนอื่นชูป้ายเลขสมมติ 
                               PlayerSign(number: (p.number * 3) % 16 + 1),
+
+                            /// นิ้วชี้ (แสดงทุกคน)
+                            PointHand(number: p.number),
+
                           ],
                         ),
                       ),

@@ -10,13 +10,29 @@ import 'package:areyoughost/theme/app_theme.dart';
 import 'package:areyoughost/ui/widgets/mobile_wrapper.dart';
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/ui/home/home.dart';
-import 'package:areyoughost/services/rust_api.dart';
 
 Future<void> main() async {
+ // Initialize Rust API (Database, etc.)
+  // This also initializes RustLib internally
+
+  // Check login status
+  await AuthService.checkLoginStatus();
+
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
 
-  await AuthService.checkLoginStatus();
+  const double phoneWidth = 390;
+  const double phoneHeight = 844;
+
+  WindowOptions windowOptions = const WindowOptions(
+    minimumSize: Size(phoneWidth, phoneHeight),
+    center: true,
+  );
+
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
 
   runApp(const AreYouGhostApp());
 }

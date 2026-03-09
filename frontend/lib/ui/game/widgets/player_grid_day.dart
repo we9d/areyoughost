@@ -51,7 +51,7 @@ class PlayerGridDay extends StatelessWidget {
                         child: Stack(
                           children: [
 
-                            /// กล่องผู้เล่น
+                            /// Player Card
                             Container(
                               decoration: BoxDecoration(
                                 color: const Color(0xFFD9D9D9),
@@ -62,7 +62,7 @@ class PlayerGridDay extends StatelessWidget {
                                 children: [
                                   const SizedBox(height: 6),
 
-                                  /// เลข + ชื่อ
+                                  /// Player number + name
                                   Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 6),
                                     child: Text(
@@ -81,7 +81,7 @@ class PlayerGridDay extends StatelessWidget {
 
                                   const SizedBox(height: 2),
 
-                                  /// รูปผู้เล่น
+                                  /// Player image
                                   Expanded(
                                     child: Image.asset(
                                       'assets/images/defaultPlayer.png',
@@ -93,8 +93,10 @@ class PlayerGridDay extends StatelessWidget {
                               ),
                             ),
 
-                            /// ป้ายไม้ และ นิ้ว (โชว์เฉพาะช่วงโหวต)
+                            /// Vote UI
                             if (isVotePhase) ...[
+
+                              /// Wooden Sign
                               if (p.number == myPlayerNumber)
                                 if (selectedTarget != null)
                                   PlayerSign(number: selectedTarget!)
@@ -103,9 +105,18 @@ class PlayerGridDay extends StatelessWidget {
                               else
                                 PlayerSign(number: (p.number * 3) % 16 + 1),
 
-                              PointHand(number: p.number)
+                              /// ☝️ Point Hand
+                              Positioned(
+                                right: 32,
+                                top: 25,
+                                child: Transform.scale(
+                                  scale: 1,
+                                  child: PointHand(
+                                    number: p.number,
+                                  ),
+                                ),
+                              ),
                             ],
-
                           ],
                         ),
                       ),

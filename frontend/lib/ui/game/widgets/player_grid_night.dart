@@ -95,6 +95,8 @@ class PlayerGridNight extends StatelessWidget {
 
                             /// ป้ายไม้ และ นิ้ว (โชว์เฉพาะช่วงโหวต)
                             if (isVotePhase) ...[
+
+                              /// ป้ายไม้
                               if (p.number == myPlayerNumber)
                                 if (selectedTarget != null)
                                   PlayerSign(number: selectedTarget!)
@@ -103,7 +105,12 @@ class PlayerGridNight extends StatelessWidget {
                               else
                                 PlayerSign(number: (p.number * 3) % 16 + 1),
 
-                              GhostHand(number: p.number)
+                              /// 👻 มือผี
+                              Positioned(
+                                right: 32,
+                                top: 25,
+                                child: GhostHand(number: p.number),
+                              ),
                             ],
 
                           ],

@@ -10,6 +10,8 @@ import 'package:areyoughost/ui/dialogs/skill_select_dialog.dart';
 import 'package:areyoughost/models/mock_models.dart';
 import 'package:areyoughost/ui/game/widgets/DayTimeAnimation.dart';
 import 'package:areyoughost/ui/game/widgets/NightTimeAnimation.dart';
+import 'package:areyoughost/ui/game/widgets/player_grid_day.dart';
+import 'package:areyoughost/ui/game/widgets/player_grid_night.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomId;
@@ -33,7 +35,7 @@ class _GameScreenState extends State<GameScreen> {
   int myPlayerNumber = 7;
   int? selectedTarget;
 
-  /// ใช้สลับกลางวัน / กลางคืน
+  /// 🌞 Day / 🌙 Night
   bool isDay = true;
 
   @override
@@ -57,6 +59,14 @@ class _GameScreenState extends State<GameScreen> {
         description: 'Protect a player',
       ),
     ];
+  }
+
+  void onPlayerTap(int number) {
+    if (number == myPlayerNumber) return;
+
+    setState(() {
+      selectedTarget = number;
+    });
   }
 
   @override
@@ -108,20 +118,21 @@ class _GameScreenState extends State<GameScreen> {
                       flex: 5,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: PlayerGrid(
-                          players: players,
-                          myPlayerNumber: myPlayerNumber,
-                          selectedTarget: selectedTarget,
-                          onPlayerTap: (number) {
-
-                            if (number == myPlayerNumber) return;
-
-                            setState(() {
-                              selectedTarget = number;
-                            });
-
-                          },
-                        ),
+                        child: isDay
+                            ? PlayerGridDay(
+                                players: players,
+                                myPlayerNumber: myPlayerNumber,
+                                selectedTarget: selectedTarget,
+                                isVotePhase: true,
+                                onPlayerTap: onPlayerTap,
+                              )
+                            : PlayerGridNight(
+                                players: players,
+                                myPlayerNumber: myPlayerNumber,
+                                selectedTarget: selectedTarget,
+                                isVotePhase: true,
+                                onPlayerTap: onPlayerTap,
+                              ),
                       ),
                     ),
 
@@ -141,7 +152,8 @@ class _GameScreenState extends State<GameScreen> {
                         showDialog(
                           context: context,
                           builder: (_) => const RolesDialog(),
-                        );}, // ไม่ต้องเรียก dialog
+                        );
+                      },
                       onSkillTap: () {
                         showDialog(
                           context: context,

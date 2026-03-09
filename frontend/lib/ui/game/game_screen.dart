@@ -3,7 +3,7 @@ import 'package:areyoughost/ui/game/widgets/game_top_bar.dart';
 import 'package:areyoughost/ui/game/widgets/player_grid.dart';
 import 'package:areyoughost/ui/game/widgets/chat_box.dart';
 import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
-import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
+import 'package:areyoughost/ui/widgets/buttons/roles_buttons.dart';
 import 'package:areyoughost/ui/dialogs/skill_select_dialog.dart';
 import 'package:areyoughost/models/mock_models.dart';
 import 'package:areyoughost/ui/game/widgets/DayTimeAnimation.dart';
@@ -26,7 +26,6 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   late List<PlayerModel> players;
   late List<ChatMessage> chatMessages;
-  late List<RoleInfo> allRoles;
   late List<SkillOption> currentRoleSkills;
 
   int myPlayerNumber = 7;
@@ -45,10 +44,6 @@ class _GameScreenState extends State<GameScreen> {
     );
 
     chatMessages = [];
-
-    allRoles = [
-      RoleInfo(name: 'Villager', description: 'A simple villager'),
-    ];
 
     currentRoleSkills = [
       SkillOption(
@@ -143,11 +138,8 @@ class _GameScreenState extends State<GameScreen> {
                       onRoleInfoTap: () {
                         showDialog(
                           context: context,
-                          builder: (_) => RoleInfoDialog(
-                            roles: allRoles,
-                          ),
-                        );
-                      },
+                          builder: (_) => const RolesDialog(),
+                        );}, // ไม่ต้องเรียก dialog
                       onSkillTap: () {
                         showDialog(
                           context: context,
@@ -177,7 +169,7 @@ class _GameScreenState extends State<GameScreen> {
 
               /// 🌙 Night Animation
               if (!isDay)
-                Positioned.fill(
+                const Positioned.fill(
                   child: IgnorePointer(
                     child: Center(
                       child: NightTimeAnimation(),

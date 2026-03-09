@@ -90,6 +90,7 @@ flutter:
     - assets/images/Ghost_Finger.png
     - assets/images/sun.png
     - assets/images/moon.png
+    - assets/images/Character.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

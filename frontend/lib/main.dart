@@ -3,6 +3,14 @@
 /// This is the main entry point for the Flutter frontend application.
 /// The app uses a mobile-like display (390x844) centered on desktop screens.
 library;
+import 'package:areyoughost/ui/result/draw.dart';
+import 'package:areyoughost/ui/result/ghosts-defeat.dart';
+import 'package:areyoughost/ui/result/ghosts-win.dart';
+import 'package:areyoughost/ui/result/serialkiller-defeat.dart';
+import 'package:areyoughost/ui/result/serialkiller-win.dart';
+import 'package:areyoughost/ui/result/spirit-defeat.dart';
+import 'package:areyoughost/ui/result/villagers-defeat.dart';
+import 'package:areyoughost/ui/result/villagers-win.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:areyoughost/theme/app_theme.dart';

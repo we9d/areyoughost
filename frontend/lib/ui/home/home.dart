@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:areyoughost/ui/widgets/buttons/start_buttons.dart';
 import 'package:areyoughost/ui/widgets/buttons/rules_buttons.dart';
-import 'package:areyoughost/ui/widgets/buttons/roles_buttons.dart';
+import 'package:areyoughost/ui/game/widgets/roles_card.dart';
 import 'package:areyoughost/ui/game/mode_select_screen.dart';
 
 class HomeScreen extends StatelessWidget {

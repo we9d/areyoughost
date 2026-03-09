@@ -9,9 +9,9 @@ class PlayerGrid extends StatelessWidget {
   final int? selectedTarget;
   final Function(int) onPlayerTap;
 
-  final int myPlayerNumber;
-  final int? selectedTarget;
-  final Function(int) onPlayerTap;
+  // final int myPlayerNumber;
+  // final int? selectedTarget;
+  // final Function(int) onPlayerTap;
 
   const PlayerGrid({
     super.key,

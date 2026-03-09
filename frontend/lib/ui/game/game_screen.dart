@@ -8,6 +8,7 @@ import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
 import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
 import 'package:areyoughost/ui/dialogs/skill_select_dialog.dart';
 import 'package:areyoughost/models/mock_models.dart';
+import 'package:areyoughost/ui/game/widgets/DayTimeAnimation.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomId;
@@ -29,7 +30,6 @@ class _GameScreenState extends State<GameScreen> {
   late List<RoleInfo> allRoles;
   late List<SkillOption> currentRoleSkills;
 
-  /// หมายเลขผู้เล่นของเรา
   int myPlayerNumber = 7;
   int? selectedTarget;
 
@@ -49,8 +49,14 @@ class _GameScreenState extends State<GameScreen> {
     ];
 
     currentRoleSkills = [
-      SkillOption(name: 'Investigate', description: 'Investigate a player'),
-      SkillOption(name: 'Protect', description: 'Protect a player'),
+      SkillOption(
+        name: 'Investigate',
+        description: 'Investigate a player',
+      ),
+      SkillOption(
+        name: 'Protect',
+        description: 'Protect a player',
+      ),
     ];
   }
 
@@ -80,12 +86,14 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
 
-              /// Main Layout
+              /// ☀️ Sun Animation (Moved to front below Main UI)
+
+              /// Main UI
               Positioned.fill(
                 child: Column(
                   children: [
 
-                    /// TOP BAR
+                    /// Top Bar
                     GameTopBar(
                       title: 'เวลากลางคืน 20 วินาที',
                       onExitTap: () {},
@@ -94,7 +102,7 @@ class _GameScreenState extends State<GameScreen> {
 
                     const SizedBox(height: 6),
 
-                    /// PLAYER GRID
+                    /// Player Grid
                     Expanded(
                       flex: 5,
                       child: Padding(
@@ -103,17 +111,14 @@ class _GameScreenState extends State<GameScreen> {
                           players: players,
                           myPlayerNumber: myPlayerNumber,
                           selectedTarget: selectedTarget,
-
-                          /// เวลากดผู้เล่น
                           onPlayerTap: (number) {
-                            /// ห้ามกดตัวเอง
+
                             if (number == myPlayerNumber) return;
 
                             setState(() {
                               selectedTarget = number;
                             });
 
-                            // TODO: ใส่ logic เกม เช่น เลือกเป้าหมาย skill หรือ vote
                           },
                         ),
                       ),
@@ -121,7 +126,7 @@ class _GameScreenState extends State<GameScreen> {
 
                     const SizedBox(height: 2),
 
-                    /// CHAT BOX
+                    /// Chat Box
                     SizedBox(
                       height: 220,
                       child: ChatBox(messages: chatMessages),
@@ -129,12 +134,14 @@ class _GameScreenState extends State<GameScreen> {
 
                     const SizedBox(height: 4),
 
-                    /// CHAT INPUT
+                    /// Chat Input
                     ChatInputRow(
                       onRoleInfoTap: () {
                         showDialog(
                           context: context,
-                          builder: (_) => RoleInfoDialog(roles: allRoles),
+                          builder: (_) => RoleInfoDialog(
+                            roles: allRoles,
+                          ),
                         );
                       },
                       onSkillTap: () {
@@ -151,6 +158,19 @@ class _GameScreenState extends State<GameScreen> {
 
                     const SizedBox(height: 10),
                   ],
+                ),
+              ),
+
+              /// ☀️ Sun Animation
+              Positioned(
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: const IgnorePointer(
+                  child: Center(
+                    child: DayTimeAnimation(),
+                  ),
                 ),
               ),
             ],

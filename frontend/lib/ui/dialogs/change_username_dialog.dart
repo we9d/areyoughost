@@ -1,3 +1,5 @@
+import 'package:areyoughost/ui/dialogs/change_success_dialog.dart';
+import 'package:areyoughost/ui/home/home.dart';
 import 'package:flutter/material.dart';
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/ui/widgets/buttons/decoration/shadow.dart';
@@ -188,7 +190,15 @@ class _ChangeUsernameDialogState extends State<ChangeUsernameDialog> {
                             ],
                             stops: [0.0, 1.5],
                           ),
-                          onPressed: _updateUsername,
+                          onPressed: () {
+                            ChangeSuccessDialog.show(
+                              context: context,
+                              title: 'เปลี่ยนชื่อผู้ใช้งานสำเร็จ',
+                              message:
+                                  '“...กลับเข้าสู่โลกแห่งความหลอน\nบัญชีของคุณเปลี่ยนชื่อสำเร็จ...”',
+                              destination: const HomeScreen(),
+                            );
+                          },
                           child: const Text(
                             "ยืนยัน",
                             style: TextStyle(

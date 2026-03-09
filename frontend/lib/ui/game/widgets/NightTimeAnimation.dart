@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-class DayTimeAnimation extends StatefulWidget {
-  const DayTimeAnimation({super.key});
+class NightTimeAnimation extends StatefulWidget {
+  const NightTimeAnimation({super.key});
 
   @override
-  State<DayTimeAnimation> createState() => _DayTimeAnimationState();
+  State<NightTimeAnimation> createState() => _NightTimeAnimationState();
 }
 
-class _DayTimeAnimationState extends State<DayTimeAnimation>
+class _NightTimeAnimationState extends State<NightTimeAnimation>
     with SingleTickerProviderStateMixin {
 
   late AnimationController _controller;
@@ -77,7 +77,7 @@ class _DayTimeAnimationState extends State<DayTimeAnimation>
         );
       },
       child: Image.asset(
-        "assets/images/sun.png",
+        "assets/images/moon.png",
         width: 120,
       ),
     );

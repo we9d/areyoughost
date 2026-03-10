@@ -34,6 +34,7 @@ struct PlayerAuthRow {
 #[derive(Deserialize)]
 pub struct RegisterRequest {
     pub username: String,
+    pub email: String,
     pub password: String,
 }
 
@@ -51,11 +52,18 @@ pub async fn register(
     Json(body): Json<RegisterRequest>,
 ) -> impl IntoResponse {
     let uname = body.username.trim().to_string();
+    let email = body.email.trim().to_string();
 
     if uname.len() < 3 || uname.len() > 20 {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(serde_json::json!({ "error": "username must be 3-20 characters" })),
+        );
+    }
+    if email.is_empty() || !email.contains('@') {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": "invalid email format" })),
         );
     }
     if body.password.len() < 6 {
@@ -79,10 +87,11 @@ pub async fn register(
     let new_player_id = Uuid::new_v4().to_string();
 
     let result = sqlx::query_as::<_, PlayerRow>(
-        "INSERT INTO players (player_id, username, password_hash, created_at, updated_at) VALUES ($1, $2, $3, now(), now()) RETURNING player_id, username",
+        "INSERT INTO players (player_id, username, email, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, now(), now()) RETURNING player_id, username",
     )
     .bind(&new_player_id)
     .bind(&uname)
+    .bind(&email)
     .bind(&password_hash)
     .fetch_one(&state.db)
     .await;
@@ -96,6 +105,7 @@ pub async fn register(
                     "player": {
                         "id": row.player_id,
                         "username": row.username,
+                        "email": email,
                     }
                 })),
             )
@@ -103,6 +113,10 @@ pub async fn register(
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("players_username_key") => (
             StatusCode::CONFLICT,
             Json(serde_json::json!({ "error": "username already taken" })),
+        ),
+        Err(sqlx::Error::Database(e)) if e.constraint() == Some("players_email_key") => (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "error": "email already registered" })),
         ),
         Err(e) => {
             tracing::error!("register DB error: {e}");

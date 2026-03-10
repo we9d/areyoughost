@@ -9,6 +9,7 @@ import 'package:areyoughost/theme/app_theme.dart';
 // removed unused import of GameScreen to avoid unresolved URI during analysis
 import 'package:areyoughost/ui/widgets/mobile_wrapper.dart';
 import 'package:areyoughost/services/auth_service.dart';
+import 'package:areyoughost/services/rust_api.dart';
 import 'package:areyoughost/ui/home/home.dart';
 
 Future<void> main() async {

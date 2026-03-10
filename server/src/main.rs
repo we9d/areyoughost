@@ -59,13 +59,16 @@ async fn main() {
     tracing::info!("Database connection established ✅");
 
     // DEBUG SCHEMA
-    let rows = sqlx::query!("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'rooms'")
+    let rows = sqlx::query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'rooms'")
         .fetch_all(&db)
         .await
         .unwrap();
     tracing::info!("--- rooms table schema ---");
+    use sqlx::Row;
     for r in rows {
-        tracing::info!("Col: {:<15} Type: {}", r.column_name.unwrap_or_default(), r.data_type.unwrap_or_default());
+        let col: String = r.get("column_name");
+        let ty: String = r.get("data_type");
+        tracing::info!("Col: {:<15} Type: {}", col, ty);
     }
     tracing::info!("--------------------------");
 

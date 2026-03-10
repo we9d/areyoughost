@@ -11,6 +11,7 @@ import 'package:areyoughost/ui/widgets/mobile_wrapper.dart';
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/ui/home/home.dart';
 import 'package:areyoughost/services/rust_api.dart';
+import 'package:areyoughost/ui/game/game_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,7 +36,9 @@ class AreYouGhostApp extends StatelessWidget {
       builder: (context, child) {
         return MobileWrapper(child: child!);
       },
-      home: const HomeScreen(),
+       home: const GameScreen(
+        roomId: "demo_room",
+      ),
     );
   }
 }

@@ -1,5 +1,5 @@
 import 'package:areyoughost/ui/widgets/buttons/decoration/shadow.dart';
-import 'package:areyoughost/ui/game/widgets/role_dropdown_card.dart';
+import 'package:areyoughost/ui/widgets/role_dropdown_card.dart';
 import 'package:flutter/material.dart';
 
 class RolesButton extends StatelessWidget {

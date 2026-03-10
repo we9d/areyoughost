@@ -17,11 +17,9 @@ import 'package:areyoughost/ui/game/widgets/players_popup.dart';
 import 'package:areyoughost/ui/game/widgets/exit_game_popup.dart';
 import 'package:areyoughost/ui/game/widgets/chat_box.dart';
 import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
-
 import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
 import 'package:areyoughost/ui/game/widgets/chat_box.dart';
 import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
-
 import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
 
 class GameScreen extends StatefulWidget {

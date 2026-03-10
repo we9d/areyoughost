@@ -14,7 +14,7 @@ class SearchFriend extends StatelessWidget {
 
           /// ช่องกรอกข้อความ
           Container(
-            width: 170,
+            width: 210,
             height: 35,
             decoration: BoxDecoration(
               color: const Color(0xFFFFFFFF),
@@ -47,7 +47,7 @@ class SearchFriend extends StatelessWidget {
           /// ระยะห่างระหว่างช่องกับไอคอน
           const SizedBox(width: 8),
 
-          /// ไอคอนค้นหา (อยู่นอกกล่อง)
+          /// ไอคอนค้นหา
           const SearchIcon(
             size: 20,
             color: Colors.black,

@@ -7,7 +7,7 @@ class RolesButton extends StatelessWidget {
   void _showRoles(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => const _RolesDialog(), // เปลี่ยนมาใช้ dialog แบบใหม่
+      builder: (_) => const RolesDialog(), // เปลี่ยนมาใช้ dialog แบบใหม่
     );
   }
 
@@ -38,8 +38,8 @@ class RolesButton extends StatelessWidget {
   }
 }
 
-class _RolesDialog extends StatelessWidget {
-  const _RolesDialog();
+class RolesDialog extends StatelessWidget {
+  const RolesDialog({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:areyoughost/models/mock_models.dart';
 import 'package:areyoughost/ui/game/player_sign.dart';
-import 'package:areyoughost/ui/game/widgets/point_hand.dart';
-import 'package:areyoughost/ui/game/widgets/player_character.dart';
+import 'package:areyoughost/ui/game/ghost_hand.dart';
 
-class PlayerGrid extends StatelessWidget {
+class PlayerGridNight extends StatelessWidget {
   final List<PlayerModel> players;
   final int myPlayerNumber;
   final int? selectedTarget;
+  final bool isVotePhase;
   final Function(int) onPlayerTap;
 
-  // final int myPlayerNumber;
-  // final int? selectedTarget;
-  // final Function(int) onPlayerTap;
-
-  const PlayerGrid({
+  const PlayerGridNight({
     super.key,
     required this.players,
     required this.myPlayerNumber,
     required this.selectedTarget,
+    required this.isVotePhase,
     required this.onPlayerTap,
   });
 
@@ -96,20 +93,25 @@ class PlayerGrid extends StatelessWidget {
                               ),
                             ),
 
-                            /// ตัวละคร (มุมขวาล่าง)
-                            const PlayerCharacter(),
+                            /// ป้ายไม้ และ นิ้ว (โชว์เฉพาะช่วงโหวต)
+                            if (isVotePhase) ...[
 
-                            /// ป้ายไม้
-                            if (p.number == myPlayerNumber)
-                              if (selectedTarget != null)
-                                PlayerSign(number: selectedTarget!)
+                              /// ป้ายไม้
+                              if (p.number == myPlayerNumber)
+                                if (selectedTarget != null)
+                                  PlayerSign(number: selectedTarget!)
+                                else
+                                  const SizedBox()
                               else
-                                const SizedBox()
-                            else
-                              PlayerSign(number: (p.number * 3) % 16 + 1),
+                                PlayerSign(number: (p.number * 3) % 16 + 1),
 
-                            /// นิ้วชี้
-                            PointHand(number: p.number),
+                              /// 👻 มือผี
+                              Positioned(
+                                right: 32,
+                                top: 25,
+                                child: GhostHand(number: p.number),
+                              ),
+                            ],
 
                           ],
                         ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' as m;
 import 'random_role_screen.dart';
+import 'package:areyoughost/ui/Invite_friend/Invite_host.dart';
 
 import 'package:areyoughost/ui/widgets/buttons/playnow_button.dart';
 import 'package:areyoughost/ui/widgets/buttons/playtogether_button.dart';
@@ -84,7 +85,16 @@ class ModeSelectScreen extends m.StatelessWidget {
 
                 const m.SizedBox(height: 18),
 
-                PlaytogetherButton(onPressed: () {}),
+                PlaytogetherButton(
+                  onPressed: () {
+                    m.Navigator.push(
+                      context,
+                      m.MaterialPageRoute(
+                        builder: (_) => const InviteFriendScreen(),
+                      ),
+                    );
+                  },
+                ),
 
                 const m.Spacer(flex: 2),
               ],

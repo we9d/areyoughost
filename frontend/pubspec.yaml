@@ -82,7 +82,15 @@ flutter:
     - assets/images/defaultPlayer.png
     - assets/icons/skill-icon.svg
     - assets/images/V01.jpg
-
+    - assets/images/InvitePage.jpg
+    - assets/images/DayTimeBg.jpg
+    - assets/images/logo.png
+    - assets/images/Sign.png
+    - assets/images/Point_Finger.png
+    - assets/images/Ghost_Finger.png
+    - assets/images/sun.png
+    - assets/images/moon.png
+    - assets/images/Character.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

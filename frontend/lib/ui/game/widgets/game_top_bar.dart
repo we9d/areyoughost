@@ -18,28 +18,27 @@ class GameTopBar extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          14,
-          24,
-          14,
-          6,
-        ),
+        padding: const EdgeInsets.fromLTRB(14, 24, 14, 6),
         child: SizedBox(
           height: 40,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+
               /// 🚪 EXIT
-              GestureDetector(
-                onTap: onExitTap,
-                behavior: HitTestBehavior.opaque,
-                child: SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: Icon(
-                    PhosphorIcons.signOut(),
-                    size: 25, // 👈 Size 25
-                    color: Colors.white,
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: onExitTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Icon(
+                      PhosphorIcons.signOut(),
+                      size: 25,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -47,13 +46,13 @@ class GameTopBar extends StatelessWidget {
               /// ⏱ TITLE
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(top: 4), 
+                  padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     title,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 18, // 👈 Larger
+                      fontSize: 18,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.2,
                       shadows: [
@@ -68,16 +67,19 @@ class GameTopBar extends StatelessWidget {
               ),
 
               /// 👥 PLAYERS
-              GestureDetector(
-                onTap: onPlayerTap,
-                behavior: HitTestBehavior.opaque,
-                child: SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: Icon(
-                    PhosphorIcons.usersThree(),
-                    size: 25, // 👈 Size 25
-                    color: Colors.white,
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: onPlayerTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Icon(
+                      PhosphorIcons.usersThree(),
+                      size: 25,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),

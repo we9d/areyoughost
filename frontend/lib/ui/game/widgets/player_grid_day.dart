@@ -2,23 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:areyoughost/models/mock_models.dart';
 import 'package:areyoughost/ui/game/player_sign.dart';
 import 'package:areyoughost/ui/game/widgets/point_hand.dart';
-import 'package:areyoughost/ui/game/widgets/player_character.dart';
 
-class PlayerGrid extends StatelessWidget {
+class PlayerGridDay extends StatelessWidget {
   final List<PlayerModel> players;
   final int myPlayerNumber;
   final int? selectedTarget;
+  final bool isVotePhase;
   final Function(int) onPlayerTap;
 
-  // final int myPlayerNumber;
-  // final int? selectedTarget;
-  // final Function(int) onPlayerTap;
-
-  const PlayerGrid({
+  const PlayerGridDay({
     super.key,
     required this.players,
     required this.myPlayerNumber,
     required this.selectedTarget,
+    required this.isVotePhase,
     required this.onPlayerTap,
   });
 
@@ -54,7 +51,7 @@ class PlayerGrid extends StatelessWidget {
                         child: Stack(
                           children: [
 
-                            /// กล่องผู้เล่น
+                            /// Player Card
                             Container(
                               decoration: BoxDecoration(
                                 color: const Color(0xFFD9D9D9),
@@ -65,7 +62,7 @@ class PlayerGrid extends StatelessWidget {
                                 children: [
                                   const SizedBox(height: 6),
 
-                                  /// เลข + ชื่อ
+                                  /// Player number + name
                                   Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 6),
                                     child: Text(
@@ -84,7 +81,7 @@ class PlayerGrid extends StatelessWidget {
 
                                   const SizedBox(height: 2),
 
-                                  /// รูปผู้เล่น
+                                  /// Player image
                                   Expanded(
                                     child: Image.asset(
                                       'assets/images/defaultPlayer.png',
@@ -96,21 +93,30 @@ class PlayerGrid extends StatelessWidget {
                               ),
                             ),
 
-                            /// ตัวละคร (มุมขวาล่าง)
-                            const PlayerCharacter(),
+                            /// Vote UI
+                            if (isVotePhase) ...[
 
-                            /// ป้ายไม้
-                            if (p.number == myPlayerNumber)
-                              if (selectedTarget != null)
-                                PlayerSign(number: selectedTarget!)
+                              /// Wooden Sign
+                              if (p.number == myPlayerNumber)
+                                if (selectedTarget != null)
+                                  PlayerSign(number: selectedTarget!)
+                                else
+                                  const SizedBox()
                               else
-                                const SizedBox()
-                            else
-                              PlayerSign(number: (p.number * 3) % 16 + 1),
+                                PlayerSign(number: (p.number * 3) % 16 + 1),
 
-                            /// นิ้วชี้
-                            PointHand(number: p.number),
-
+                              /// ☝️ Point Hand
+                              Positioned(
+                                right: 32,
+                                top: 25,
+                                child: Transform.scale(
+                                  scale: 1,
+                                  child: PointHand(
+                                    number: p.number,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),

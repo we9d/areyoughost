@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-
+import 'package:areyoughost/ui/game/widgets/roles_card.dart';
 /// ===============================================================
 /// ChatInputRow
 /// ---------------------------------------------------------------
@@ -84,17 +84,19 @@ class _ChatInputRowState extends State<ChatInputRow> {
                   iconSize: 25,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
-
                   icon: Icon(
                     PhosphorIcons.maskHappy(),
                     color: Colors.white,
                   ),
-
-                  onPressed: widget.onRoleInfoTap,
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => RolesDialog(),
+                    );
+                  },
                 ),
 
                 const SizedBox(width: 6),
-
                 /// ปุ่มแชท
                 IconButton(
                   iconSize: 25,

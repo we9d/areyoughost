@@ -48,7 +48,7 @@ class ExitGamePopup extends m.StatelessWidget {
               "คุณต้องการออกจากเกมหรือไม่?",
               textAlign: m.TextAlign.center,
               style: m.TextStyle(
-                fontSize: 20,
+                fontSize: 19,
                 fontWeight: m.FontWeight.w700,
                 color: m.Colors.black,
               ),

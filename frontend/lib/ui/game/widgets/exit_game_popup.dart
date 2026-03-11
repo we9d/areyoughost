@@ -9,7 +9,7 @@ class ExitGamePopup extends m.StatelessWidget {
       backgroundColor: m.Colors.transparent,
       child: m.Container(
         width: 358,
-        height: 222,
+        height: 180,
         padding: const m.EdgeInsets.fromLTRB(24, 22, 24, 22),
         decoration: m.BoxDecoration(
           color: const m.Color(0xFFEFEFEF),
@@ -32,7 +32,7 @@ class ExitGamePopup extends m.StatelessWidget {
                 cursor: m.SystemMouseCursors.click,
                 child: m.GestureDetector(
                   onTap: () => m.Navigator.pop(context),
-                  child: m.Icon(
+                  child: const m.Icon(
                     m.Icons.close,
                     size: 22,
                     color: m.Colors.black,
@@ -49,7 +49,7 @@ class ExitGamePopup extends m.StatelessWidget {
               textAlign: m.TextAlign.center,
               style: m.TextStyle(
                 fontSize: 20,
-                fontWeight: m.FontWeight.w500,
+                fontWeight: m.FontWeight.w700,
                 color: m.Colors.black,
               ),
             ),
@@ -69,7 +69,15 @@ class ExitGamePopup extends m.StatelessWidget {
                   height: 48,
                   alignment: m.Alignment.center,
                   decoration: m.BoxDecoration(
-                    color: const m.Color(0xFFC51010),
+                    gradient: const m.LinearGradient(
+                      begin: m.Alignment.topCenter,
+                      end: m.Alignment.bottomCenter,
+                      colors: [
+                        m.Color(0xFFC51010),
+                        m.Color(0xFF6A1F2B),
+                      ],
+                      stops: [0.0, 1.0],
+                    ),
                     borderRadius: m.BorderRadius.circular(26),
                     boxShadow: const [
                       m.BoxShadow(

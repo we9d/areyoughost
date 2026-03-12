@@ -1,28 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:areyoughost/ui/game/widgets/game_top_bar.dart';
-import 'package:areyoughost/ui/game/widgets/chat_box.dart';
-import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
-import 'package:areyoughost/ui/widgets/buttons/roles_buttons.dart';
-import 'package:areyoughost/ui/dialogs/skill_select_dialog.dart';
+
 import 'package:areyoughost/models/mock_models.dart';
+import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
+import 'package:areyoughost/ui/dialogs/skill_select_dialog.dart';
+import 'package:areyoughost/ui/game/dialogs/skill_popup_choice.dart';
 import 'package:areyoughost/ui/game/widgets/DayTimeAnimation.dart';
 import 'package:areyoughost/ui/game/widgets/NightTimeAnimation.dart';
+import 'package:areyoughost/ui/game/widgets/chat_box.dart';
+import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
+import 'package:areyoughost/ui/game/widgets/exit_game_popup.dart';
+import 'package:areyoughost/ui/game/widgets/game_top_bar.dart';
 import 'package:areyoughost/ui/game/widgets/player_grid_day.dart';
 import 'package:areyoughost/ui/game/widgets/player_grid_night.dart';
 import 'package:areyoughost/ui/game/widgets/players_popup.dart';
-import 'package:areyoughost/ui/game/dialogs/skill_popup_choice.dart';
-import 'package:areyoughost/models/mock_models.dart';
-import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
-import 'package:areyoughost/ui/game/widgets/players_popup.dart';
-import 'package:areyoughost/ui/game/widgets/exit_game_popup.dart';
-import 'package:areyoughost/ui/game/widgets/chat_box.dart';
-import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
-
-import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
-import 'package:areyoughost/ui/game/widgets/chat_box.dart';
-import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
-
-import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
+import 'package:areyoughost/ui/widgets/buttons/roles_buttons.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomId;
@@ -211,13 +202,13 @@ class _GameScreenState extends State<GameScreen> {
                       title: isDay
                           ? 'เวลากลางวัน 20 วินาที'
                           : 'เวลากลางคืน 20 วินาที',
-                     onExitTap: () {
-
-                              showDialog(
-                                context: context,
-                                builder: (_) => const ExitGamePopup(),
-                              );
-                            },                      onPlayerTap: openPlayersPopup,
+                      onExitTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => const ExitGamePopup(),
+                        );
+                      },
+                      onPlayerTap: openPlayersPopup,
                     ),
 
                     const SizedBox(height: 6),
@@ -264,7 +255,16 @@ class _GameScreenState extends State<GameScreen> {
                         );
                       },
                       onSkillTap: openSkillDialog,
-                      onSend: (_) {},
+                      onSend: (message) {
+                        /// BACKEND CHAT EVENT
+                        ///
+                        /// socket.emit("sendMessage", {
+                        ///   "roomId": widget.roomId,
+                        ///   "message": message
+                        /// });
+
+                        debugPrint("Send message: $message");
+                      },
                     ),
 
                     const SizedBox(height: 10),

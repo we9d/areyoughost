@@ -183,6 +183,141 @@ async fn handle_client_message(
     tx: &mpsc::UnboundedSender<Message>,
 ) {
     match msg.msg_type.as_str() {
+
+        // ── Quick Play ────────────────────────────────────────────
+        "mm.quick_play" => {
+            tracing::info!("Player '{}' requests quick play", player_id);
+            match state.quick_play(player_id.to_string(), username.to_string()).await {
+                Ok(room_id) => {
+                    let members = state.load_room_members(&room_id).await;
+                    if let Some(mut room_state) = state.get_room_state(&room_id) {
+                        if let Some(obj) = room_state.as_object_mut() {
+                            obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                        }
+                        let joined_msg = ServerMessage::new(
+                            "room.joined",
+                            json!({ "roomId": room_id, "room": room_state.clone() }),
+                        );
+                        let _ = tx.send(Message::Text(serde_json::to_string(&joined_msg).unwrap()));
+                        let state_msg = ServerMessage::new("room.state", room_state);
+                        state.broadcast_to_room(&room_id, &serde_json::to_string(&state_msg).unwrap());
+                        let joined_notify = ServerMessage::new(
+                            "room.player_joined",
+                            json!({ "playerId": player_id, "username": username }),
+                        );
+                        state.broadcast_to_room(&room_id, &serde_json::to_string(&joined_notify).unwrap());
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(Message::Text(
+                        serde_json::to_string(&ServerMessage::error("QUICK_PLAY_FAILED", &e)).unwrap(),
+                    ));
+                }
+            }
+        }
+
+        // ── Private Room ──────────────────────────────────────────
+        "room.create_private" => {
+            tracing::info!("Player '{}' creating private room", player_id);
+            match state.create_private_room(player_id.to_string(), username.to_string()).await {
+                Ok((room_id, invite_code)) => {
+                    let members = state.load_room_members(&room_id).await;
+                    if let Some(mut room_state) = state.get_room_state(&room_id) {
+                        if let Some(obj) = room_state.as_object_mut() {
+                            obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                            obj.insert("inviteCode".to_string(), serde_json::Value::String(invite_code.clone()));
+                        }
+                        let response = ServerMessage::new(
+                            "room.created",
+                            json!({ "roomId": room_id, "inviteCode": invite_code, "room": room_state }),
+                        );
+                        let _ = tx.send(Message::Text(serde_json::to_string(&response).unwrap()));
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(Message::Text(
+                        serde_json::to_string(&ServerMessage::error("CREATE_PRIVATE_FAILED", &e)).unwrap(),
+                    ));
+                }
+            }
+        }
+
+        // ── Invite: send ──────────────────────────────────────────
+        "invite.send" => {
+            let friend_id = msg.payload.get("friendId").and_then(|v| v.as_str());
+            let invite_code = msg.payload.get("inviteCode").and_then(|v| v.as_str());
+            if let (Some(friend_id), Some(code)) = (friend_id, invite_code) {
+                if let Some(friend_tx) = state.connections.get(friend_id) {
+                    let invite_msg = ServerMessage::new(
+                        "invite.received",
+                        json!({ "inviteCode": code, "fromPlayerId": player_id, "fromUsername": username }),
+                    );
+                    let _ = friend_tx.send(Message::Text(serde_json::to_string(&invite_msg).unwrap()));
+                    let _ = tx.send(Message::Text(
+                        serde_json::to_string(&ServerMessage::new(
+                            "invite.sent",
+                            json!({ "friendId": friend_id, "status": "ok" }),
+                        )).unwrap(),
+                    ));
+                } else {
+                    let _ = tx.send(Message::Text(
+                        serde_json::to_string(&ServerMessage::error("FRIEND_NOT_ONLINE", "Friend not connected")).unwrap(),
+                    ));
+                }
+            } else {
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::error("INVALID_PAYLOAD", "Missing friendId or inviteCode")).unwrap(),
+                ));
+            }
+        }
+
+        // ── Invite: accept ────────────────────────────────────────
+        "invite.accept" => {
+            let invite_code = msg.payload.get("inviteCode").and_then(|v| v.as_str());
+            if let Some(code) = invite_code {
+                match state.resolve_invite(code) {
+                    Some(room_id) => {
+                        match state.join_room(&room_id, player_id, username.to_string()).await {
+                            Ok(_) => {
+                                let members = state.load_room_members(&room_id).await;
+                                if let Some(mut room_state) = state.get_room_state(&room_id) {
+                                    if let Some(obj) = room_state.as_object_mut() {
+                                        obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                                    }
+                                    let joined_msg = ServerMessage::new(
+                                        "room.joined",
+                                        json!({ "roomId": room_id, "room": room_state.clone() }),
+                                    );
+                                    let _ = tx.send(Message::Text(serde_json::to_string(&joined_msg).unwrap()));
+                                    let state_msg = ServerMessage::new("room.state", room_state);
+                                    state.broadcast_to_room(&room_id, &serde_json::to_string(&state_msg).unwrap());
+                                    let joined_notify = ServerMessage::new(
+                                        "room.player_joined",
+                                        json!({ "playerId": player_id, "username": username }),
+                                    );
+                                    state.broadcast_to_room(&room_id, &serde_json::to_string(&joined_notify).unwrap());
+                                }
+                            }
+                            Err(e) => {
+                                let _ = tx.send(Message::Text(
+                                    serde_json::to_string(&ServerMessage::error("JOIN_FAILED", &e)).unwrap(),
+                                ));
+                            }
+                        }
+                    }
+                    None => {
+                        let _ = tx.send(Message::Text(
+                            serde_json::to_string(&ServerMessage::error("INVALID_INVITE", "Invite code not found")).unwrap(),
+                        ));
+                    }
+                }
+            } else {
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::error("INVALID_PAYLOAD", "Missing inviteCode")).unwrap(),
+                ));
+            }
+        }
+
         "mm.join_queue" => {
             tracing::info!("Player '{}' joining queue", player_id);
 

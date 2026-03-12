@@ -116,7 +116,7 @@ class AuthService {
         final token = data['accessToken'];
         
         // Save session
-        await SessionManager.saveSession(userId: userId, username: uname);
+        await SessionManager.saveSession(userId: userId, username: uname, token: token);
         
         // Store Token (optional: expand SessionManager to hold JWT)
         // await SessionManager.saveToken(token);

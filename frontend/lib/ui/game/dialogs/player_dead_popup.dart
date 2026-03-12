@@ -68,6 +68,7 @@ class PlayerDeadPopup extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.w600,
+                color: Colors.black
               ),
             ),
 
@@ -101,6 +102,7 @@ class PlayerDeadPopup extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 16,
+                color: Colors.black
               ),
             ),
 

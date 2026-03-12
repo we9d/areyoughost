@@ -1,5 +1,5 @@
 import 'package:areyoughost/ui/widgets/buttons/decoration/shadow.dart';
-import 'package:areyoughost/ui/game/widgets/role_dropdown_card.dart';
+import 'package:areyoughost/ui/widgets/role_dropdown_card.dart';
 import 'package:flutter/material.dart';
 
 class RolesButton extends StatelessWidget {
@@ -8,7 +8,7 @@ class RolesButton extends StatelessWidget {
   void _showRoles(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => const _RolesDialog(),
+      builder: (_) => const RolesDialog(),
     );
   }
 
@@ -20,7 +20,10 @@ class RolesButton extends StatelessWidget {
       gradient: const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color.fromARGB(255, 34, 53, 72), Color(0xFF3A5A7A)],
+        colors: [
+          Color.fromARGB(255, 34, 53, 72),
+          Color(0xFF3A5A7A),
+        ],
         stops: [0.0, 1.25],
       ),
       onPressed: () => _showRoles(context),
@@ -36,14 +39,14 @@ class RolesButton extends StatelessWidget {
   }
 }
 
-class _RolesDialog extends StatefulWidget {
-  const _RolesDialog();
+class RolesDialog extends StatefulWidget {
+  const RolesDialog({super.key});
 
   @override
-  State<_RolesDialog> createState() => _RolesDialogState();
+  State<RolesDialog> createState() => _RolesDialogState();
 }
 
-class _RolesDialogState extends State<_RolesDialog> {
+class _RolesDialogState extends State<RolesDialog> {
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -84,6 +87,7 @@ class _RolesDialogState extends State<_RolesDialog> {
               child: Column(
                 children: [
                   const SizedBox(height: 2),
+
                   const Text(
                     'บทบาท',
                     style: TextStyle(
@@ -95,7 +99,9 @@ class _RolesDialogState extends State<_RolesDialog> {
                       decorationThickness: 1.5,
                     ),
                   ),
+
                   const SizedBox(height: 16),
+
                   Expanded(
                     child: RawScrollbar(
                       controller: _scrollController,
@@ -103,8 +109,8 @@ class _RolesDialogState extends State<_RolesDialog> {
                       trackVisibility: true,
                       thickness: 4,
                       radius: const Radius.circular(12),
-                      thumbColor: Color(0xFF4A4A4A),
-                      trackColor: Color(0xFFD1D1D1),
+                      thumbColor: const Color(0xFF4A4A4A),
+                      trackColor: const Color(0xFFD1D1D1),
                       trackBorderColor: Colors.transparent,
                       crossAxisMargin: 2,
                       mainAxisMargin: 2,

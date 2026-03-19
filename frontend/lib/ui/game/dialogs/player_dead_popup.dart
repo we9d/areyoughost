@@ -1,50 +1,19 @@
 import 'package:flutter/material.dart';
 
-/// ===============================================================
-/// PLAYER DEAD POPUP
-/// ---------------------------------------------------------------
-/// Popup นี้ใช้เมื่อ backend แจ้งว่า "มีผู้เล่นตาย"
-///
-/// Backend ต้องส่ง:
-/// - roleName
-/// - imageUrl
-/// - description
-///
-/// ตัวอย่าง response จาก backend:
-///
-/// {
-///   "roleName": "ผู้เคราะห์ร้าย",
-///   "image": "https://api/roles/victim.png",
-///   "description": "ผู้เล่นตายจะไม่สามารถพูดได้"
-/// }
-/// ===============================================================
-
 class PlayerDeadPopup extends StatelessWidget {
-
-  final String roleName;
-  final String imageUrl;
-  final String description;
-
-  final VoidCallback onClose;
-
-  const PlayerDeadPopup({
-    super.key,
-    required this.roleName,
-    required this.imageUrl,
-    required this.description,
-    required this.onClose,
-  });
+  const PlayerDeadPopup({super.key});
 
   @override
   Widget build(BuildContext context) {
-
     return Dialog(
       backgroundColor: Colors.transparent,
 
       child: Container(
-        width: 358,
-
-        padding: const EdgeInsets.all(24),
+        width: 360,
+        padding: const EdgeInsets.symmetric(
+          horizontal: 24,
+          vertical: 28,
+        ),
 
         decoration: BoxDecoration(
           color: const Color(0xFFF4F4F4),
@@ -62,74 +31,85 @@ class PlayerDeadPopup extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
 
-            /// role name
-            Text(
-              roleName,
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w600,
-                color: Colors.black
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            /// role image
-            Container(
-              width: 160,
-              height: 160,
-
-              decoration: BoxDecoration(
-                color: const Color(0xFFD9D9D9),
-                borderRadius: BorderRadius.circular(16),
-              ),
-
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            /// description
-            Text(
-              description,
+            /// หัวข้อ
+            const Text(
+              "ผู้เคราะห์ร้าย",
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 16,
-                color: Colors.black
+              style: TextStyle(
+                fontFamily: "Charmonman",
+                fontSize: 34,
               ),
             ),
 
             const SizedBox(height: 24),
 
-            /// confirm button
-            ElevatedButton(
-              onPressed: onClose,
+            /// กล่องรูป
+            Container(
+              width: 190,
+              height: 190,
+              decoration: BoxDecoration(
+                color: const Color(0xFFD9D9D9),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  "assets/images/death_ash.jpg",
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
 
+            const SizedBox(height: 22),
+
+            /// ชื่อผู้เล่น
+            const Text(
+              "2 น้องปอนด์",
+              style: TextStyle(
+                fontFamily: "Charmonman",
+                fontSize: 22,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            /// คำอธิบาย
+            const Text(
+              "ผู้เล่นที่ตายจะไม่สามารถพูดได้จนกว่าเกมจะจบ",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: "Charmonman",
+                fontSize: 16,
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            /// ปุ่ม
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFD9D9D9),
                 foregroundColor: Colors.black,
-                elevation: 4,
-
+                elevation: 6,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 40,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(22),
                 ),
               ),
-
-              child: const Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 10,
+              child: const Text(
+                "รับทราบ",
+                style: TextStyle(
+                  fontFamily: "Charmonman",
+                  fontSize: 18,
                 ),
-                child: Text("รับทราบ"),
               ),
-            )
+            ),
           ],
         ),
       ),

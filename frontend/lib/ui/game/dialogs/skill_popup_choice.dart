@@ -1,40 +1,24 @@
 import 'package:flutter/material.dart';
-
-/// ===============================================================
-/// SKILL POPUP (TYPE 2)
-/// ---------------------------------------------------------------
-/// Popup นี้ใช้เมื่อผู้เล่นต้องเลือก 1 จาก 2 สกิล
-///
-/// ขนาด popup: 358 x 383
-///
-/// Backend ต้องส่ง:
-/// - skill1Name
-/// - skill2Name
-/// - skill1Image
-/// - skill2Image
-///
-/// เมื่อกดเลือก
-/// → จะเรียก callback onSkill1 หรือ onSkill2
-/// ===============================================================
+import 'skill_popup_result.dart';
 
 class SkillPopupChoice extends StatelessWidget {
-
   final String skill1Name;
-  final String skill2Name;
-
+  final String skill1Description;
   final String skill1Image;
+  final String skill2Name;
+  final String skill2Description;
   final String skill2Image;
-
   final VoidCallback onSkill1;
   final VoidCallback onSkill2;
-
   final VoidCallback onClose;
 
   const SkillPopupChoice({
     super.key,
     required this.skill1Name,
-    required this.skill2Name,
+    required this.skill1Description,
     required this.skill1Image,
+    required this.skill2Name,
+    required this.skill2Description,
     required this.skill2Image,
     required this.onSkill1,
     required this.onSkill2,
@@ -42,8 +26,10 @@ class SkillPopupChoice extends StatelessWidget {
   });
 
   Widget skillItem({
+    required BuildContext context,
     required String name,
-    required String imageUrl,
+    required String description,
+    required String image,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -51,20 +37,26 @@ class SkillPopupChoice extends StatelessWidget {
       child: Column(
         children: [
 
-          /// Skill Icon Box
+          /// ICON BOX
           Container(
             width: 110,
             height: 110,
             decoration: BoxDecoration(
               color: const Color(0xFFD9D9D9),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  blurRadius: 10,
+                  offset: const Offset(0, 6),
+                  color: Colors.black.withOpacity(0.25),
+                )
+              ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
 
-              /// Backend image
-              child: Image.network(
-                imageUrl,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Image.asset(
+                image,
                 fit: BoxFit.contain,
               ),
             ),
@@ -72,14 +64,30 @@ class SkillPopupChoice extends StatelessWidget {
 
           const SizedBox(height: 10),
 
-          /// Skill Name
+          /// NAME
           Text(
             name,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              color: Colors.black, // ALL TEXT BLACK
+              fontFamily: "Charmonman",
+              fontSize: 20,
+              color: Colors.black,
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          /// DESCRIPTION
+          SizedBox(
+            width: 120,
+            child: Text(
+              description,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: "Charmonman",
+                fontSize: 14,
+                color: Colors.black,
+              ),
             ),
           )
         ],
@@ -95,13 +103,11 @@ class SkillPopupChoice extends StatelessWidget {
       child: Container(
         width: 358,
         height: 383,
-
         padding: const EdgeInsets.all(24),
 
         decoration: BoxDecoration(
           color: const Color(0xFFF4F4F4),
           borderRadius: BorderRadius.circular(28),
-
           boxShadow: [
             BoxShadow(
               blurRadius: 24,
@@ -118,14 +124,11 @@ class SkillPopupChoice extends StatelessWidget {
             Positioned(
               top: 0,
               right: 0,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: onClose,
-                  child: const Icon(
-                    Icons.close,
-                    color: Colors.black,
-                  ),
+              child: GestureDetector(
+                onTap: onClose,
+                child: const Icon(
+                  Icons.close,
+                  color: Colors.black,
                 ),
               ),
             ),
@@ -138,30 +141,46 @@ class SkillPopupChoice extends StatelessWidget {
                 const Text(
                   "เลือกใช้ 1 สกิล?",
                   style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w600,
+                    fontFamily: "Charmonman",
+                    fontSize: 32,
                     color: Colors.black,
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 6),
+
+                const Text(
+                  "ตลอดทั้งเกมใช้ได้ทั้งหมด 1 ครั้ง",
+                  style: TextStyle(
+                    fontFamily: "Charmonman",
+                    fontSize: 14,
+                    color: Colors.black54,
+                  ),
+                ),
+
+                const SizedBox(height: 26),
 
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
 
+                    /// SKILL 1
                     skillItem(
+                      context: context,
                       name: skill1Name,
-                      imageUrl: skill1Image,
+                      description: skill1Description,
+                      image: skill1Image,
                       onTap: onSkill1,
                     ),
 
+                    /// SKILL 2
                     skillItem(
+                      context: context,
                       name: skill2Name,
-                      imageUrl: skill2Image,
+                      description: skill2Description,
+                      image: skill2Image,
                       onTap: onSkill2,
                     ),
-
                   ],
                 ),
               ],
@@ -171,4 +190,4 @@ class SkillPopupChoice extends StatelessWidget {
       ),
     );
   }
-}
+}

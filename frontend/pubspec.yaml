@@ -91,6 +91,9 @@ flutter:
     - assets/images/sun.png
     - assets/images/moon.png
     - assets/images/Character.png
+    - assets/images/skill_eye.png
+    - assets/images/skill_heal.png
+    - assets/images/skill_voodoo.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

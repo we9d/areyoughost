@@ -130,9 +130,11 @@ class _GameScreenState extends State<GameScreen> {
         return SkillPopupChoice(
 
           skill1Name: skill1.name,
+          skill1Description: skill1.description,
           skill1Image: skill1.image,
 
           skill2Name: skill2.name,
+          skill2Description: skill2.description,
           skill2Image: skill2.image,
 
           onSkill1: () {

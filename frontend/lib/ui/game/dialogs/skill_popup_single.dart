@@ -2,26 +2,24 @@ import 'package:flutter/material.dart';
 import 'skill_popup_result.dart';
 
 class SkillPopupSingle extends StatelessWidget {
+  final String skillName;
+  final String description;
+  final String image;
+  final VoidCallback onUse;
 
-  const SkillPopupSingle({super.key});
-
-  void _useSkill(BuildContext context) {
-
-    /// ปิด popup เดิม
-    Navigator.pop(context);
-
-    /// เปิด popup ผลลัพธ์
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const SkillPopupResult(),
-    );
-  }
+  const SkillPopupSingle({
+    super.key,
+    required this.skillName,
+    required this.description,
+    required this.image,
+    required this.onUse,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
 
       child: Container(
         width: 358,
@@ -49,11 +47,11 @@ class SkillPopupSingle extends StatelessWidget {
 
             /// ❌ ปุ่มปิด
             Positioned(
-              top: 8,
-              right: 8,
+              top: 0,
+              right: 0,
               child: GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: const Icon(Icons.close, size: 28),
+                child: const Icon(Icons.close, size: 28, color: Colors.black),
               ),
             ),
 
@@ -62,30 +60,35 @@ class SkillPopupSingle extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
 
-                  const Text(
-                    "สกิลตาวิเศษ",
-                    style: TextStyle(
+                  Text(
+                    skillName,
+                    style: const TextStyle(
                       fontFamily: "Charmonman",
                       fontSize: 32,
+                      color: Colors.black,
                     ),
                   ),
 
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 16),
 
                   /// กล่องสกิล (กดได้)
                   GestureDetector(
-                    onTap: () => _useSkill(context),
+                    onTap: () {
+                      Navigator.pop(context);
+                      onUse();
+                    },
 
                     child: Container(
-                      width: 180,
-                      height: 180,
+                      width: 130,
+                      height: 130,
                       decoration: BoxDecoration(
                         color: const Color(0xFFD9D9D9),
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            blurRadius: 8,
-                            color: Colors.black26,
+                            blurRadius: 10,
+                            offset: const Offset(0, 6),
+                            color: Colors.black.withOpacity(0.25),
                           )
                         ],
                       ),
@@ -93,22 +96,26 @@ class SkillPopupSingle extends StatelessWidget {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(20),
 
-                        child: Image.asset(
-                          "assets/images/skill_eye.png",
-                          fit: BoxFit.contain,
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Image.asset(
+                            image,
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 35),
 
-                  const Text(
-                    "เลือกผู้เล่น 1 คน\nเพื่อทำการตรวจฝ่าย",
+                  Text(
+                    description,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: "Charmonman",
-                      fontSize: 18,
+                      fontSize: 20,
+                      color: Colors.black,
                     ),
                   ),
                 ],
@@ -119,4 +126,4 @@ class SkillPopupSingle extends StatelessWidget {
       ),
     );
   }
-}
+}

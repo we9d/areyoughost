@@ -63,6 +63,7 @@ class SkillPopupResult extends StatelessWidget {
                       fontFamily: "Charmonman",
                       fontSize: 32,
                       color: Colors.black,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
 
@@ -98,14 +99,28 @@ class SkillPopupResult extends StatelessWidget {
 
                   const SizedBox(height: 35),
 
-                  Text(
-                    resultMessage,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontFamily: "Charmonman",
-                      fontSize: 20,
-                      color: Colors.black,
+                  Text.rich(
+                    TextSpan(
+                      style: const TextStyle(
+                        fontFamily: "Charmonman",
+                        fontSize: 20,
+                        color: Colors.black,
+                      ),
+                      children: [
+                        const TextSpan(text: "1 "),
+                        const TextSpan(
+                          text: "น้องข้าว",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const TextSpan(text: " หมายเลขฝ่าย\n“"),
+                        const TextSpan(
+                          text: "ผี",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const TextSpan(text: "”"),
+                      ],
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),

@@ -66,6 +66,7 @@ class SkillPopupSingle extends StatelessWidget {
                       fontFamily: "Charmonman",
                       fontSize: 32,
                       color: Colors.black,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
 
@@ -126,4 +127,4 @@ class SkillPopupSingle extends StatelessWidget {
       ),
     );
   }
-}
+}

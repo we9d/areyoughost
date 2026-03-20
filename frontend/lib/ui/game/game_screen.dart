@@ -117,27 +117,46 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void openSkillDialog() {
-    if (currentRoleSkills.isEmpty) return;
+    if (currentRoleSkills.length < 2) return;
 
-    final skill = currentRoleSkills[0];
+    final s1 = currentRoleSkills[0];
+    final s2 = currentRoleSkills[1];
+
     showDialog(
       context: context,
       barrierColor: Colors.black54,
-      builder: (_) => SkillPopupSingle(
-        skillName: skill.name,
-        description: skill.description,
-        image: skill.image,
-        onUse: () {
+      builder: (_) => SkillPopupChoice(
+        skill1Name: s1.name,
+        skill1Description: s1.description,
+        skill1Image: s1.image,
+        skill2Name: s2.name,
+        skill2Description: s2.description,
+        skill2Image: s2.image,
+        onSkill1: () {
+          Navigator.pop(context);
           showDialog(
             context: context,
             barrierColor: Colors.black54,
             builder: (_) => SkillPopupResult(
-              skillName: skill.name,
-              skillImage: skill.image,
-                resultMessage: '1 น้องข้าว หมายเลขฝ่าย\n“ผี”',
+              skillName: s1.name,
+              skillImage: s1.image,
+              resultMessage: '1 น้องข้าว หมายเลขฝ่าย\n“ผี”',
             ),
           );
         },
+        onSkill2: () {
+          Navigator.pop(context);
+          showDialog(
+            context: context,
+            barrierColor: Colors.black54,
+            builder: (_) => SkillPopupResult(
+              skillName: s2.name,
+              skillImage: s2.image,
+              resultMessage: 'ชุบชีวิตผู้เล่นสำเร็จ',
+            ),
+          );
+        },
+        onClose: () => Navigator.pop(context),
       ),
     );
   }

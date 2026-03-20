@@ -62,24 +62,27 @@ class SkillPopupChoice extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 18),
 
           /// NAME
-          Text(
-            name,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontFamily: "Charmonman",
-              fontSize: 20,
-              color: Colors.black,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 120),
+            child: Text(
+              name,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: "Charmonman",
+                fontSize: 20,
+                color: Colors.black,
+              ),
             ),
           ),
 
           const SizedBox(height: 6),
 
           /// DESCRIPTION
-          SizedBox(
-            width: 120,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 120),
             child: Text(
               description,
               textAlign: TextAlign.center,
@@ -99,6 +102,7 @@ class SkillPopupChoice extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
 
       child: Container(
         width: 358,
@@ -134,56 +138,70 @@ class SkillPopupChoice extends StatelessWidget {
             ),
 
             /// CONTENT
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-
-                const Text(
-                  "เลือกใช้ 1 สกิล?",
-                  style: TextStyle(
-                    fontFamily: "Charmonman",
-                    fontSize: 32,
-                    color: Colors.black,
-                  ),
-                ),
-
-                const SizedBox(height: 6),
-
-                const Text(
-                  "ตลอดทั้งเกมใช้ได้ทั้งหมด 1 ครั้ง",
-                  style: TextStyle(
-                    fontFamily: "Charmonman",
-                    fontSize: 14,
-                    color: Colors.black54,
-                  ),
-                ),
-
-                const SizedBox(height: 26),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            Center(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
 
-                    /// SKILL 1
-                    skillItem(
-                      context: context,
-                      name: skill1Name,
-                      description: skill1Description,
-                      image: skill1Image,
-                      onTap: onSkill1,
+                    const Text(
+                      "เลือกใช้ 1 สกิล?",
+                      style: TextStyle(
+                        fontFamily: "Charmonman",
+                        fontSize: 32,
+                        color: Colors.black,
+                      ),
                     ),
 
-                    /// SKILL 2
-                    skillItem(
-                      context: context,
-                      name: skill2Name,
-                      description: skill2Description,
-                      image: skill2Image,
-                      onTap: onSkill2,
+                    const SizedBox(height: 6),
+
+                    const Text(
+                      "ตลอดทั้งเกมใช้ได้ทั้งหมด 1 ครั้ง",
+                      style: TextStyle(
+                        fontFamily: "Charmonman",
+                        fontSize: 14,
+                        color: Colors.black54,
+                      ),
+                    ),
+
+                    const SizedBox(height: 26),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+
+                        /// SKILL 1
+                        Expanded(
+                          child: Center(
+                            child: skillItem(
+                              context: context,
+                              name: skill1Name,
+                              description: skill1Description,
+                              image: skill1Image,
+                              onTap: onSkill1,
+                            ),
+                          ),
+                        ),
+
+                        /// SKILL 2
+                        Expanded(
+                          child: Center(
+                            child: skillItem(
+                              context: context,
+                              name: skill2Name,
+                              description: skill2Description,
+                              image: skill2Image,
+                              onTap: onSkill2,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ],
         ),

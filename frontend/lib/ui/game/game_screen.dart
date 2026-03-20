@@ -12,6 +12,7 @@ import 'package:areyoughost/ui/game/widgets/player_grid_night.dart';
 import 'package:areyoughost/ui/game/widgets/players_popup.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_choice.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_result.dart';
+import 'package:areyoughost/ui/game/dialogs/skill_popup_single.dart';
 import 'package:areyoughost/models/mock_models.dart';
 import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
 import 'package:areyoughost/ui/game/widgets/players_popup.dart';
@@ -73,9 +74,9 @@ class _GameScreenState extends State<GameScreen> {
 
     currentRoleSkills = [
       SkillOption(
-        name: 'สกิลทำของ',
-        description: '"ฆ่าผู้เล่น 1 คน"',
-        image: 'assets/images/skill_voodoo.png',
+        name: 'สกิลตาวิเศษ',
+        description: 'เลือกผู้เล่น 1 คน\nเพื่อทำการตรวจฝ่าย',
+        image: 'assets/images/skill_eye.png',
       ),
       SkillOption(
         name: 'สกิลชุบชีวิต',
@@ -116,57 +117,28 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void openSkillDialog() {
-    if (currentRoleSkills.length < 2) return;
+    if (currentRoleSkills.isEmpty) return;
 
-    final skill1 = currentRoleSkills[0];
-    final skill2 = currentRoleSkills[1];
-
+    final skill = currentRoleSkills[0];
     showDialog(
       context: context,
       barrierColor: Colors.black54,
-      builder: (_) {
-        return SkillPopupChoice(
-          skill1Name: skill1.name,
-          skill1Description: skill1.description,
-          skill1Image: skill1.image,
-          skill2Name: skill2.name,
-          skill2Description: skill2.description,
-          skill2Image: skill2.image,
-          onSkill1: () {
-            Navigator.pop(context);
-            showDialog(
-              context: context,
-              barrierColor: Colors.black54,
-              builder: (_) => SkillPopupResult(
-                skillName: skill1.name,
-                skillImage: skill1.image,
-                resultMessage: skill1.name == 'สกิลทำของ'
-                    ? 'คุณใช้สกิลทำของใส่ "น้องข้าว"'
-                    : '"ชุบชีวิตผู้เล่นสำเร็จ"',
-              ),
-            );
-            debugPrint("Skill selected: ${skill1.name}");
-          },
-          onSkill2: () {
-            Navigator.pop(context);
-            showDialog(
-              context: context,
-              barrierColor: Colors.black54,
-              builder: (_) => SkillPopupResult(
-                skillName: skill2.name,
-                skillImage: skill2.image,
-                resultMessage: skill2.name == 'สกิลทำของ'
-                    ? 'คุณใช้สกิลทำของใส่ "น้องข้าว"'
-                    : ' "ชุบชีวิตผู้เล่นสำเร็จ"',
-              ),
-            );
-            debugPrint("Skill selected: ${skill2.name}");
-          },
-          onClose: () {
-            Navigator.pop(context);
-          },
-        );
-      },
+      builder: (_) => SkillPopupSingle(
+        skillName: skill.name,
+        description: skill.description,
+        image: skill.image,
+        onUse: () {
+          showDialog(
+            context: context,
+            barrierColor: Colors.black54,
+            builder: (_) => SkillPopupResult(
+              skillName: skill.name,
+              skillImage: skill.image,
+                resultMessage: '1 น้องข้าว หมายเลขฝ่าย\n“ผี”',
+            ),
+          );
+        },
+      ),
     );
   }
 

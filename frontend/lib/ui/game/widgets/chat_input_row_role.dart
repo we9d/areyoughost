@@ -74,8 +74,12 @@ class _ChatInputRowRoleState extends State<ChatInputRowRole> {
         onSubmitted: (_) => _handleSend(),
         decoration: const InputDecoration(
           hintText: "ส่งข้อความ",
+          hintStyle: TextStyle(
+            color: Colors.grey,
+            fontSize: 17,
+          ),
           border: InputBorder.none,
-          isCollapsed: true,
+          contentPadding: EdgeInsets.only(bottom: 8),
         ),
       ),
     );

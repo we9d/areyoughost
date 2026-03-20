@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-
 import 'package:areyoughost/ui/game/dialogs/player_dead_popup.dart';
 
 class ChatInputRowRoleChat extends StatefulWidget {
@@ -60,12 +59,7 @@ class _ChatInputRowRoleChatState extends State<ChatInputRowRoleChat> {
                 PhosphorIcons.wechatLogo(),
                 color: Colors.white,
               ),
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (_) => const PlayerDeadPopup(),
-                );
-              },
+              onPressed: () {},
             ),
 
             const SizedBox(width: 10),
@@ -92,8 +86,12 @@ class _ChatInputRowRoleChatState extends State<ChatInputRowRoleChat> {
         onSubmitted: (_) => _handleSend(),
         decoration: const InputDecoration(
           hintText: "ส่งข้อความ",
+          hintStyle: TextStyle(
+            color: Colors.grey,
+            fontSize: 17,
+          ),
           border: InputBorder.none,
-          isCollapsed: true,
+          contentPadding: EdgeInsets.only(bottom: 8),
         ),
       ),
     );

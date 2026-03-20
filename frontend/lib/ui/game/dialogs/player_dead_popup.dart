@@ -38,6 +38,8 @@ class PlayerDeadPopup extends StatelessWidget {
               style: TextStyle(
                 fontFamily: "Charmonman",
                 fontSize: 34,
+                color: Colors.black,
+                fontWeight: FontWeight.w700,
               ),
             ),
 
@@ -50,11 +52,18 @@ class PlayerDeadPopup extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFFD9D9D9),
                 borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    blurRadius: 10,
+                    offset: const Offset(0, 6),
+                    color: Colors.black.withOpacity(0.25),
+                  )
+                ],
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: Image.asset(
-                  "assets/images/death_ash.jpg",
+                  "assets/images/ash.png",
                   fit: BoxFit.contain,
                 ),
               ),
@@ -68,6 +77,8 @@ class PlayerDeadPopup extends StatelessWidget {
               style: TextStyle(
                 fontFamily: "Charmonman",
                 fontSize: 22,
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
               ),
             ),
 
@@ -80,6 +91,7 @@ class PlayerDeadPopup extends StatelessWidget {
               style: TextStyle(
                 fontFamily: "Charmonman",
                 fontSize: 16,
+                color: Colors.black,
               ),
             ),
 
@@ -107,6 +119,7 @@ class PlayerDeadPopup extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: "Charmonman",
                   fontSize: 18,
+                  color: Colors.black,
                 ),
               ),
             ),

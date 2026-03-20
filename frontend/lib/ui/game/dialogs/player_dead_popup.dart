@@ -69,7 +69,7 @@ class PlayerDeadPopup extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 22),
+            const SizedBox(height: 25),
 
             /// ชื่อผู้เล่น
             const Text(
@@ -95,7 +95,7 @@ class PlayerDeadPopup extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 28),
+            const SizedBox(height: 60),
 
             /// ปุ่ม
             ElevatedButton(
@@ -114,12 +114,15 @@ class PlayerDeadPopup extends StatelessWidget {
                   borderRadius: BorderRadius.circular(22),
                 ),
               ),
-              child: const Text(
-                "รับทราบ",
-                style: TextStyle(
-                  fontFamily: "Charmonman",
-                  fontSize: 18,
-                  color: Colors.black,
+              child: const Padding(
+                padding: EdgeInsets.only(top: 5),
+                child: Text(
+                  "รับทราบ",
+                  style: TextStyle(
+                    fontFamily: "Charmonman",
+                    fontSize: 18,
+                    color: Colors.black,
+                  ),
                 ),
               ),
             ),

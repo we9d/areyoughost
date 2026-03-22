@@ -95,7 +95,7 @@ class PlayerDeadPopup extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 60),
+            const SizedBox(height: 28),
 
             /// ปุ่ม
             ElevatedButton(

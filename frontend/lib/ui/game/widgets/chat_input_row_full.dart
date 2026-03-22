@@ -5,6 +5,10 @@ import 'package:areyoughost/ui/game/dialogs/player_dead_popup.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_choice.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_result.dart';
 
+
+import 'package:areyoughost/ui/game/dialogs/player_dead_popup.dart';
+import 'package:areyoughost/ui/game/dialogs/skill_popup_single.dart';
+
 class ChatInputRowFull extends StatefulWidget {
   final VoidCallback onRoleInfoTap;
   final ValueChanged<String> onSend;

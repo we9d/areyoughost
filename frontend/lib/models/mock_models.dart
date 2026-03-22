@@ -88,3 +88,22 @@ class ChatMessage {
     required this.createdAt,
   });
 }
+
+class RoleInfo {
+  final String name;
+  final String description;
+
+  RoleInfo({required this.name, required this.description});
+}
+
+class SkillOption {
+  final String name;
+  final String description;
+  final String image;
+
+  SkillOption({
+    required this.name,
+    required this.description,
+    required this.image,
+  });
+}

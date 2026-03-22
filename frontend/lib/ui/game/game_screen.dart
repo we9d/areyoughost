@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:areyoughost/ui/game/widgets/game_top_bar.dart';
 import 'package:areyoughost/ui/game/widgets/chat_box.dart';
-import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
+import 'package:areyoughost/ui/game/widgets/chat_input_row_role.dart';
+import 'package:areyoughost/ui/game/widgets/chat_input_row_role_skill.dart';
+import 'package:areyoughost/ui/game/widgets/chat_input_row_full.dart';
+import 'package:areyoughost/ui/game/widgets/chat_input_row_role_chat.dart';
 import 'package:areyoughost/ui/widgets/buttons/roles_buttons.dart';
-import 'package:areyoughost/ui/dialogs/skill_select_dialog.dart';
 import 'package:areyoughost/models/mock_models.dart';
 import 'package:areyoughost/ui/game/widgets/DayTimeAnimation.dart';
 import 'package:areyoughost/ui/game/widgets/NightTimeAnimation.dart';
@@ -17,12 +19,6 @@ import 'package:areyoughost/models/mock_models.dart';
 import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
 import 'package:areyoughost/ui/game/widgets/players_popup.dart';
 import 'package:areyoughost/ui/game/widgets/exit_game_popup.dart';
-import 'package:areyoughost/ui/game/widgets/chat_box.dart';
-import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
-import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
-import 'package:areyoughost/ui/game/widgets/chat_box.dart';
-import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
-import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomId;
@@ -49,7 +45,7 @@ class _GameScreenState extends State<GameScreen> {
   int? selectedTarget;
 
   /// 🌞 Day / 🌙 Night
-  bool isDay = true;
+  bool isDay = false;
 
   @override
   void initState() {
@@ -70,8 +66,7 @@ class _GameScreenState extends State<GameScreen> {
       ),
     ];
 
-    /// ROLE SKILLS (MOCK)
-
+    /// ROLE SKILLS (MOCK) - Active for Case 5 (Day + Skills)
     currentRoleSkills = [
       SkillOption(
         name: 'สกิลตาวิเศษ',
@@ -105,6 +100,18 @@ class _GameScreenState extends State<GameScreen> {
         );
       },
     );
+  }
+
+  void _handleRoleInfoTap(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => const RolesDialog(),
+    );
+  }
+
+  void _handleSendMessage(String text) {
+    // Implement send message logic here
+    print('Sending message: $text');
   }
 
 
@@ -205,7 +212,8 @@ class _GameScreenState extends State<GameScreen> {
                                 context: context,
                                 builder: (_) => const ExitGamePopup(),
                               );
-                            },                      onPlayerTap: openPlayersPopup,
+                            },                      
+                      onPlayerTap: openPlayersPopup,
                     ),
 
                     const SizedBox(height: 6),
@@ -243,17 +251,26 @@ class _GameScreenState extends State<GameScreen> {
 
                     const SizedBox(height: 4),
 
-                    /// Chat Input
-                    ChatInputRow(
-                      onRoleInfoTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (_) => const RolesDialog(),
-                        );
-                      },
-                      onSkillTap: openSkillDialog,
-                      onSend: (_) {},
-                    ),
+                    /// CHAT INPUT SECTION
+                    isDay
+                        ? (currentRoleSkills.isNotEmpty
+                            ? ChatInputRowRoleSkill(
+                                onRoleInfoTap: () => _handleRoleInfoTap(context),
+                                onSend: (text) => _handleSendMessage(text),
+                              )
+                            : ChatInputRowRole(
+                                onRoleInfoTap: () => _handleRoleInfoTap(context),
+                                onSend: (text) => _handleSendMessage(text),
+                              ))
+                        : (currentRoleSkills.isNotEmpty
+                            ? ChatInputRowFull(
+                                onRoleInfoTap: () => _handleRoleInfoTap(context),
+                                onSend: (text) => _handleSendMessage(text),
+                              )
+                            : ChatInputRowRoleChat(
+                                onRoleInfoTap: () => _handleRoleInfoTap(context),
+                                onSend: (text) => _handleSendMessage(text),
+                              )),
 
                     const SizedBox(height: 10),
                   ],

@@ -1,29 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:areyoughost/ui/game/dialogs/player_dead_popup.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_choice.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_result.dart';
 
-
-import 'package:areyoughost/ui/game/dialogs/player_dead_popup.dart';
-import 'package:areyoughost/ui/game/dialogs/skill_popup_single.dart';
-
-class ChatInputRowFull extends StatefulWidget {
+class ChatInputRowRoleSkill extends StatefulWidget {
   final VoidCallback onRoleInfoTap;
   final ValueChanged<String> onSend;
 
-  const ChatInputRowFull({
+  const ChatInputRowRoleSkill({
     super.key,
     required this.onRoleInfoTap,
     required this.onSend,
   });
 
   @override
-  State<ChatInputRowFull> createState() => _ChatInputRowFullState();
+  State<ChatInputRowRoleSkill> createState() => _ChatInputRowRoleSkillState();
 }
 
-class _ChatInputRowFullState extends State<ChatInputRowFull> {
+class _ChatInputRowRoleSkillState extends State<ChatInputRowRoleSkill> {
   final TextEditingController _controller = TextEditingController();
 
   void _handleSend() {
@@ -42,7 +37,6 @@ class _ChatInputRowFullState extends State<ChatInputRowFull> {
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Row(
           children: [
-
             /// ROLE
             IconButton(
               iconSize: 25,
@@ -53,20 +47,6 @@ class _ChatInputRowFullState extends State<ChatInputRowFull> {
                 color: Colors.white,
               ),
               onPressed: widget.onRoleInfoTap,
-            ),
-
-            const SizedBox(width: 6),
-
-            /// CHAT
-            IconButton(
-              iconSize: 25,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              icon: Icon(
-                PhosphorIcons.wechatLogo(),
-                color: Colors.white,
-              ),
-              onPressed: () {},
             ),
 
             const SizedBox(width: 6),

@@ -9,7 +9,6 @@
 //! **NOTE**: This module has been refactored to use the Dedicated Server (HTTP/WS)
 //! instead of a local SQLite database.
 
-use crate::db::postgres::PostgresDb;
 use crate::models::*;
 use crate::network::tcp_client::TcpClient;
 use crate::network::tcp_server::TcpServer;
@@ -184,7 +183,7 @@ impl Api {
 
         // Assign Roles
         let roles = RoleDistributor::assign_roles(participants.len());
-        let mut role_iter = roles.into_iter();
+        let _role_iter = roles.into_iter();
         let game_id_db = "local_game".to_string();
 
         new_state.participants = participants;

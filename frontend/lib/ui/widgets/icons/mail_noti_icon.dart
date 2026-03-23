@@ -1,123 +1,90 @@
-import 'dart:async';
-
-import 'package:areyoughost/models/room_model.dart';
-import 'package:areyoughost/services/invite_store.dart';
-import 'package:areyoughost/services/ws_service.dart';
-import 'package:areyoughost/ui/lobby/waiting_room_screen.dart';
+import 'package:areyoughost/ui/Invite_friend/Invite_friend.dart';
 import 'package:areyoughost/ui/widgets/buttons/accept_invite_button.dart';
 import 'package:areyoughost/ui/widgets/buttons/reject_invite_button.dart';
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
 
-/// Mail / notification icon that shows a badge when there are pending invites.
-/// Tapping it shows the first pending invite dialog from InviteStore.
-class MailNotiIcon extends StatefulWidget {
-  const MailNotiIcon({super.key});
+class MailNotiIcon extends StatelessWidget {
+  final bool hasInvite;
+  final String inviterName;
+  final VoidCallback? onAccept;
+  final VoidCallback? onReject;
 
-  @override
-  State<MailNotiIcon> createState() => _MailNotiIconState();
-}
-
-class _MailNotiIconState extends State<MailNotiIcon> {
-  bool _isAccepting = false;
+  const MailNotiIcon({
+    super.key,
+    this.hasInvite = true,
+    this.inviterName = 'น้องดิว ทุกสถาบัน',
+    this.onAccept,
+    this.onReject,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<PendingInvite>>(
-      valueListenable: InviteStore.instance.invites,
-      builder: (context, invites, _) {
-        final hasInvite = invites.isNotEmpty;
-        return IconButton(
-          onPressed: hasInvite ? () => _showInviteDialog(context, invites.first) : null,
-          icon: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Icon(
-                BootstrapIcons.envelope_open_fill,
-                color: hasInvite ? Colors.white : Colors.white54,
-                size: 23,
-              ),
-              if (hasInvite)
-                Positioned(
-                  top: -2,
-                  right: -4,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
+    return IconButton(
+      onPressed: () {
+        if (!hasInvite) return;
+
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) {
+            return _InviteDialog(
+              inviterName: inviterName,
+              onAccept: () {
+                Navigator.pop(context);
+                if (onAccept != null) {
+                  onAccept!.call();
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const InviteFriendScreen(),
                     ),
-                  ),
-                ),
-            ],
-          ),
+                  );
+                }
+              },
+              onReject: () {
+                Navigator.pop(context);
+                onReject?.call();
+              },
+            );
+          },
         );
       },
-    );
-  }
-
-  void _showInviteDialog(BuildContext context, PendingInvite invite) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => _InviteDialog(
-        invite: invite,
-        isAccepting: _isAccepting,
-        onAccept: () => _handleAccept(ctx, invite),
-        onReject: () {
-          InviteStore.instance.remove(invite.inviteCode);
-          Navigator.pop(ctx);
-        },
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(
+            BootstrapIcons.envelope_open_fill,
+            color: Colors.white,
+            size: 23,
+          ),
+          if (hasInvite)
+            Positioned(
+              top: -1,
+              right: 15,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+        ],
       ),
     );
-  }
-
-  Future<void> _handleAccept(BuildContext dialogCtx, PendingInvite invite) async {
-    setState(() => _isAccepting = true);
-
-    // Send accept + wait for room.joined from server
-    WsService.instance.acceptInvite(invite.inviteCode);
-    InviteStore.instance.remove(invite.inviteCode);
-
-    try {
-      final msg = await WsService.instance.waitFor(
-        'room.joined',
-        timeout: const Duration(seconds: 10),
-      );
-      final roomData = (msg['payload']?['room'] as Map<String, dynamic>?) ??
-          (msg['payload'] as Map<String, dynamic>? ?? {});
-      final room = RoomModel.fromJson(roomData);
-
-      if (!mounted) return;
-      Navigator.pop(dialogCtx); // Close dialog
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => WaitingRoomScreen(initialRoom: room, isHost: false),
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      Navigator.pop(dialogCtx);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ไม่สามารถเข้าร่วมห้องได้ ลองใหม่อีกครั้ง')),
-      );
-    } finally {
-      if (mounted) setState(() => _isAccepting = false);
-    }
   }
 }
 
 class _InviteDialog extends StatelessWidget {
-  final PendingInvite invite;
-  final bool isAccepting;
+  final String inviterName;
   final VoidCallback onAccept;
   final VoidCallback onReject;
 
   const _InviteDialog({
-    required this.invite,
-    required this.isAccepting,
+    required this.inviterName,
     required this.onAccept,
     required this.onReject,
   });
@@ -154,7 +121,7 @@ class _InviteDialog extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    invite.fromUsername,
+                    inviterName,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.black87,
@@ -162,36 +129,31 @@ class _InviteDialog extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'ชวนคุณเข้าร่วมเกม',
-                    style: TextStyle(color: Colors.black54, fontSize: 14),
-                  ),
                   const SizedBox(height: 26),
-                  if (isAccepting)
-                    const CircularProgressIndicator()
-                  else
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        RejectInviteButton(onPressed: onReject),
-                        const SizedBox(width: 18),
-                        AcceptInviteButton(onPressed: onAccept),
-                      ],
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      RejectInviteButton(onPressed: onReject),
+                      const SizedBox(width: 18),
+                      AcceptInviteButton(onPressed: onAccept),
+                    ],
+                  ),
                 ],
               ),
             ),
-            if (!isAccepting)
-              Positioned(
-                top: -6,
-                right: -8,
-                child: IconButton(
-                  splashRadius: 20,
-                  icon: const Icon(Icons.close, size: 30, color: Colors.black),
-                  onPressed: onReject,
+            Positioned(
+              top: -6,
+              right: -8,
+              child: IconButton(
+                splashRadius: 20,
+                icon: const Icon(
+                  Icons.close,
+                  size: 30,
+                  color: Colors.black,
                 ),
+                onPressed: () => Navigator.pop(context),
               ),
+            ),
           ],
         ),
       ),

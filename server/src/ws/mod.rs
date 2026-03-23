@@ -496,6 +496,45 @@ async fn handle_client_message(
             }
         }
 
+        // ── Game Management ───────────────────────────────────────
+        "game.start" => {
+            // Find which room the player is in right now
+            if let Some(room_ref) = state.player_rooms.get(player_id) {
+                let room_id = room_ref.value().clone();
+                drop(room_ref);
+
+                match state.start_game(player_id, &room_id).await {
+                    Ok(state_val) => {
+                        let members = state.load_room_members(&room_id).await;
+                        let mut state_json = state_val.clone();
+                        if let Some(obj) = state_json.as_object_mut() {
+                            obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                        }
+
+                        let response = ServerMessage::new(
+                            "game.started",
+                            json!({ "roomId": room_id, "room": state_json }),
+                        );
+                        state.broadcast_to_room(
+                            &room_id,
+                            &serde_json::to_string(&response).unwrap(),
+                        );
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Message::Text(
+                            serde_json::to_string(&ServerMessage::error("START_GAME_FAILED", &e))
+                                .unwrap(),
+                        ));
+                    }
+                }
+            } else {
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::error("NOT_IN_ROOM", "You are not in a room"))
+                        .unwrap(),
+                ));
+            }
+        }
+
         _ => {
             tracing::warn!("Unknown message type: {}", msg.msg_type);
             let _ = tx.send(Message::Text(

@@ -2,6 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:areyoughost/ui/game/widgets/game_top_bar.dart';
+import 'package:areyoughost/ui/game/widgets/chat_box.dart';
+import 'package:areyoughost/ui/game/widgets/chat_input_row_role.dart';
+import 'package:areyoughost/ui/game/widgets/chat_input_row_role_skill.dart';
+import 'package:areyoughost/ui/game/widgets/chat_input_row_full.dart';
+import 'package:areyoughost/ui/game/widgets/chat_input_row_role_chat.dart';
+import 'package:areyoughost/ui/widgets/buttons/roles_buttons.dart';
 import 'package:areyoughost/models/mock_models.dart';
 import 'package:areyoughost/models/room_model.dart';
 import 'package:areyoughost/services/ws_service.dart';
@@ -18,6 +25,17 @@ import 'package:areyoughost/ui/game/widgets/game_top_bar.dart';
 import 'package:areyoughost/ui/game/widgets/player_grid_day.dart';
 import 'package:areyoughost/ui/game/widgets/player_grid_night.dart';
 import 'package:areyoughost/ui/game/widgets/players_popup.dart';
+<<<<<<< HEAD
+=======
+import 'package:areyoughost/ui/widgets/buttons/roles_buttons.dart';
+import 'package:areyoughost/ui/game/dialogs/skill_popup_choice.dart';
+import 'package:areyoughost/ui/game/dialogs/skill_popup_result.dart';
+import 'package:areyoughost/ui/game/dialogs/skill_popup_single.dart';
+import 'package:areyoughost/models/mock_models.dart';
+import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
+import 'package:areyoughost/ui/game/widgets/players_popup.dart';
+import 'package:areyoughost/ui/game/widgets/exit_game_popup.dart';
+>>>>>>> 06601c709c9d8c44475a7097969fb5f815969cca
 
 class GameScreen extends StatefulWidget {
   /// Pass room from Quick Play or from game.started event.
@@ -49,7 +67,12 @@ class _GameScreenState extends State<GameScreen> {
   int? mySlot; // 1-based slot number that belongs to this player
   int? selectedTarget; // slot number being voted on
 
+<<<<<<< HEAD
   bool isDay = true;
+=======
+  /// 🌞 Day / 🌙 Night
+  bool isDay = false;
+>>>>>>> 06601c709c9d8c44475a7097969fb5f815969cca
 
   @override
   void initState() {
@@ -60,6 +83,7 @@ class _GameScreenState extends State<GameScreen> {
       _applyRoomPlayers(widget.initialRoom!.players);
     }
 
+<<<<<<< HEAD
     // Listen for live updates
     _sub = WsService.instance.stream.listen(_onServerMessage);
 
@@ -69,6 +93,30 @@ class _GameScreenState extends State<GameScreen> {
           image: 'assets/icons/investigate.png'),
       SkillOption(name: 'Protect', description: 'Protect a player',
           image: 'assets/icons/protect.png'),
+=======
+    chatMessages = [];
+     /// ROLE INFO
+
+    allRoles = [
+      RoleInfo(
+        name: 'Villager',
+        description: 'A simple villager',
+      ),
+    ];
+
+    /// ROLE SKILLS (MOCK) - Active for Case 5 (Day + Skills)
+    currentRoleSkills = [
+      SkillOption(
+        name: 'สกิลตาวิเศษ',
+        description: 'เลือกผู้เล่น 1 คน\nเพื่อทำการตรวจฝ่าย',
+        image: 'assets/images/skill_eye.png',
+      ),
+      SkillOption(
+        name: 'สกิลชุบชีวิต',
+        description: '“ชุบชีวิตผู้เล่นที่ถูกฆ่าในคืนนี้” ',
+        image: 'assets/images/skill_heal.png',
+      ),
+>>>>>>> 06601c709c9d8c44475a7097969fb5f815969cca
     ];
   }
 
@@ -78,7 +126,22 @@ class _GameScreenState extends State<GameScreen> {
     super.dispose();
   }
 
+<<<<<<< HEAD
   // ── Helpers ───────────────────────────────────────────────────
+=======
+  void _handleRoleInfoTap(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => const RolesDialog(),
+    );
+  }
+
+  void _handleSendMessage(String text) {
+    // Implement send message logic here
+    print('Sending message: $text');
+  }
+
+>>>>>>> 06601c709c9d8c44475a7097969fb5f815969cca
 
   /// Assign players to slots in order. Each new player gets the next free slot.
   void _applyRoomPlayers(List<PlayerInfo> players) {
@@ -94,6 +157,7 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+<<<<<<< HEAD
   /// Add a player to the first free slot.
   void _addPlayer(String username, String playerId) {
     SessionManager.getSession().then((session) {
@@ -120,6 +184,13 @@ class _GameScreenState extends State<GameScreen> {
   void _onServerMessage(Map<String, dynamic> msg) {
     final type = msg['type'] as String?;
     if (type == null) return;
+=======
+  void openSkillDialog() {
+    if (currentRoleSkills.length < 2) return;
+
+    final s1 = currentRoleSkills[0];
+    final s2 = currentRoleSkills[1];
+>>>>>>> 06601c709c9d8c44475a7097969fb5f815969cca
 
     switch (type) {
       case 'room.state':
@@ -158,6 +229,7 @@ class _GameScreenState extends State<GameScreen> {
     showDialog(
       context: context,
       barrierColor: Colors.black54,
+<<<<<<< HEAD
       builder: (_) => PlayersPopup(
         players: _slots
             .asMap()
@@ -189,6 +261,40 @@ class _GameScreenState extends State<GameScreen> {
         onSkill1: () { Navigator.pop(context); debugPrint('Skill: ${skill1.name}'); },
         onSkill2: () { Navigator.pop(context); debugPrint('Skill: ${skill2.name}'); },
         onClose:  () { Navigator.pop(context); },
+=======
+      builder: (_) => SkillPopupChoice(
+        skill1Name: s1.name,
+        skill1Description: s1.description,
+        skill1Image: s1.image,
+        skill2Name: s2.name,
+        skill2Description: s2.description,
+        skill2Image: s2.image,
+        onSkill1: () {
+          Navigator.pop(context);
+          showDialog(
+            context: context,
+            barrierColor: Colors.black54,
+            builder: (_) => SkillPopupResult(
+              skillName: s1.name,
+              skillImage: s1.image,
+              resultMessage: '1 น้องข้าว หมายเลขฝ่าย\n“ผี”',
+            ),
+          );
+        },
+        onSkill2: () {
+          Navigator.pop(context);
+          showDialog(
+            context: context,
+            barrierColor: Colors.black54,
+            builder: (_) => SkillPopupResult(
+              skillName: s2.name,
+              skillImage: s2.image,
+              resultMessage: 'ชุบชีวิตผู้เล่นสำเร็จ',
+            ),
+          );
+        },
+        onClose: () => Navigator.pop(context),
+>>>>>>> 06601c709c9d8c44475a7097969fb5f815969cca
       ),
     );
   }

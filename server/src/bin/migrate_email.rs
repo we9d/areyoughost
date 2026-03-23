@@ -7,7 +7,7 @@ async fn main() {
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
     let db = PgPoolOptions::new()
-        .connect(database_url)
+        .connect(&database_url)
         .await
         .expect("Failed to connect to database");
 

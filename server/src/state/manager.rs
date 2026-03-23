@@ -319,10 +319,10 @@ impl AppState {
     }
 
     pub async fn join_room(&self, room_id_str: &str, player_id_str: &str, username: String) -> Result<(), String> {
-        let room_id_uuid = uuid::Uuid::parse_str(room_id_str)
+        let _room_id_uuid = uuid::Uuid::parse_str(room_id_str)
             .map_err(|_| "Invalid room ID format".to_string())?;
             
-        let player_uuid = uuid::Uuid::parse_str(player_id_str)
+        let _player_uuid = uuid::Uuid::parse_str(player_id_str)
             .map_err(|_| "Invalid player ID format".to_string())?;
 
         // 1. Check if room exists in memory
@@ -475,5 +475,62 @@ impl AppState {
                 "status": room.status,
             })
         })
+    }
+
+    // ─── Game Management ──────────────────────────────────────────
+    pub async fn start_game(&self, host_id_str: &str, room_id_str: &str) -> Result<serde_json::Value, String> {
+        let mut room_ref = self.rooms.get_mut(room_id_str)
+            .ok_or_else(|| "Room not found".to_string())?;
+
+        // 1. Verify Host
+        let is_host = room_ref.players.iter()
+            .any(|p| p.player_id == host_id_str && p.is_host);
+
+        if !is_host {
+            return Err("Only the host can start the game".to_string());
+        }
+
+        // 2. Verify Room Status
+        if room_ref.status != "waiting" {
+            return Err("Game has already started or room is invalid".to_string());
+        }
+
+        // 3. Optional: Verify minimum players (example: minimum 2)
+        if room_ref.players.len() < 2 {
+            return Err("Not enough players to start the game (minimum 2 required)".to_string());
+        }
+
+        // 4. Update memory state
+        room_ref.status = "playing".to_string();
+
+        // 5. Update DB in background
+        let db_pool = self.db.clone();
+        let r_id = room_id_str.to_string();
+        tokio::spawn(async move {
+            if let Ok(r_uuid) = uuid::Uuid::parse_str(&r_id) {
+                let _ = sqlx::query(
+                    "UPDATE rooms SET room_status = 'PLAYING', updated_at = now() WHERE room_id = $1"
+                )
+                .bind(r_uuid)
+                .execute(&db_pool)
+                .await;
+            }
+        });
+
+        // 6. Return the updated state
+        let state_val = serde_json::json!({
+            "roomId": room_ref.room_id,
+            "players": room_ref.players.iter().map(|p| serde_json::json!({
+                "playerId": p.player_id,
+                "username": p.username,
+                "isReady": p.is_ready,
+                "isHost": p.is_host,
+            })).collect::<Vec<_>>(),
+            "maxPlayers": room_ref.max_players,
+            "isPublic": room_ref.is_public,
+            "status": room_ref.status,
+        });
+
+        Ok(state_val)
     }
 }

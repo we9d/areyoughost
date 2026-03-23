@@ -5,6 +5,7 @@ import 'package:areyoughost/models/room_model.dart';
 import 'package:areyoughost/services/ws_service.dart';
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/ui/Invite_friend/invite_panel.dart';
+import 'package:areyoughost/ui/game/game_screen.dart';
 
 /// Waiting Room — shown after joining/creating any room.
 /// 
@@ -70,6 +71,23 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
 
       case 'invite.received':
         // Handled globally in the app — nothing to do here
+        break;
+
+      case 'game.started':
+        final payload = msg['payload'] as Map<String, dynamic>?;
+        if (payload != null) {
+          final updatedRoom = RoomModel.fromJson(
+            payload['room'] as Map<String, dynamic>? ?? payload,
+          );
+          if (!mounted) return;
+          // Navigate to the actual game screen
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GameScreen(roomId: updatedRoom.roomId),
+            ),
+          );
+        }
         break;
     }
   }
@@ -245,7 +263,7 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
                           child: ElevatedButton(
                             onPressed: _room.players.length >= 2
                                 ? () {
-                                    // TODO: send game.start when ready
+                                    WsService.instance.send('game.start', {});
                                   }
                                 : null,
                             style: ElevatedButton.styleFrom(

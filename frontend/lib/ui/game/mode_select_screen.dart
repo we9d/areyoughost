@@ -4,6 +4,7 @@ import 'package:flutter/material.dart' as m;
 import 'package:areyoughost/models/room_model.dart';
 import 'package:areyoughost/services/ws_service.dart';
 import 'package:areyoughost/services/session_manager.dart';
+import 'package:areyoughost/ui/game/game_screen.dart';
 import 'package:areyoughost/ui/lobby/waiting_room_screen.dart';
 import 'package:areyoughost/ui/widgets/buttons/playnow_button.dart';
 import 'package:areyoughost/ui/widgets/buttons/playtogether_button.dart';
@@ -67,7 +68,7 @@ class _ModeSelectScreenState extends m.State<ModeSelectScreen> {
       m.Navigator.pushReplacement(
         context,
         m.MaterialPageRoute(
-          builder: (_) => WaitingRoomScreen(initialRoom: room, isHost: false),
+          builder: (_) => GameScreen(initialRoom: room, roomId: room.roomId),
         ),
       );
     } catch (_) {

@@ -1,47 +1,25 @@
 import 'package:flutter/material.dart';
-
-/// ===============================================================
-/// SKILL POPUP (TYPE 1)
-/// ---------------------------------------------------------------
-/// Popup นี้ใช้เมื่อผู้เล่นกด "ปุ่มสกิล" จาก ChatInputRow
-///
-/// ขนาด popup: 358 x 383
-///
-/// เมื่อผู้เล่นกด "รูปสกิล"
-/// → จะเรียก callback onUseSkill()
-///
-/// Backend team ต้องเชื่อม:
-/// - skillName
-/// - description
-/// - imageUrl
-///
-/// imageUrl จะมาจาก backend API
-/// ===============================================================
+import 'skill_popup_result.dart';
 
 class SkillPopupSingle extends StatelessWidget {
   final String skillName;
   final String description;
-  final String imageUrl;
-
-  /// callback เมื่อผู้เล่นกดใช้สกิล
-  final VoidCallback onUseSkill;
-
-  /// callback ปิด popup
-  final VoidCallback onClose;
+  final String image;
+  final VoidCallback onUse;
 
   const SkillPopupSingle({
     super.key,
     required this.skillName,
     required this.description,
-    required this.imageUrl,
-    required this.onUseSkill,
-    required this.onClose,
+    required this.image,
+    required this.onUse,
   });
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
 
       child: Container(
         width: 358,
@@ -49,14 +27,12 @@ class SkillPopupSingle extends StatelessWidget {
 
         padding: const EdgeInsets.symmetric(
           horizontal: 24,
-          vertical: 20,
+          vertical: 24,
         ),
 
         decoration: BoxDecoration(
           color: const Color(0xFFF4F4F4),
           borderRadius: BorderRadius.circular(28),
-
-          /// shadow ใกล้เคียง Figma
           boxShadow: [
             BoxShadow(
               blurRadius: 24,
@@ -69,73 +45,82 @@ class SkillPopupSingle extends StatelessWidget {
         child: Stack(
           children: [
 
-            /// ปุ่มปิด
+            /// ❌ ปุ่มปิด
             Positioned(
               top: 0,
               right: 0,
               child: GestureDetector(
-                onTap: onClose,
-                child: const Icon(Icons.close),
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.close, size: 28, color: Colors.black),
               ),
             ),
 
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
 
-                /// ชื่อสกิล
-                Text(
-                  skillName,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                /// รูปสกิล
-                GestureDetector(
-                  onTap: onUseSkill,
-                  child: Container(
-                    width: 160,
-                    height: 160,
-
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFD9D9D9),
-                      borderRadius: BorderRadius.circular(16),
+                  Text(
+                    skillName,
+                    style: const TextStyle(
+                      fontFamily: "Charmonman",
+                      fontSize: 32,
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
                     ),
+                  ),
 
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
+                  const SizedBox(height: 16),
 
-                      /// =====================================================
-                      /// BACKEND NOTE
-                      /// -----------------------------------------------------
-                      /// imageUrl จะถูกส่งมาจาก backend
-                      ///
-                      /// ตัวอย่าง
-                      /// https://api.yourgame.com/skills/investigate.png
-                      /// =====================================================
-                      child: Image.network(
-                        imageUrl,
-                        fit: BoxFit.contain,
+                  /// กล่องสกิล (กดได้)
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                      onUse();
+                    },
+
+                    child: Container(
+                      width: 130,
+                      height: 130,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD9D9D9),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            blurRadius: 10,
+                            offset: const Offset(0, 6),
+                            color: Colors.black.withOpacity(0.25),
+                          )
+                        ],
+                      ),
+
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Image.asset(
+                            image,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                const SizedBox(height: 16),
+                  const SizedBox(height: 35),
 
-                /// คำอธิบายสกิล
-                Text(
-                  description,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 14,
+                  Text(
+                    description,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: "Charmonman",
+                      fontSize: 20,
+                      color: Colors.black,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),

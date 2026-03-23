@@ -46,7 +46,7 @@ class GameTopBar extends StatelessWidget {
               /// ⏱ TITLE
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.only(top: 17),
                   child: Text(
                     title,
                     textAlign: TextAlign.center,

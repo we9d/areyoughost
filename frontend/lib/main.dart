@@ -74,8 +74,7 @@ class _AreYouGhostAppState extends State<AreYouGhostApp> {
       },
 
       /// เปิดเกมตรงไปที่ GameScreen
-      home: const GameScreen(
-        roomId: "demo_room",
+      home: const HomeScreen(
       ),
     );
   }

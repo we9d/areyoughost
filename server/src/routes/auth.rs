@@ -87,7 +87,7 @@ pub async fn register(
     let new_player_id = Uuid::new_v4().to_string();
 
     let result = sqlx::query_as::<_, PlayerRow>(
-        "INSERT INTO players (player_id, username, email, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, now(), now()) RETURNING player_id, username",
+        "INSERT INTO players (player_id, username, email, password_hash, created_at, updated_at) VALUES ($1::uuid, $2, $3, $4, now(), now()) RETURNING player_id::text, username",
     )
     .bind(&new_player_id)
     .bind(&uname)
@@ -136,7 +136,7 @@ pub async fn login(
     let uname = body.username.trim().to_string();
 
     let row = sqlx::query_as::<_, PlayerAuthRow>(
-        "SELECT player_id, username, password_hash FROM players WHERE username = $1",
+        "SELECT player_id::text, username, password_hash FROM players WHERE username = $1",
     )
     .bind(&uname)
     .fetch_optional(&state.db)

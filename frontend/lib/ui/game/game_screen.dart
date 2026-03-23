@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'package:areyoughost/ui/game/widgets/game_top_bar.dart';
 import 'package:areyoughost/ui/game/widgets/chat_box.dart';
 import 'package:areyoughost/ui/game/widgets/chat_input_row_role.dart';
@@ -7,11 +8,19 @@ import 'package:areyoughost/ui/game/widgets/chat_input_row_full.dart';
 import 'package:areyoughost/ui/game/widgets/chat_input_row_role_chat.dart';
 import 'package:areyoughost/ui/widgets/buttons/roles_buttons.dart';
 import 'package:areyoughost/models/mock_models.dart';
+import 'package:areyoughost/ui/dialogs/role_info_dialog.dart';
+import 'package:areyoughost/ui/dialogs/skill_select_dialog.dart';
+import 'package:areyoughost/ui/game/dialogs/skill_popup_choice.dart';
 import 'package:areyoughost/ui/game/widgets/DayTimeAnimation.dart';
 import 'package:areyoughost/ui/game/widgets/NightTimeAnimation.dart';
+import 'package:areyoughost/ui/game/widgets/chat_box.dart';
+import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
+import 'package:areyoughost/ui/game/widgets/exit_game_popup.dart';
+import 'package:areyoughost/ui/game/widgets/game_top_bar.dart';
 import 'package:areyoughost/ui/game/widgets/player_grid_day.dart';
 import 'package:areyoughost/ui/game/widgets/player_grid_night.dart';
 import 'package:areyoughost/ui/game/widgets/players_popup.dart';
+import 'package:areyoughost/ui/widgets/buttons/roles_buttons.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_choice.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_result.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_single.dart';
@@ -206,13 +215,12 @@ class _GameScreenState extends State<GameScreen> {
                       title: isDay
                           ? 'เวลากลางวัน 20 วินาที'
                           : 'เวลากลางคืน 20 วินาที',
-                     onExitTap: () {
-
-                              showDialog(
-                                context: context,
-                                builder: (_) => const ExitGamePopup(),
-                              );
-                            },                      
+                      onExitTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => const ExitGamePopup(),
+                        );
+                      },
                       onPlayerTap: openPlayersPopup,
                     ),
 
@@ -251,26 +259,26 @@ class _GameScreenState extends State<GameScreen> {
 
                     const SizedBox(height: 4),
 
-                    /// CHAT INPUT SECTION
-                    isDay
-                        ? (currentRoleSkills.isNotEmpty
-                            ? ChatInputRowRoleSkill(
-                                onRoleInfoTap: () => _handleRoleInfoTap(context),
-                                onSend: (text) => _handleSendMessage(text),
-                              )
-                            : ChatInputRowRole(
-                                onRoleInfoTap: () => _handleRoleInfoTap(context),
-                                onSend: (text) => _handleSendMessage(text),
-                              ))
-                        : (currentRoleSkills.isNotEmpty
-                            ? ChatInputRowFull(
-                                onRoleInfoTap: () => _handleRoleInfoTap(context),
-                                onSend: (text) => _handleSendMessage(text),
-                              )
-                            : ChatInputRowRoleChat(
-                                onRoleInfoTap: () => _handleRoleInfoTap(context),
-                                onSend: (text) => _handleSendMessage(text),
-                              )),
+                    /// Chat Input
+                    ChatInputRow(
+                      onRoleInfoTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => const RolesDialog(),
+                        );
+                      },
+                      onSkillTap: openSkillDialog,
+                      onSend: (message) {
+                        /// BACKEND CHAT EVENT
+                        ///
+                        /// socket.emit("sendMessage", {
+                        ///   "roomId": widget.roomId,
+                        ///   "message": message
+                        /// });
+
+                        debugPrint("Send message: $message");
+                      },
+                    ),
 
                     const SizedBox(height: 10),
                   ],

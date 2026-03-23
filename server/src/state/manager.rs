@@ -53,6 +53,9 @@ pub struct AppState {
 
     // Matchmaking queue (FIFO)
     pub queue: Mutex<VecDeque<PlayerId>>,
+
+    // Invite code → room_id (for private rooms)
+    pub invites: DashMap<String, RoomId>,
 }
 
 impl AppState {
@@ -64,7 +67,107 @@ impl AppState {
             player_rooms: DashMap::new(),
             rooms: DashMap::new(),
             queue: Mutex::new(VecDeque::new()),
+            invites: DashMap::new(),
         })
+    }
+
+    // ─── Quick Play ───────────────────────────────────────────────
+
+    /// Find an existing waiting public room with space, or create a new one.
+    pub async fn quick_play(&self, player_id: String, username: String) -> Result<RoomId, String> {
+        // Find an available public waiting room
+        let available_room = self.rooms.iter().find(|r| {
+            r.status == "waiting" && r.is_public && r.players.len() < r.max_players
+        }).map(|r| r.room_id.clone());
+
+        if let Some(room_id) = available_room {
+            self.join_room(&room_id, &player_id, username).await?;
+            return Ok(room_id);
+        }
+
+        // No available room — create a new public one
+        let room_id = self.create_room(player_id, username, 16).await
+            .map_err(|e| format!("Failed to create room: {}", e))?;
+        Ok(room_id)
+    }
+
+    // ─── Private Room ─────────────────────────────────────────────
+
+    /// Create a private room and return (room_id, invite_code).
+    pub async fn create_private_room(
+        &self,
+        host_id: String,
+        username: String,
+    ) -> Result<(RoomId, String), String> {
+        let room_id = uuid::Uuid::new_v4().to_string();
+        let invite_code = uuid::Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("INVITE")
+            .to_uppercase();
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let mut tx = self.db.begin().await
+            .map_err(|e| format!("DB Error: {}", e))?;
+
+        sqlx::query(
+            "INSERT INTO rooms (room_id, owner_id, room_name, max_players, is_public, room_status, created_at, updated_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+        )
+        .bind(&room_id)
+        .bind(&host_id)
+        .bind(format!("{}'s Room", username))
+        .bind(16i32)
+        .bind(0) // is_public = false
+        .bind("WAITING")
+        .bind(&now)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!("DB Error (insert room): {}", e))?;
+
+        let member_id = uuid::Uuid::new_v4().to_string();
+        sqlx::query(
+            "INSERT INTO room_members (room_member_id, room_id, player_id, member_status, joined_at) \
+             VALUES ($1, $2, $3, $4, $5)"
+        )
+        .bind(member_id)
+        .bind(&room_id)
+        .bind(&host_id)
+        .bind("JOINED")
+        .bind(&now)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!("DB Error (insert member): {}", e))?;
+
+        tx.commit().await
+            .map_err(|e| format!("DB Error (commit): {}", e))?;
+
+        let room = Room {
+            room_id: room_id.clone(),
+            players: vec![PlayerInfo {
+                player_id: host_id.clone(),
+                username,
+                is_ready: false,
+                is_host: true,
+            }],
+            max_players: 16,
+            is_public: false,
+            status: "waiting".to_string(),
+        };
+
+        self.rooms.insert(room_id.clone(), room);
+        self.player_rooms.insert(host_id, room_id.clone());
+        self.invites.insert(invite_code.clone(), room_id.clone());
+
+        tracing::info!("Created private room {} with invite_code {}", room_id, invite_code);
+        Ok((room_id, invite_code))
+    }
+
+    /// Resolve an invite code to a room_id.
+    pub fn resolve_invite(&self, invite_code: &str) -> Option<RoomId> {
+        self.invites.get(invite_code).map(|r| r.clone())
     }
 
     // ─── Matchmaking ──────────────────────────────────────────────

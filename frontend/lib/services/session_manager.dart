@@ -4,16 +4,19 @@ class SessionManager {
   static const String _keyUserId = 'user_id';
   static const String _keyUsername = 'username';
   static const String _keyIsLoggedIn = 'is_logged_in';
+  static const String _keyToken = 'access_token';
 
   // Save session
   static Future<void> saveSession({
     required String userId,
     required String username,
+    String? token,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyUserId, userId);
     await prefs.setString(_keyUsername, username);
     await prefs.setBool(_keyIsLoggedIn, true);
+    if (token != null) await prefs.setString(_keyToken, token);
   }
 
   // Get current session
@@ -31,6 +34,7 @@ class SessionManager {
     return {
       'userId': userId,
       'username': username,
+      'token': prefs.getString(_keyToken) ?? '',
     };
   }
 

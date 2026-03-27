@@ -56,7 +56,7 @@ class _InviteFriendScreenState extends State<InviteFriendScreen> {
                 right: 0,
                 child: Center(
                   child: Text(
-                    "ยินดีต้อนรับเข้าสู่เกมใหม่ Ghost ป่ะคะ?",
+                    "ยินดีต้อนรับเข้าสู่เกมใหม่ Ghost ปะคะ?",
                     style: TextStyle(
                       color: Color(0xFFF1C232),
                       fontSize: 17,

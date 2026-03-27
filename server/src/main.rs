@@ -14,6 +14,7 @@ mod auth;
 mod routes;
 mod state;
 mod ws;
+pub mod network; // Phase 5 Custom Sockets
 
 use routes::health::health_check;
 use routes::auth::{login, register};
@@ -86,14 +87,18 @@ async fn main() {
         // WebSocket
         .route("/ws", get(ws::ws_handler))
         .layer(CorsLayer::permissive())
-        .with_state(state);
+        .with_state(state.clone());
 
     // ── Bind and serve ────────────────────────────────────────────
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    tracing::info!("Server listening on {addr}");
+    tracing::info!("HTTP Server listening on {addr}");
     tracing::info!("POST /auth/register  — create account");
     tracing::info!("POST /auth/login     — get JWT");
-    tracing::info!("WS   /ws             — WebSocket (auth.hello required)");
+    tracing::info!("WS   /ws             — WebSocket (Legacy)");
+
+    // ── Start Phase 5 Custom Sockets ──────────────────────────────
+    tokio::spawn(network::tcp_server::start_tcp_server(state.clone(), 3001));
+    tokio::spawn(network::udp_server::start_udp_server(state.clone(), 3002));
 
     let listener = TcpListener::bind(addr)
         .await

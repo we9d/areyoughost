@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "HTTP/WebSocket server for Are You Ghost game"
+description = "HTTP Management API and Custom TCP Binary Server for Are You Ghost game"
 
 [[bin]]
 name = "server"
@@ -17,9 +17,10 @@ areyoughost_core = { path = "../core" }
 # Async runtime
 tokio = { workspace = true }
 futures = "0.3"
+bytes = "1.5"
 
 # HTTP/WebSocket server
-axum = { version = "0.7", features = ["ws", "macros"] }
+axum = { version = "0.7", features = ["macros"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["fs", "trace", "cors"] }
 
@@ -48,3 +49,6 @@ jsonwebtoken = "9"
 
 # Env
 dotenvy = "0.15"
+
+# Utils
+rand = "0.8"

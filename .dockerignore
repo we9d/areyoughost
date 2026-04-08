@@ -1,0 +1,10 @@
+target/
+frontend/build/
+.git/
+.dart_tool/
+.pub-cache/
+.pub/
+node_modules/
+*.log
+replace.txt
+.env

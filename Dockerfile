@@ -1,5 +1,6 @@
-# --- STAGE 1: Chef Recipe Creation ---
-FROM lukemathwalker/cargo-chef:latest-rust-1.77-slim-bookworm AS chef
+FROM rust:slim-bookworm AS chef
+RUN rustup toolchain install nightly && rustup default nightly
+RUN cargo install cargo-chef --locked
 WORKDIR /app
 
 FROM chef AS planner

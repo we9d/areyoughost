@@ -2,10 +2,10 @@ services:
   backend:
     build: .
     container_name: areyoughost_backend
+    env_file:
+      - .env
     environment:
       - ACTIVE_DB=SUPABASE
-      - DATABASE_URL_SUPABASE=REMOVED_DB_URL
-      - JWT_SECRET=REMOVED_JWT_SECRET
       - RUST_LOG=info
     ports:
       - "3000:3000"

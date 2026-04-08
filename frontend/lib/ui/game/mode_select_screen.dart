@@ -2,10 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart' as m;
 import 'package:areyoughost/models/room_model.dart';
-import 'package:areyoughost/services/ws_service.dart';
 import 'package:areyoughost/services/session_manager.dart';
+import 'package:areyoughost/services/network_service.dart';
 import 'package:areyoughost/ui/game/game_screen.dart';
-import 'package:areyoughost/ui/lobby/waiting_room_screen.dart';
 import 'package:areyoughost/ui/widgets/buttons/playnow_button.dart';
 import 'package:areyoughost/ui/widgets/buttons/playtogether_button.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -20,99 +19,86 @@ class ModeSelectScreen extends m.StatefulWidget {
 class _ModeSelectScreenState extends m.State<ModeSelectScreen> {
   bool _loading = false;
   String? _errorMessage;
+  StreamSubscription<GameEvent>? _networkSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen for RoomSyncEvent to navigate to the GameScreen
+    _networkSubscription = NetworkService().events.listen((event) {
+      if (event is RoomSyncEvent) {
+        if (mounted) {
+          setState(() => _loading = false);
+          
+          // Map RoomSyncEvent participants to RoomModel PlayerInfo
+          final players = event.roomSync.participants.map((p) => PlayerInfo(
+            playerId: p.playerId,
+            username: p.username,
+            isHost: p.seatNumber == 1, // Simple heuristic for now
+            isOnline: p.isOnline,
+            seatNumber: p.seatNumber,
+          )).toList();
+
+          final initialRoom = RoomModel(
+            roomId: event.roomSync.roomId,
+            players: players,
+            maxPlayers: 16, // Default
+            roomType: 'QUICK',
+            status: 'WAITING',
+            ownerId: players.isNotEmpty ? players.first.playerId : '',
+          );
+
+          m.Navigator.pushReplacement(
+            context,
+            m.MaterialPageRoute(
+              builder: (_) => GameScreen(
+                roomId: event.roomSync.roomId,
+                initialRoom: initialRoom,
+              ),
+            ),
+          );
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _networkSubscription?.cancel();
+    super.dispose();
+  }
 
   // Ensure WS is connected before sending any message.
-  Future<bool> _ensureConnected() async {
-    if (WsService.instance.isConnected) return true;
-    final session = await SessionManager.getSession();
-    final token = session?['token'];
-    if (token == null) {
-      setState(() => _errorMessage = 'กรุณาเข้าสู่ระบบก่อน');
-      return false;
-    }
-    try {
-      await WsService.instance.connect(token);
-      // Wait for auth.ok
-      await WsService.instance
-          .waitFor('auth.ok', timeout: const Duration(seconds: 5));
-      return true;
-    } catch (_) {
-      setState(() => _errorMessage = 'ไม่สามารถเชื่อมต่อ server ได้');
-      return false;
-    }
-  }
-
-  // ── Quick Play ────────────────────────────────────────────────
-
   Future<void> _handleQuickPlay() async {
-    setState(() {_loading = true; _errorMessage = null;});
+    if (_loading) return;
 
-    if (!await _ensureConnected()) {
-      setState(() => _loading = false);
-      return;
-    }
-
-    WsService.instance.quickPlay();
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
 
     try {
-      // Wait for server to confirm room joined
-      final msg = await WsService.instance.waitFor(
-        'room.joined',
-        timeout: const Duration(seconds: 10),
-      );
-      final room = RoomModel.fromJson(
-          (msg['payload']['room'] as Map<String, dynamic>?) ?? msg['payload']);
+      if (!NetworkService().isConnected) {
+        // Fallback or attempt reconnect? For now just error.
+        setState(() {
+          _loading = false;
+          _errorMessage = 'ไม่ได้เชื่อมต่อกับเซิร์ฟเวอร์ กรุณาลองใหม่อีกครั้ง';
+        });
+        return;
+      }
 
-      if (!mounted) return;
-      setState(() => _loading = false);
-      m.Navigator.pushReplacement(
-        context,
-        m.MaterialPageRoute(
-          builder: (_) => GameScreen(initialRoom: room, roomId: room.roomId),
-        ),
-      );
-    } catch (_) {
+      await NetworkService().sendQuickJoinRequest();
+      // We don't navigate yet, we wait for RoomSyncEvent in the listener above
+    } catch (e) {
       setState(() {
         _loading = false;
-        _errorMessage = 'ไม่พบห้องในขณะนี้ ลองใหม่อีกครั้ง';
+        _errorMessage = 'เกิดข้อผิดพลาด: $e';
       });
     }
   }
-
-  // ── Play with Friend ──────────────────────────────────────────
 
   Future<void> _handlePlayWithFriend() async {
-    setState(() {_loading = true; _errorMessage = null;});
-
-    if (!await _ensureConnected()) {
-      setState(() => _loading = false);
-      return;
-    }
-
-    WsService.instance.createPrivateRoom();
-
-    try {
-      final msg = await WsService.instance.waitFor(
-        'room.created',
-        timeout: const Duration(seconds: 10),
-      );
-      final room = RoomModel.fromJson(
-          (msg['payload']['room'] as Map<String, dynamic>?) ?? msg['payload']);
-
-      if (!mounted) return;
-      setState(() => _loading = false);
-      m.Navigator.pushReplacement(
-        context,
-        m.MaterialPageRoute(
-          builder: (_) => WaitingRoomScreen(initialRoom: room, isHost: true),
-        ),
-      );
-    } catch (_) {
-      setState(() {
-        _loading = false;
-        _errorMessage = 'สร้างห้องไม่สำเร็จ ลองใหม่อีกครั้ง';
-      });
-    }
+    setState(() { _errorMessage = 'ระบบสร้างห้องยังไม่พร้อมใช้งานในเวอร์ชันนี้'; });
   }
 
   @override

@@ -4,57 +4,101 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import 'frb_generated.dart';
+import 'game_logic/phase_machine.dart';
+import 'game_logic/roles.dart';
+import 'lib.dart';
 import 'models.dart';
+import 'network/message.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:uuid/uuid.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Api>>
 abstract class Api implements RustOpaqueInterface {
-  Future<Vote> castVote({
-    required String roomId,
-    required String voterId,
-    required String targetId,
+  Future<String> acceptInvite({required String inviteCode});
+
+  Future<String> addGameAction({
+    required String actorId,
+    String? targetId,
+    required String actionType,
   });
+
+  /// Cast a vote during the Day phase.
+  Future<String> castVote({required String roomId, required String targetId});
+
+  /// Connect to the Rust Backend via Binary TCP (SRS 3.1.4.1.1.2)
+  Future<String> connectToServer({required String addr});
 
   Future<String> createRoom({
     required String roomName,
     required int maxPlayers,
   });
 
+  Future<String> declineInvite({required String inviteCode});
+
+  /// Internal use only: Ensures FRB generates Dart classes for these types.
+  Future<void> dummyTypes({
+    required User u,
+    required Room r,
+    required GameParticipant p,
+    required ChatMessage cm,
+    required GameAction ga,
+    required ChatEntry ce,
+    required RoomStateSync rss,
+    required GamePhaseChange gpc,
+    required GameEvent ge,
+    required ServerResponse sr,
+    required StartGameRequest sq,
+    required CastVoteRequest vq,
+    required NightActionRequest nq,
+    required ChatMessageRequest cq,
+    required LeaveRoomRequest lq,
+    required ParticipantInfoDto pd,
+    Value? v,
+  });
+
   Future<String> forceNextPhase();
 
+  /// Get current game state summary. Stub — actual state is managed server-side.
   Future<String> getGameState();
 
   Future<List<String>> getLocalIps();
 
   Future<String> joinRoom({required String hostIp});
 
-  /// Stub: auth is handled by HTTP POST /auth/login
+  Future<String> leaveRoom({required String roomId});
+
   Future<User> login({required String username, required String password});
 
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
-  /// Create a new Api instance. The database_url is ignored — DB is managed by the HTTP server.
+  /// Create a new Api instance.
   static Future<Api> newInstance({required String databaseUrl}) =>
       RustLib.instance.api.crateApiApiNew(databaseUrl: databaseUrl);
 
-  /// Compatibility constructor used by Flutter bridge (database_url ignored — auth is HTTP-only now)
+  /// Compatibility constructor used by Flutter bridge
   static Future<Api> newWithDb({required String databaseUrl}) =>
       RustLib.instance.api.crateApiApiNewWithDb(databaseUrl: databaseUrl);
 
   /// Stub: auth is handled by HTTP POST /auth/register
   Future<User> register({required String username, required String password});
 
-  Future<ChatMessage> sendMessage({
-    required String roomId,
-    required String userId,
-    required String message,
+  /// Execute Custom Binary Authentication (SRS 3.1.4.4)
+  Future<String> sendLogin({
+    required String username,
+    required String password,
   });
 
-  /// Start the game engine for a specific room
+  /// Send a chat message.
+  Future<String> sendMessage({
+    required String roomId,
+    required String messageText,
+  });
+
   Future<String> startGame({required String roomId});
 
+  /// Submit a night/day action.
   Future<String> submitAction({
-    required String actorId,
-    required String actionType,
+    required String roomId,
+    required SkillType actionType,
     String? targetId,
   });
 
@@ -63,9 +107,8 @@ abstract class Api implements RustOpaqueInterface {
   /// Stub: DB is server-side only
   Future<String> testDb();
 
-  /// Stub: profile updates not yet implemented
   Future<void> updateUsername({
-    required String userId,
+    required String playerId,
     required String newUsername,
   });
 }

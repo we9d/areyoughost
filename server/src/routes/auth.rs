@@ -18,13 +18,13 @@ use crate::{
 
 #[derive(sqlx::FromRow)]
 struct PlayerRow {
-    player_id: String,
+    player_id: Uuid,
     username: String,
 }
 
 #[derive(sqlx::FromRow)]
 struct PlayerAuthRow {
-    player_id: String,
+    player_id: Uuid,
     username: String,
     password_hash: String,
 }
@@ -42,6 +42,12 @@ pub struct RegisterRequest {
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateUsernameRequest {
+    pub user_id: String,
+    pub new_username: String,
 }
 
 // ─── Handlers ────────────────────────────────────────────────────
@@ -84,12 +90,12 @@ pub async fn register(
         }
     };
 
-    let new_player_id = Uuid::new_v4().to_string();
+    let new_player_id = Uuid::new_v4();
 
     let result = sqlx::query_as::<_, PlayerRow>(
-        "INSERT INTO players (player_id, username, email, password_hash, created_at, updated_at) VALUES ($1::uuid, $2, $3, $4, now(), now()) RETURNING player_id::text, username",
+        "INSERT INTO players (player_id, username, email, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, now(), now()) RETURNING player_id, username",
     )
-    .bind(&new_player_id)
+    .bind(new_player_id)
     .bind(&uname)
     .bind(&email)
     .bind(&password_hash)
@@ -103,7 +109,7 @@ pub async fn register(
                 StatusCode::CREATED,
                 Json(serde_json::json!({
                     "player": {
-                        "id": row.player_id,
+                        "id": row.player_id.to_string(),
                         "username": row.username,
                         "email": email,
                     }
@@ -136,7 +142,7 @@ pub async fn login(
     let uname = body.username.trim().to_string();
 
     let row = sqlx::query_as::<_, PlayerAuthRow>(
-        "SELECT player_id::text, username, password_hash FROM players WHERE username = $1",
+        "SELECT player_id, username, password_hash FROM players WHERE username = $1",
     )
     .bind(&uname)
     .fetch_optional(&state.db)
@@ -177,8 +183,7 @@ pub async fn login(
         );
     }
 
-    let player_uuid = Uuid::parse_str(&row.player_id).unwrap_or_default();
-    let token = match sign_jwt(player_uuid, &row.username, &state.jwt_secret) {
+    let token = match sign_jwt(row.player_id, &row.username, &state.jwt_secret) {
         Ok(t) => t,
         Err(e) => {
             tracing::error!("sign_jwt error: {e}");
@@ -195,9 +200,69 @@ pub async fn login(
         Json(serde_json::json!({
             "accessToken": token,
             "player": {
-                "id": row.player_id,
+                "id": row.player_id.to_string(),
                 "username": row.username,
             }
         })),
     )
+}
+
+/// PUT /auth/username
+pub async fn update_username(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<UpdateUsernameRequest>,
+) -> impl IntoResponse {
+    let new_uname = body.new_username.trim().to_string();
+
+    if new_uname.len() < 3 || new_uname.len() > 50 {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": "username must be 3-50 characters" })),
+        );
+    }
+
+    let user_uuid = match Uuid::parse_str(&body.user_id) {
+        Ok(u) => u,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "invalid user ID" })),
+            );
+        }
+    };
+
+    let result = sqlx::query(
+        "UPDATE players SET username = $1, updated_at = now() WHERE player_id = $2"
+    )
+    .bind(&new_uname)
+    .bind(&user_uuid)
+    .execute(&state.db)
+    .await;
+
+    match result {
+        Ok(res) => {
+            if res.rows_affected() == 0 {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(serde_json::json!({ "error": "user not found" })),
+                );
+            }
+            tracing::info!("Player {} updated username to {}", body.user_id, new_uname);
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "success": true })),
+            )
+        }
+        Err(sqlx::Error::Database(e)) if e.constraint() == Some("players_username_key") => (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "error": "มีคนใช้ชื่อนี้ไปแล้ว ห้ามใช้ชื่อซ้ำ" })),
+        ),
+        Err(e) => {
+            tracing::error!("update_username DB error: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+        }
+    }
 }

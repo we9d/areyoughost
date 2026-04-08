@@ -2,440 +2,346 @@
 //!
 //! This module provides the FFI (Foreign Function Interface) exports
 //! that allow the Flutter frontend to communicate with the Rust backend.
-//!
-//! All public functions in the `Api` struct are exposed to Flutter via
-//! flutter_rust_bridge.
-//!
-//! **NOTE**: This module has been refactored to use the Dedicated Server (HTTP/WS)
-//! instead of a local SQLite database.
 
 use crate::models::*;
 use crate::network::tcp_client::TcpClient;
 use crate::network::tcp_server::TcpServer;
-use anyhow::{anyhow, Result};
+use crate::network::message::{
+    Message, MessageType, LoginRequest, LoginResponse, 
+    StartGameRequest, CastVoteRequest, NightActionRequest, ChatMessageRequest, 
+    LeaveRoomRequest, ParticipantInfoDto, RoomStateSync, GamePhaseChange, GameEvent, ServerResponse, ChatEntry
+};
 use std::sync::{Arc, Mutex};
-
-use crate::game_logic::night_resolver::NightResolver;
-use crate::game_logic::phase_machine::PhaseType;
-use crate::game_logic::role_distributor::RoleDistributor;
 use crate::game_logic::state::GameState;
-use crate::game_logic::win_checker::WinChecker;
+pub use serde_json::Value;
+use uuid::Uuid;
+use chrono::Utc;
 
 /// Main API struct for FFI exports to Flutter
 pub struct Api {
-  server: Arc<Mutex<Option<TcpServer>>>,
-  client: Arc<Mutex<Option<TcpClient>>>,
-  // db: Option<Arc<PostgresDb>>,
-  game_state: Arc<Mutex<Option<GameState>>>,
+  _server: Arc<Mutex<Option<TcpServer>>>,
+  _client: Arc<Mutex<Option<TcpClient>>>,
+  _game_state: Arc<Mutex<Option<GameState>>>,
 }
 
 impl Api {
-  /// Create a new Api instance. The database_url is ignored — DB is managed by the HTTP server.
+  /// Create a new Api instance.
   pub fn new(_database_url: String) -> Self {
     Api {
-      server: Arc::new(Mutex::new(None)),
-      client: Arc::new(Mutex::new(None)),
-      game_state: Arc::new(Mutex::new(None)),
+      _server: Arc::new(Mutex::new(None)),
+      _client: Arc::new(Mutex::new(None)),
+      _game_state: Arc::new(Mutex::new(None)),
     }
   }
 
-  /// Compatibility constructor used by Flutter bridge (database_url ignored — auth is HTTP-only now)
+  /// Compatibility constructor used by Flutter bridge
   pub fn new_with_db(_database_url: String) -> Self {
     Self::new(String::new())
   }
 
-  /// Stub: auth is handled by HTTP POST /auth/login
-  pub fn login(&self, _username: String, _password: String) -> Result<User> {
-    Err(anyhow!("Use HTTP POST /auth/login instead"))
+  pub fn login(&self, _username: String, _password: String) -> anyhow::Result<User> {
+    Err(anyhow::anyhow!("Use HTTP POST /auth/login instead"))
   }
 
   /// Stub: auth is handled by HTTP POST /auth/register
-  pub fn register(&self, _username: String, _password: String) -> Result<User> {
-    Err(anyhow!("Use HTTP POST /auth/register instead"))
+  pub fn register(&self, _username: String, _password: String) -> anyhow::Result<User> {
+    Err(anyhow::anyhow!("Use HTTP POST /auth/register instead"))
   }
 
   /// Stub: DB is server-side only
-  pub fn test_db(&self) -> Result<String> {
-    Ok("DB is managed by HTTP server — no local connection needed".to_string())
+  pub fn test_db(&self) -> anyhow::Result<String> {
+    Ok("DB is managed by HTTP server".to_string())
   }
 
-  /// Stub: profile updates not yet implemented
-  pub fn update_username(&self, _user_id: String, _new_username: String) -> Result<()> {
-    Err(anyhow!("update_username not yet implemented in HTTP server"))
+  pub fn update_username(&self, _player_id: String, _new_username: String) -> anyhow::Result<()> {
+    Err(anyhow::anyhow!("update_username not yet implemented"))
   }
-}
 
+  /// Connect to the Rust Backend via Binary TCP (SRS 3.1.4.1.1.2)
+  pub async fn connect_to_server(&self, addr: String) -> anyhow::Result<String> {
+    let client = TcpClient::connect(&addr).await?;
+    let mut guard = self._client.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+    *guard = Some(client);
+    Ok(format!("Connected to {}", addr))
+  }
 
-impl Api {
-    // Note: Auth (login/register) is now handled by the HTTP server (POST /auth/login, POST /auth/register)
-    // WS events handle room and game state. This core/api.rs is legacy P2P + Game Engine only.
-
-    // --- Legacy P2P / Local methods (Stubbed or Redirected) ---
-
-    pub async fn create_room(&self, room_name: String, max_players: i32) -> Result<String> {
-        // Stop any existing server/client
-        *self.server.lock().unwrap() = None;
-        *self.client.lock().unwrap() = None;
-
-        let addr = "0.0.0.0:27015";
-        let server = TcpServer::bind(addr)
-            .await
-            .map_err(|e| anyhow!("Failed to bind server to {}: {}", addr, e))?;
-
-        *self.server.lock().unwrap() = Some(server);
-
-        Ok(format!(
-            "Room '{}' created on port 27015. Max players: {}",
-            room_name, max_players
-        ))
-    }
-
-    pub async fn join_room(&self, host_ip: String) -> Result<String> {
-        // Stop any existing server/client
-        *self.server.lock().unwrap() = None;
-        *self.client.lock().unwrap() = None;
-
-        let addr = format!("{}:27015", host_ip);
-        let client = TcpClient::connect(&addr)
-            .await
-            .map_err(|e| anyhow!("Failed to connect to host {}: {}", addr, e))?;
-
-        *self.client.lock().unwrap() = Some(client);
-
-        Ok(format!("Successfully connected to {}", addr))
-    }
-
-    pub fn get_local_ips(&self) -> Result<Vec<String>> {
-        Ok(vec![
-            "Check your VPN/LAN adapter settings".to_string(),
-            "(Use ipconfig on Windows)".to_string(),
-        ])
-    }
-
-    pub async fn test_connection(&self) -> Result<String> {
-        let mut client_lock = self.client.lock().unwrap();
-
-        if let Some(_client) = client_lock.as_mut() {
-            Ok("Connection active".to_string())
-        } else {
-            Err(anyhow!("No active client connection"))
-        }
-    }
-
-    // --- Game Actions ---
-
-    pub fn send_message(
-        &self,
-        room_id: String,
-        user_id: String,
-        message: String,
-    ) -> Result<ChatMessage> {
-        Ok(ChatMessage {
-            message_id: "preview".to_string(),
-            room_id,
-            sender_id: user_id,
-            sender_name: "Me".to_string(),
-            message,
-            phase_type: "lobby".to_string(),
-            created_at: chrono::Utc::now().to_rfc3339(),
-        })
-    }
-
-    pub fn cast_vote(&self, room_id: String, voter_id: String, target_id: String) -> Result<Vote> {
-        Ok(Vote {
-            vote_id: "preview".to_string(),
-            room_id,
-            phase_id: "1".to_string(),
-            voter_id,
-            target_id,
-            created_at: String::new(),
-        })
-    }
-
-    // --- Game Engine FFI ---
-
-    /// Start the game engine for a specific room
-    pub fn start_game(&self, room_id: String) -> Result<String> {
-        let mut game_lock = self.game_state.lock().unwrap();
-
-        let mut new_state = GameState::new(room_id.clone());
-
-        // 1. Mock Players (6 players for testing role distribution)
-        let mock_names = vec!["Alice", "Bob", "Charlie", "David", "Eve", "Frank"];
-        let mut participants = std::collections::HashMap::new();
-
-        for (i, name) in mock_names.iter().enumerate() {
-            let pid = (i + 1).to_string(); // String ID
-            participants.insert(
-                pid.clone(),
-                GameParticipant {
-                    session_id: format!("sess_{}", pid),
-                    room_id: room_id.clone(),
-                    user_id: pid.clone(),
-                    username: name.to_string(),
-                    role: None, // Assigned below
-                    is_alive: true,
-                    seat_number: (i + 1) as i32,
-                    joined_at: String::new(),
-                },
-            );
-        }
-
-        // Assign Roles
-        let roles = RoleDistributor::assign_roles(participants.len());
-        let _role_iter = roles.into_iter();
-        let game_id_db = "local_game".to_string();
-
-        new_state.participants = participants;
-        new_state.game_id = game_id_db.clone();
-        *game_lock = Some(new_state);
-
-        // Start Game Loop (Spawn thread)
-        let game_state_arc = self.game_state.clone();
-
-        tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-
-                let game_ended = {
-                    let mut lock = game_state_arc.lock().unwrap();
-                    if let Some(state) = lock.as_mut() {
-                        if state.phase_machine.get_remaining_time() <= 0 {
-                            let old_phase = state.phase_machine.current_phase.clone();
-                            state.phase_machine.next_phase();
-                            let new_phase = state.phase_machine.current_phase.clone();
-
-                            println!("Phase Change: {:?} -> {:?}", old_phase, new_phase);
-
-                            match (old_phase, new_phase) {
-                                (PhaseType::Night, PhaseType::Day) => {
-                                    let logs = NightResolver::resolve(
-                                        &state.action_history,
-                                        &mut state.participants,
-                                    );
-                                    for log in logs {
-                                        println!("[Night Log] {}", log);
-                                    }
-                                },
-                                (PhaseType::Vote, PhaseType::Night) => {
-                                    let votes = state.vote_system.get_results();
-                                    if let Some((target, count)) =
-                                        votes.iter().max_by_key(|entry| entry.1)
-                                    {
-                                        println!(
-                                            "Vote Result: Player {} received {} votes.",
-                                            target, count
-                                        );
-                                        if let Some(p) = state.participants.get_mut(target) {
-                                            p.is_alive = false;
-                                            println!("Player {} was executed by vote.", p.username);
-                                        }
-                                    } else {
-                                        println!("No votes cast. No one executed.");
-                                    }
-                                    state.vote_system.reset();
-                                },
-                                _ => {},
-                            }
-
-                            // Check Win Condition
-                            if let Some(faction) = WinChecker::check_win(&state.participants) {
-                                println!("Game Over! Winner: {:?}", faction);
-                                Some((state.game_id.clone(), format!("{:?}", faction)))
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                    } else {
-                        return;
-                    }
-                };
-
-                if let Some((_g_id, faction)) = game_ended {
-                    println!("Game ended. Winner faction: {}", faction);
-                    break;
-                }
+  /// Execute Custom Binary Authentication (SRS 3.1.4.4)
+  pub async fn send_login(&self, username: String, password: String) -> anyhow::Result<String> {
+    let req = LoginRequest { username, password };
+    let msg = Message::from_json(MessageType::LoginRequest, &req)?;
+    
+    let client = {
+        let guard = self._client.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+        guard.as_ref().cloned()
+    };
+    
+    if let Some(mut client) = client {
+        client.send(&msg).await?;
+        let resp_msg = client.receive().await?;
+        if resp_msg.msg_type == MessageType::LoginResponse {
+            let resp = resp_msg.parse_json::<LoginResponse>()?;
+            if resp.success {
+                Ok(format!("Login successful! Session: {:?}", resp.session_id))
+            } else {
+                Err(anyhow::anyhow!("Login failed: {:?}", resp.error))
             }
-        });
-
-        Ok("Game started with 6 mock players".to_string())
-    }
-
-    pub fn get_game_state(&self) -> Result<String> {
-        let game_lock = self.game_state.lock().unwrap();
-
-        if let Some(state) = game_lock.as_ref() {
-            let phase = &state.phase_machine.current_phase;
-            let remaining = state.phase_machine.get_remaining_time();
-
-            let json = serde_json::json!({
-                "room_id": state.room_id,
-                "phase": format!("{:?}", phase),
-                "remaining_time": remaining,
-                "player_count": state.participants.len()
-            });
-
-            Ok(json.to_string())
         } else {
-            Err(anyhow!("No active game"))
+            Err(anyhow::anyhow!("Unexpected response type: {:?}", resp_msg.msg_type))
         }
+    } else {
+        Err(anyhow::anyhow!("Not connected to server"))
     }
+  }
 
-    pub fn submit_action(
-        &self,
-        actor_id: String,
-        action_type: String,
-        target_id: Option<String>,
-    ) -> Result<String> {
-        let mut game_lock = self.game_state.lock().unwrap();
+  pub async fn accept_invite(&self, invite_code: String) -> anyhow::Result<String> {
+    use serde_json::json;
+    let msg = Message::from_json(MessageType::JoinRoomRequest, &json!({ "invite_code": invite_code }))?;
+    let client = {
+        let guard = self._client.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+        guard.as_ref().cloned()
+    };
 
-        if let Some(state) = game_lock.as_mut() {
-            // Process action
-            let action = GameAction {
-                action_id: (state.action_history.len() + 1).to_string(),
-                room_id: state.room_id.clone(),
-                phase_id: "1".to_string(), // Mock phase ID
-                actor_id: actor_id.clone(),
-                target_id: target_id.clone(),
-                action_type: action_type.clone(),
-                action_result: None,
-                created_at: String::new(),
-            };
-
-            state.action_history.push(action);
-
-            // Handle specific logic
-            if action_type == "VOTE" {
-                if let Some(target) = target_id.clone() {
-                    state.vote_system.cast_vote(actor_id.clone(), target);
-                }
-            }
-
-            println!("Action: Player {} did {} on {:?}", actor_id, action_type, target_id);
-
-            Ok("Action submitted".to_string())
-        } else {
-            Err(anyhow!("No active game"))
-        }
+    if let Some(mut client) = client {
+        client.send(&msg).await?;
+        Ok("Acceptance sent".to_string())
+    } else {
+        Err(anyhow::anyhow!("Not connected to server"))
     }
+  }
 
-    pub fn force_next_phase(&self) -> Result<String> {
-        let mut game_lock = self.game_state.lock().unwrap();
-        if let Some(state) = game_lock.as_mut() {
-            state.phase_machine.next_phase();
-            Ok(format!("Advanced to {:?}", state.phase_machine.current_phase))
-        } else {
-            Err(anyhow!("No active game"))
-        }
+  pub async fn decline_invite(&self, invite_code: String) -> anyhow::Result<String> {
+    use serde_json::json;
+    let msg = Message::from_json(MessageType::LeaveRoomRequest, &json!({ "invite_code": invite_code }))?;
+    let client = {
+        let guard = self._client.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+        guard.as_ref().cloned()
+    };
+
+    if let Some(mut client) = client {
+        client.send(&msg).await?;
+        Ok("Decline sent".to_string())
+    } else {
+        Err(anyhow::anyhow!("Not connected to server"))
     }
-}
+  }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+  pub async fn create_room(&self, room_name: String, _max_players: i32) -> anyhow::Result<String> {
+      {
+          let mut s_guard = self._server.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+          let mut c_guard = self._client.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+          *s_guard = None;
+          *c_guard = None;
+      }
 
-    // Helper to get test database URL
-    fn get_test_db_url() -> String {
-        std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://postgres:password@localhost/areyoughost".to_string())
-    }
+      let addr = "127.0.0.1:8888";
+      // AppState requires a real PgPool; this FFI path is a legacy stub.
+      // A proper server is started via TcpServer::bind in main.rs with a real pool.
+      let db_url = std::env::var("DATABASE_URL")
+          .unwrap_or_else(|_| "postgres://localhost/areyoughost".to_string());
+      let pool = sqlx::PgPool::connect(&db_url).await
+          .map_err(|e| anyhow::anyhow!("DB connect failed: {}", e))?;
+      let app_state = crate::game_logic::state::AppState::new(pool);
+      let server = TcpServer::bind(addr, app_state).await
+          .map_err(|e| anyhow::anyhow!("Failed to bind server: {}", e))?;
 
-    #[test]
-    fn test_register_success() {
-        let api = Api::new(get_test_db_url());
+      let mut s_guard = self._server.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+      *s_guard = Some(server);
 
-        let username = format!("test{}", chrono::Utc::now().timestamp() % 100000);
-        let password = "test_password_123";
+      Ok(format!("Room '{}' created", room_name))
+  }
 
-        let user = api
-            .register(username.clone(), password.to_string())
-            .expect("Registration should succeed");
+  pub async fn join_room(&self, host_ip: String) -> anyhow::Result<String> {
+      {
+          let mut s_guard = self._server.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+          let mut c_guard = self._client.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+          *s_guard = None;
+          *c_guard = None;
+      }
 
-        assert_eq!(user.username, username);
-        assert!(!user.user_id.is_empty());
-        println!("✅ Registration successful: {}", user.username);
-    }
+      let addr = format!("{}:8888", host_ip);
+      let client = TcpClient::connect(&addr).await
+          .map_err(|e| anyhow::anyhow!("Failed to connect: {}", e))?;
 
-    #[test]
-    fn test_register_duplicate_username() {
-        let api = Api::new(get_test_db_url());
+      let mut c_guard = self._client.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+      *c_guard = Some(client);
 
-        let username = format!("dup{}", chrono::Utc::now().timestamp() % 100000);
-        let password = "password123";
+      Ok(format!("Joined {}", addr))
+  }
 
-        api.register(username.clone(), password.to_string())
-            .expect("First registration should succeed");
+  pub fn get_local_ips(&self) -> anyhow::Result<Vec<String>> {
+      Ok(vec!["Use ipconfig".to_string()])
+  }
 
-        let result = api.register(username.clone(), password.to_string());
-        assert!(result.is_err());
-        println!("✅ Duplicate username correctly rejected");
-    }
+  pub async fn add_game_action(&self, actor_id: String, target_id: Option<String>, action_type: String) -> anyhow::Result<String> {
+      let mut lock = self._game_state.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+      if let Some(state) = lock.as_mut() {
+          let a_id = Uuid::parse_str(&actor_id).unwrap_or_else(|_| Uuid::nil());
+          let t_id = target_id.and_then(|s| Uuid::parse_str(&s).ok());
+          state.action_history.push(GameAction {
+              action_id: Uuid::new_v4(),
+              game_id: state.game_id,
+              phase_id: state.phase_machine.phase_id,
+              actor_id: a_id,
+              target_id: t_id,
+              action_type,
+              action_result: None,
+              created_at: Utc::now(),
+          });
+          Ok("Ok".into())
+      } else {
+          Err(anyhow::anyhow!("No active game state"))
+      }
+  }
 
-    #[test]
-    fn test_login_success() {
-        let api = Api::new(get_test_db_url());
+  pub async fn force_next_phase(&self) -> anyhow::Result<String> {
+      let mut lock = self._game_state.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+      if let Some(state) = lock.as_mut() {
+          state.phase_machine.next_phase();
+          Ok("Ok".into())
+      } else { Err(anyhow::anyhow!("None")) }
+  }
 
-        let username = format!("login{}", chrono::Utc::now().timestamp() % 100000);
-        let password = "secure_password_456";
+  pub async fn start_game(&self, room_id: String) -> anyhow::Result<String> {
+      let r_id = Uuid::parse_str(&room_id).map_err(|_| anyhow::anyhow!("Invalid room ID"))?;
+      let req = StartGameRequest { room_id: r_id };
+      let msg = Message::from_json(MessageType::StartGame, &req)?;
+      
+      let client = {
+          let guard = self._client.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+          guard.as_ref().cloned()
+      };
+      
+      if let Some(mut client) = client {
+          client.send(&msg).await?;
+          Ok(format!("Game start requested for {}", r_id))
+      } else {
+          Err(anyhow::anyhow!("Not connected to server"))
+      }
+  }
 
-        api.register(username.clone(), password.to_string())
-            .expect("Registration should succeed");
+  /// Submit a night/day action.
+  pub async fn submit_action(&self, room_id: String, action_type: crate::game_logic::roles::SkillType, target_id: Option<String>) -> anyhow::Result<String> {
+      let rid = Uuid::parse_str(&room_id).map_err(|_| anyhow::anyhow!("Invalid room_id"))?;
+      let tid = target_id.and_then(|s| Uuid::parse_str(&s).ok());
 
-        let logged_in_user = api
-            .login(username.clone(), password.to_string())
-            .expect("Login should succeed");
+      let req = NightActionRequest { 
+          room_id: rid, 
+          action_type: action_type, 
+          target_id: tid 
+      };
+      let msg = Message::from_json(MessageType::NightAction, &req)?;
 
-        assert_eq!(logged_in_user.username, username);
-        println!("✅ Login successful: {}", username);
-    }
+      let client = {
+          let guard = self._client.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+          guard.as_ref().cloned()
+      };
 
-    #[test]
-    fn test_login_wrong_password() {
-        let api = Api::new(get_test_db_url());
+      if let Some(mut client) = client {
+          client.send(&msg).await?;
+          Ok("Action submitted".to_string())
+      } else {
+          Err(anyhow::anyhow!("Not connected to server"))
+      }
+  }
 
-        let username = format!("wrong{}", chrono::Utc::now().timestamp() % 100000);
-        let password = "correct_password";
+  pub async fn test_connection(&self) -> anyhow::Result<String> {
+      let guard = self._client.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+      if guard.is_some() {
+          Ok("Connected".into())
+      } else {
+          Err(anyhow::anyhow!("Not connected"))
+      }
+  }
 
-        api.register(username.clone(), password.to_string())
-            .expect("Registration should succeed");
+  /// Cast a vote during the Day phase.
+  pub async fn cast_vote(&self, room_id: String, target_id: String) -> anyhow::Result<String> {
+      let r = Uuid::parse_str(&room_id).map_err(|_| anyhow::anyhow!("Invalid room_id"))?;
+      let t = Uuid::parse_str(&target_id).map_err(|_| anyhow::anyhow!("Invalid target_id"))?;
+      
+      let req = CastVoteRequest { room_id: r, target_id: t };
+      let msg = Message::from_json(MessageType::CastVote, &req)?;
 
-        let result = api.login(username.clone(), "wrong_password".to_string());
-        assert!(result.is_err());
-        println!("✅ Wrong password correctly rejected");
-    }
+      let client = {
+          let guard = self._client.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+          guard.as_ref().cloned()
+      };
 
-    #[test]
-    fn test_login_nonexistent_user() {
-        let api = Api::new(get_test_db_url());
+      if let Some(mut client) = client {
+          client.send(&msg).await?;
+          Ok("Vote recorded".to_string())
+      } else {
+          Err(anyhow::anyhow!("Not connected to server"))
+      }
+  }
 
-        let username = format!("none{}", chrono::Utc::now().timestamp() % 100000);
-        let password = "any_password";
+  /// Get current game state summary. Stub — actual state is managed server-side.
+  pub async fn get_game_state(&self) -> anyhow::Result<String> {
+      let lock = self._game_state.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+      if lock.is_some() {
+          Ok("Game in progress".to_string())
+      } else {
+          Ok("No active game".to_string())
+      }
+  }
 
-        let result = api.login(username.clone(), password.to_string());
-        assert!(result.is_err());
-        println!("✅ Non-existent user correctly rejected");
-    }
+  /// Send a chat message.
+  pub async fn send_message(&self, room_id: String, message_text: String) -> anyhow::Result<String> {
+      let rid = Uuid::parse_str(&room_id).map_err(|_| anyhow::anyhow!("Invalid room_id"))?;
+      let req = ChatMessageRequest { room_id: rid, message_text };
+      let msg = Message::from_json(MessageType::ChatMessage, &req)?;
 
-    #[test]
-    fn test_thai_username_support() {
-        let api = Api::new(get_test_db_url());
+      let client = {
+          let guard = self._client.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+          guard.as_ref().cloned()
+      };
 
-        let username = format!("ไทย{}", chrono::Utc::now().timestamp() % 10000);
-        let password = "รหัสผ่าน123";
+      if let Some(mut client) = client {
+          client.send(&msg).await?;
+          Ok("Message sent".to_string())
+      } else {
+          Err(anyhow::anyhow!("Not connected to server"))
+      }
+  }
 
-        let user = api
-            .register(username.clone(), password.to_string())
-            .expect("Thai characters should be supported");
+  pub async fn leave_room(&self, room_id: String) -> anyhow::Result<String> {
+      let rid = Uuid::parse_str(&room_id).map_err(|_| anyhow::anyhow!("Invalid room_id"))?;
+      use crate::network::message::LeaveRoomRequest;
+      let req = LeaveRoomRequest { room_id: rid };
+      let msg = Message::from_json(MessageType::LeaveRoomRequest, &req)?;
 
-        assert_eq!(user.username, username);
+      let client = {
+          let guard = self._client.lock().map_err(|e| anyhow::anyhow!("Lock error: {}", e))?;
+          guard.as_ref().cloned()
+      };
 
-        let logged_in = api
-            .login(username.clone(), password.to_string())
-            .expect("Thai login should work");
+      if let Some(mut client) = client {
+          client.send(&msg).await?;
+          Ok("Leave request sent".to_string())
+      } else {
+          Err(anyhow::anyhow!("Not connected to server"))
+      }
+  }
 
-        assert_eq!(logged_in.username, username);
-        println!("✅ Thai characters supported: {}", user.username);
-    }
+  /// Internal use only: Ensures FRB generates Dart classes for these types.
+  pub fn dummy_types(
+      &self,
+      _u: crate::models::User,
+      _r: crate::models::Room,
+      _p: crate::models::GameParticipant,
+      _cm: crate::models::ChatMessage,
+      _ga: crate::models::GameAction,
+      _ce: crate::network::message::ChatEntry,
+      _rss: RoomStateSync,
+      _gpc: GamePhaseChange,
+      _ge: GameEvent,
+      _sr: ServerResponse,
+      _sq: StartGameRequest,
+      _vq: CastVoteRequest,
+      _nq: NightActionRequest,
+      _cq: ChatMessageRequest,
+      _lq: LeaveRoomRequest,
+      _pd: ParticipantInfoDto,
+      _v: Option<Value>,
+  ) {
+  }
 }

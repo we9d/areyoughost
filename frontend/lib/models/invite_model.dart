@@ -1,23 +1,22 @@
-class InviteModel {
+class Invite {
+  final String inviteId;
+  final String inviterName;
+  final String roomId;
   final String inviteCode;
-  final String fromPlayerId;
-  final String fromUsername;
-  final DateTime receivedAt;
 
-  InviteModel({
+  Invite({
+    required this.inviteId,
+    required this.inviterName,
+    required this.roomId,
     required this.inviteCode,
-    required this.fromPlayerId,
-    required this.fromUsername,
-    required this.receivedAt,
   });
 
-  factory InviteModel.fromJson(Map<String, dynamic> json) {
-    return InviteModel(
+  factory Invite.fromJson(Map<String, dynamic> json) {
+    return Invite(
+      inviteId: json['inviteId'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      inviterName: json['fromUsername'] as String? ?? 'Unknown',
+      roomId: json['roomId'] as String? ?? '',
       inviteCode: json['inviteCode'] as String? ?? '',
-      fromPlayerId: json['fromPlayerId'] as String? ?? 'unknown',
-      fromUsername: json['fromUsername'] as String? ?? 'Unknown Host',
-      // We assign the receive time locally if the server doesn't provide it
-      receivedAt: DateTime.now(),
     );
   }
 }

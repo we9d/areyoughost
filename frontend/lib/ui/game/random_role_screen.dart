@@ -3,10 +3,17 @@ import 'package:flutter/material.dart';
 import 'role_result_card.dart';
 import 'package:areyoughost/ui/game/game_screen.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:areyoughost/services/game_data_service.dart';
 
 class RandomRoleScreen extends StatefulWidget {
   final String? roomId;
-  const RandomRoleScreen({super.key, this.roomId});
+  final String assignedRole;
+  
+  const RandomRoleScreen({
+    super.key, 
+    this.roomId, 
+    required this.assignedRole,
+  });
 
   @override
   State<RandomRoleScreen> createState() => _RandomRoleScreenState();
@@ -51,7 +58,7 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
       if (status == AnimationStatus.completed) {
         Future.delayed(const Duration(seconds: 2), () {
           if (!mounted) return;
-          _showRoleResult();
+          _showResultCard();
         });
       }
     });
@@ -61,7 +68,14 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
 
   void _startRandom() {
     final random = Random();
-    _finalIndex = random.nextInt(roles.length);
+    final roleData = GameDataService.getRoleByCode(widget.assignedRole);
+    final targetName = roleData?.roleName ?? widget.assignedRole;
+    int targetIndex = roles.indexOf(targetName);
+    if (targetIndex == -1) targetIndex = 0;
+    
+    // Add extra full rotations so the spin takes time before landing on the target
+    _finalIndex = targetIndex; 
+    
     _controller.forward(from: 0);
   }
 
@@ -90,34 +104,30 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
     super.dispose();
   }
 
-  void _showRoleResult() {
-    final role = roles[_finalIndex];
-
-    showDialog<void>(
+  void _showResultCard() {
+    final role = GameDataService.getRoleByCode(widget.assignedRole);
+    
+    showGeneralDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(24),
-        child: RoleResultCard(
-          roleName: role,
-          description: 'คุณได้รับบทบาท $role',
-          imagePath: 'assets/images/Login-Register.jpg',
-          showDuration: const Duration(seconds: 5),
-          onComplete: () {
-            if (!mounted) return;
-            Navigator.of(context, rootNavigator: true).pop();
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (_) => GameScreen(
-                  roomId: widget.roomId ?? 'quick-room',
-                  role: role,
-                ),
-              ),
-            );
-          },
-        ),
-      ),
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, anim1, anim2) {
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: RoleResultCard(
+              roleName: role?.roleName ?? widget.assignedRole,
+              description: role?.description ?? 'ค้นหาผีปอบและโหวตออก',
+              imagePath: role?.imagePath ?? 'assets/images/V01.jpg',
+              onComplete: () {
+                Navigator.of(context).pop(); // dialog
+                Navigator.of(context).pop(); // screen
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 

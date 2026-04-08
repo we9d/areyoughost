@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:areyoughost/models/mock_models.dart';
+import 'package:areyoughost/models/view_models.dart';
 
 class ChatBox extends StatelessWidget {
-  final List<ChatMessage> messages;
+  final List<ChatMessageVM> messages;
 
   const ChatBox({
     super.key,
@@ -61,12 +61,12 @@ class ChatBox extends StatelessWidget {
                             ),
                             children: [
                               TextSpan(
-                                text: '${msg.senderId} Player : ',
+                                text: '${msg.senderId ?? "Unknown"} Player : ',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              TextSpan(text: msg.message),
+                              TextSpan(text: msg.content),
                             ],
                           ),
                         ),

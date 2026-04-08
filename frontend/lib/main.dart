@@ -8,17 +8,29 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:areyoughost/theme/app_theme.dart';
 import 'package:areyoughost/ui/widgets/mobile_wrapper.dart';
+import 'package:areyoughost/services/game_data_service.dart';
 import 'package:areyoughost/services/auth_service.dart';
-import 'package:areyoughost/services/ws_service.dart';
+import 'package:areyoughost/services/rust_api.dart';
 import 'package:areyoughost/services/invite_store.dart';
+import 'package:areyoughost/services/network_service.dart';
 import 'package:areyoughost/ui/home/home.dart';
-import 'package:areyoughost/ui/game/game_screen.dart';
+import 'package:areyoughost/models/invite_model.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Check login status
-  await AuthService.checkLoginStatus();
+  try {
+    // Initialize Rust API bridge (Requirements 31.1, 31.2)
+    await RustApi.init();
+    
+    // Initialize services that might fail if the server is unreachable
+    await NetworkService().init();
+    await AuthService.checkLoginStatus();
+    await GameDataService.fetchGameData();
+  } catch (e) {
+
+    debugPrint('🚩 Initialization Warning (Continuing to UI): $e');
+  }
 
   await windowManager.ensureInitialized();
 
@@ -50,17 +62,7 @@ class _AreYouGhostAppState extends State<AreYouGhostApp> {
   @override
   void initState() {
     super.initState();
-    // Listen globally for invite.received events from any WS connection
-    WsService.instance.stream.listen((msg) {
-      if (msg['type'] == 'invite.received') {
-        final payload = msg['payload'] as Map<String, dynamic>? ?? {};
-        InviteStore.instance.add(PendingInvite(
-          inviteCode: payload['inviteCode'] as String? ?? '',
-          fromPlayerId: payload['fromPlayerId'] as String? ?? '',
-          fromUsername: payload['fromUsername'] as String? ?? 'เพื่อน',
-        ));
-      }
-    });
+    // TCP listeners will be implemented here for game state/invites
   }
 
   @override
@@ -72,8 +74,6 @@ class _AreYouGhostAppState extends State<AreYouGhostApp> {
       builder: (context, child) {
         return MobileWrapper(child: child!);
       },
-
-      /// เปิดเกมตรงไปที่ GameScreen
       home: const HomeScreen(
       ),
     );

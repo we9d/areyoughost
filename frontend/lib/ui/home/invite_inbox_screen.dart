@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:areyoughost/models/room_model.dart';
 import 'package:areyoughost/services/invite_store.dart';
-import 'package:areyoughost/services/ws_service.dart';
 import 'package:areyoughost/services/session_manager.dart';
-import 'package:areyoughost/ui/lobby/waiting_room_screen.dart';
+import 'package:areyoughost/ui/game/game_screen.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class InviteInboxScreen extends StatefulWidget {
@@ -126,47 +125,9 @@ class _InviteInboxScreenState extends State<InviteInboxScreen> {
   }
 
   Future<void> _acceptInvite(PendingInvite invite) async {
-    setState(() { _loading = true; _errorMessage = null; });
-    
-    // Ensure connected
-    if (!WsService.instance.isConnected) {
-      final session = await SessionManager.getSession();
-      final token = session?['token'];
-      if (token == null) {
-        setState(() { _loading = false; _errorMessage = 'กรุณาเข้าสู่ระบบก่อน'; });
-        return;
-      }
-      try {
-        await WsService.instance.connect(token);
-        await WsService.instance.waitFor('auth.ok', timeout: const Duration(seconds: 5));
-      } catch (_) {
-        setState(() { _loading = false; _errorMessage = 'ไม่สามารถเชื่อมต่อ server ได้'; });
-        return;
-      }
-    }
-
-    // Send accept message
-    WsService.instance.acceptInvite(invite.inviteCode);
-
-    try {
-      final msg = await WsService.instance.waitFor('room.joined', timeout: const Duration(seconds: 10));
-      final room = RoomModel.fromJson((msg['payload']['room'] as Map<String, dynamic>?) ?? msg['payload']);
-      
-      // Remove from store
-      InviteStore.instance.remove(invite.inviteCode);
-
-      if (!mounted) return;
-      setState(() => _loading = false);
-      
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => WaitingRoomScreen(initialRoom: room, isHost: false)),
-      );
-    } catch (_) {
-      setState(() {
-        _loading = false;
-        _errorMessage = 'เข้าร่วมห้องไม่สำเร็จ (โค้ดอาจหมดอายุหรือห้องเต็ม)';
-      });
-    }
+    setState(() { 
+      _loading = false; 
+      _errorMessage = 'ระบบคำเชิญเดิม (WS) ถูกปิดใช้งานแล้ว กรุณาใช้ระบบใหม่ผ่าน TCP'; 
+    });
   }
 }

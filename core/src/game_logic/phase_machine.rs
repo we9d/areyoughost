@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PhaseType {
@@ -12,15 +13,17 @@ pub enum PhaseType {
 pub struct PhaseMachine {
     pub current_phase: PhaseType,
     pub day_number: u32,
+    pub phase_id: Uuid,
     pub phase_end_time: u64, // Unix timestamp
 }
 
 impl PhaseMachine {
     pub fn new() -> Self {
         Self {
-            current_phase: PhaseType::Day,
+            current_phase: PhaseType::Night,
             day_number: 1,
-            phase_end_time: Self::now() + 60, // Start with Day 60s
+            phase_id: Uuid::new_v4(),
+            phase_end_time: Self::now() + 20, // Start with Night 20s
         }
     }
 
@@ -33,15 +36,17 @@ impl PhaseMachine {
 
     pub fn get_remaining_time(&self) -> i64 {
         let n = Self::now();
-        if self.phase_end_time > n {
-            (self.phase_end_time - n) as i64
-        } else {
-            0
-        }
+        (self.phase_end_time as i64) - (n as i64)
     }
 
     pub fn next_phase(&mut self) {
+        self.phase_id = Uuid::new_v4();
         match self.current_phase {
+            PhaseType::Night => {
+                self.current_phase = PhaseType::Day;
+                self.day_number += 1;
+                self.phase_end_time = Self::now() + 60;
+            },
             PhaseType::Day => {
                 self.current_phase = PhaseType::Vote;
                 self.phase_end_time = Self::now() + 15;
@@ -49,11 +54,6 @@ impl PhaseMachine {
             PhaseType::Vote => {
                 self.current_phase = PhaseType::Night;
                 self.phase_end_time = Self::now() + 20;
-            },
-            PhaseType::Night => {
-                self.current_phase = PhaseType::Day;
-                self.day_number += 1;
-                self.phase_end_time = Self::now() + 60;
             },
         }
     }

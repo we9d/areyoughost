@@ -1,6 +1,7 @@
 import 'package:areyoughost/ui/widgets/buttons/decoration/shadow.dart';
 import 'package:areyoughost/ui/widgets/role_dropdown_card.dart';
 import 'package:flutter/material.dart';
+import 'package:areyoughost/services/game_data_service.dart';
 
 class RolesButton extends StatelessWidget {
   const RolesButton({super.key});
@@ -102,6 +103,8 @@ class _RolesDialogState extends State<RolesDialog> {
 
                   const SizedBox(height: 16),
 
+
+
                   Expanded(
                     child: RawScrollbar(
                       controller: _scrollController,
@@ -117,17 +120,16 @@ class _RolesDialogState extends State<RolesDialog> {
                       child: SingleChildScrollView(
                         controller: _scrollController,
                         padding: const EdgeInsets.only(right: 10),
-                        child: const Column(
-                          children: [
-                            RoleDropdownCard(
-                              imagePath: 'assets/images/V01.jpg',
-                              roleName: 'ชาวบ้าน',
-                              team: 'ชาวบ้าน',
-                              aura: 'ดี',
-                              description:
-                                  'ไม่มีพลังพิเศษ ทำหน้าที่พูดคุย วิเคราะห์ และโหวตกลางตอนวัน',
-                            ),
-                          ],
+                        child: Column(
+                          children: GameDataService.roles.map((role) {
+                            return RoleDropdownCard(
+                              imagePath: role.imagePath ?? 'assets/images/V01.jpg',
+                              roleName: role.roleName,
+                              team: role.faction, // Or teamResult depending on UI preference
+                              aura: role.auraResult,
+                              description: role.description ?? '',
+                            );
+                          }).toList(),
                         ),
                       ),
                     ),

@@ -2,14 +2,14 @@
 // These will be replaced with actual FFI models later
 
 class User {
-  final String userId;
+  final String playerId;
   final String username;
-  final String displayName;
+  final String? email;
 
   User({
-    required this.userId,
+    required this.playerId,
     required this.username,
-    required this.displayName,
+    this.email,
   });
 }
 
@@ -33,12 +33,14 @@ class Room {
 
 class Role {
   final int roleId;
+  final String roleCode;
   final String roleName;
   final String faction;
   final String description;
 
   Role({
     required this.roleId,
+    required this.roleCode,
     required this.roleName,
     required this.faction,
     required this.description,
@@ -48,22 +50,24 @@ class Role {
 class PlayerModel {
   final int number;
   final String name;
+  final bool isAlive;
 
   PlayerModel({
     required this.number,
     required this.name,
+    this.isAlive = true,
   });
 }
 
 class GameParticipant {
-  final String userId;
+  final String playerId;
   final String username;
   final int seatNumber;
   final bool isAlive;
   final Role? role;
 
   GameParticipant({
-    required this.userId,
+    required this.playerId,
     required this.username,
     required this.seatNumber,
     required this.isAlive,
@@ -74,17 +78,15 @@ class GameParticipant {
 class ChatMessage {
   final String messageId;
   final String senderId;
-  final String senderName;
-  final String message;
-  final String phaseType;
+  final String messageText;
+  final String chatScope;
   final DateTime createdAt;
 
   ChatMessage({
     required this.messageId,
     required this.senderId,
-    required this.senderName,
-    required this.message,
-    required this.phaseType,
+    required this.messageText,
+    required this.chatScope,
     required this.createdAt,
   });
 }
@@ -92,18 +94,29 @@ class ChatMessage {
 class RoleInfo {
   final String name;
   final String description;
+  final int roleId;
 
-  RoleInfo({required this.name, required this.description});
+  RoleInfo({required this.name, required this.description, this.roleId = 0});
+
+  factory RoleInfo.fromJson(Map<String, dynamic> json) {
+    return RoleInfo(
+      name: (json['role_name'] ?? json['name'] ?? '').toString(),
+      description: (json['description'] ?? '').toString(),
+      roleId: json['role_id'] ?? json['roleId'] ?? 0,
+    );
+  }
 }
 
 class SkillOption {
   final String name;
   final String description;
   final String image;
+  final String skillId;
 
   SkillOption({
     required this.name,
     required this.description,
     required this.image,
+    required this.skillId,
   });
 }

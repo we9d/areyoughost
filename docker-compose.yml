@@ -1,27 +1,14 @@
 services:
-  db:
-    image: postgres:16
-    container_name: areyoughost_db
+  backend:
+    build: .
+    container_name: areyoughost_backend
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: areyoughost
+      - ACTIVE_DB=SUPABASE
+      - DATABASE_URL_SUPABASE=REMOVED_DB_URL
+      - JWT_SECRET=REMOVED_JWT_SECRET
+      - RUST_LOG=info
     ports:
-      # - "5432:5432"
-      - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: areyoughost_pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@areyoughost.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "8080:80"
-    depends_on:
-      - db
-
-volumes:
-  postgres_data:
+      - "3000:3000"
+      - "8888:8888"
+      - "8889:8889/udp"
+    restart: unless-stopped

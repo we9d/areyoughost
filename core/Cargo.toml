@@ -14,7 +14,7 @@ crate-type = ["lib", "cdylib"]
 tokio = { workspace = true, features = ["net", "time", "sync", "test-util"] }
 
 # Serialization
-serde = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 bincode = "1.3"
 bytes = "1.5"
@@ -33,7 +33,7 @@ reqwest = { version = "0.11", features = ["json"] }
 tokio-tungstenite = "0.21"
 
 # FFI bridge for Flutter integration
-flutter_rust_bridge = "=2.11.1"
+flutter_rust_bridge = { version = "=2.11.1", features = ["uuid", "chrono"] }
 
 # Error handling
 anyhow = { workspace = true }
@@ -48,3 +48,8 @@ chrono = { workspace = true }
 uuid = { workspace = true }
 urlencoding = "2.1.3"
 rand = "0.8"
+dashmap = "5"
+bcrypt = "0.15"
+
+[dev-dependencies]
+proptest = "1"

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart' as m;
 
 class ExitGamePopup extends m.StatelessWidget {
-  const ExitGamePopup({super.key});
+  final m.VoidCallback? onConfirm;
+  const ExitGamePopup({super.key, this.onConfirm});
 
   @override
   m.Widget build(m.BuildContext context) {
@@ -61,8 +62,12 @@ class ExitGamePopup extends m.StatelessWidget {
               cursor: m.SystemMouseCursors.click,
               child: m.GestureDetector(
                 onTap: () {
-                  m.Navigator.pop(context);
-                  m.Navigator.pop(context);
+                  if (onConfirm != null) {
+                    onConfirm!();
+                  } else {
+                    m.Navigator.pop(context);
+                    m.Navigator.pop(context);
+                  }
                 },
                 child: m.Container(
                   width: 160,

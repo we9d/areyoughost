@@ -3,12 +3,15 @@ import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:areyoughost/services/session_manager.dart';
+import 'package:areyoughost/services/network_service.dart';
 import 'package:areyoughost/services/rust_api.dart';
-import 'package:areyoughost/src/rust/models.dart';
+import 'package:uuid/uuid.dart';
+import 'package:areyoughost/src/rust/models.dart' as rust;
+import 'package:areyoughost/models/view_models.dart';
 
 class AuthService {
   // Global auth state
-  static final ValueNotifier<User?> currentUser = ValueNotifier<User?>(null);
+  static final ValueNotifier<UserVM?> currentUser = ValueNotifier<UserVM?>(null);
 
   // Username validation: Allow any characters
   static String? validateUsername(String? username) {
@@ -68,13 +71,14 @@ class AuthService {
       // Restore user state from session
       // Note: We create a partial User object here since we don't store full info in session
       // Ideally, we might want to fetch full profile from API if possible, but this is enough for UI display
-      currentUser.value = User(
-        userId: session['userId']!,
+      currentUser.value = UserVM.fromRust(rust.User(
+        playerId: UuidValue.fromString(session['userId']!),
         username: session['username']!,
         passwordHash: '', // Not needed for display
-        createdAt: '', // Not needed for display
+        createdAt: DateTime.now(), // Placeholder for local session
+        updatedAt: DateTime.now(),
         lastLogin: null,
-      );
+      ));
     } else {
       currentUser.value = null;
     }
@@ -122,13 +126,21 @@ class AuthService {
         // await SessionManager.saveToken(token);
 
         // Update state
-        currentUser.value = User(
-          userId: userId,
+        currentUser.value = UserVM.fromRust(rust.User(
+          playerId: UuidValue.fromString(userId),
           username: uname,
           passwordHash: '',
-          createdAt: '',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
           lastLogin: null,
-        );
+        ));
+
+        // Connect to the TCP Layer
+        try {
+          await NetworkService().connect('127.0.0.1', 8888);
+        } catch (e) {
+          debugPrint('🚩 Failed to connect to TCP server during login: $e');
+        }
 
         return {'success': true, 'userId': userId, 'username': uname, 'token': token};
       } else {
@@ -184,13 +196,14 @@ class AuthService {
         await SessionManager.saveSession(userId: userId, username: uname);
 
         // Update state
-        currentUser.value = User(
-          userId: userId,
+        currentUser.value = UserVM.fromRust(rust.User(
+          playerId: UuidValue.fromString(userId),
           username: uname,
           passwordHash: '',
-          createdAt: '',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
           lastLogin: null,
-        );
+        ));
 
         return {'success': true, 'userId': userId, 'username': uname};
       } else {
@@ -221,31 +234,39 @@ class AuthService {
     }
 
     try {
-      await RustApi.instance.updateUsername(
-        userId: user.userId,
-        newUsername: newUsername,
+      final response = await http.put(
+        Uri.parse('http://localhost:3000/auth/username'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': user.playerId,
+          'new_username': newUsername,
+        }),
       );
 
-      // Update session and state
-      await SessionManager.saveSession(
-        userId: user.userId,
-        username: newUsername,
-      );
+      final data = jsonDecode(response.body);
 
-      // Create new user object with updated username
-      currentUser.value = User(
-        userId: user.userId,
-        username: newUsername,
-        passwordHash: user.passwordHash,
-        createdAt: user.createdAt,
-        lastLogin: user.lastLogin,
-      );
+      if (response.statusCode == 200) {
+        // Update session and state
+        await SessionManager.saveSession(
+          userId: user.playerId,
+          username: newUsername,
+        );
 
-      return {'success': true};
+        // Create new user object with updated username
+        currentUser.value = UserVM(
+          playerId: user.playerId,
+          username: newUsername,
+          email: user.email,
+        );
+
+        return {'success': true};
+      } else {
+        return {'success': false, 'error': data['error'] ?? 'เปลี่ยนชื่อไม่สำเร็จ'};
+      }
     } catch (e) {
       return {
         'success': false,
-        'error': e.toString().replaceAll('Exception: ', ''),
+        'error': 'Cannot connect to server',
       };
     }
   }

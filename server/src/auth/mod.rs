@@ -46,6 +46,7 @@ pub fn sign_jwt(player_id: Uuid, username: &str, secret: &str) -> Result<String>
 }
 
 /// Verify a JWT and return the embedded claims.
+#[allow(dead_code)]
 pub fn verify_jwt(token: &str, secret: &str) -> Result<Claims> {
     let token_data = decode::<Claims>(
         token,

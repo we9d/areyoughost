@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:areyoughost/services/ws_service.dart';
-
-/// Bottom sheet invite panel — shown from WaitingRoomScreen for the host.
+/// Bottom sheet invite panel — shown from GameScreen for the host.
 class InvitePanel extends StatefulWidget {
   final String inviteCode;
 
@@ -24,13 +22,7 @@ class _InvitePanelState extends State<InvitePanel> {
   }
 
   void _sendInvite() {
-    final friendId = _friendIdController.text.trim();
-    if (friendId.isEmpty) {
-      setState(() => _error = 'กรุณากรอก ID เพื่อน');
-      return;
-    }
-    WsService.instance.sendInvite(friendId, widget.inviteCode);
-    setState(() {_sent = true; _error = null;});
+    setState(() { _error = 'ระบบส่งคำเชิญเดิม (WS) ถูกปิดใช้งานแล้ว'; });
   }
 
   @override

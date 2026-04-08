@@ -82,7 +82,7 @@ class _RoleResultCardState extends State<RoleResultCard>
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: Image.asset(
-                    'assets/images/V01.jpg',
+                    widget.imagePath,
                     fit: BoxFit.cover,
                   ),
                 ),

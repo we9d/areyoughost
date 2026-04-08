@@ -10,8 +10,13 @@ import 'api.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
+import 'game_logic/phase_machine.dart';
+import 'game_logic/roles.dart';
+import 'lib.dart';
 import 'models.dart';
+import 'network/message.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
+import 'package:uuid/uuid.dart';
 
 abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustLibApiImplPlatform({
@@ -24,6 +29,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ApiPtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi;
 
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ValuePtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue;
+
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw);
 
@@ -34,10 +42,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Value
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    dynamic raw,
+  );
+
+  @protected
   Api
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
     dynamic raw,
   );
+
+  @protected
+  DateTime dco_decode_Chrono_Utc(dynamic raw);
 
   @protected
   Api
@@ -46,22 +63,187 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Value
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    dynamic raw,
+  );
+
+  @protected
   String dco_decode_String(dynamic raw);
+
+  @protected
+  UuidValue dco_decode_Uuid(dynamic raw);
+
+  @protected
+  bool dco_decode_bool(dynamic raw);
+
+  @protected
+  Value
+  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    dynamic raw,
+  );
+
+  @protected
+  DateTime dco_decode_box_autoadd_Chrono_Utc(dynamic raw);
+
+  @protected
+  CastVoteRequest dco_decode_box_autoadd_cast_vote_request(dynamic raw);
+
+  @protected
+  ChatEntry dco_decode_box_autoadd_chat_entry(dynamic raw);
+
+  @protected
+  ChatMessage dco_decode_box_autoadd_chat_message(dynamic raw);
+
+  @protected
+  ChatMessageRequest dco_decode_box_autoadd_chat_message_request(dynamic raw);
+
+  @protected
+  GameAction dco_decode_box_autoadd_game_action(dynamic raw);
+
+  @protected
+  GameEvent dco_decode_box_autoadd_game_event(dynamic raw);
+
+  @protected
+  GameParticipant dco_decode_box_autoadd_game_participant(dynamic raw);
+
+  @protected
+  GamePhaseChange dco_decode_box_autoadd_game_phase_change(dynamic raw);
+
+  @protected
+  int dco_decode_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  LeaveRoomRequest dco_decode_box_autoadd_leave_room_request(dynamic raw);
+
+  @protected
+  NightActionRequest dco_decode_box_autoadd_night_action_request(dynamic raw);
+
+  @protected
+  ParticipantInfoDto dco_decode_box_autoadd_participant_info_dto(dynamic raw);
+
+  @protected
+  Room dco_decode_box_autoadd_room(dynamic raw);
+
+  @protected
+  RoomStateSync dco_decode_box_autoadd_room_state_sync(dynamic raw);
+
+  @protected
+  ServerResponse dco_decode_box_autoadd_server_response(dynamic raw);
+
+  @protected
+  StartGameRequest dco_decode_box_autoadd_start_game_request(dynamic raw);
+
+  @protected
+  User dco_decode_box_autoadd_user(dynamic raw);
+
+  @protected
+  CastVoteRequest dco_decode_cast_vote_request(dynamic raw);
+
+  @protected
+  ChatEntry dco_decode_chat_entry(dynamic raw);
 
   @protected
   ChatMessage dco_decode_chat_message(dynamic raw);
 
   @protected
+  ChatMessageRequest dco_decode_chat_message_request(dynamic raw);
+
+  @protected
+  DeathInfo dco_decode_death_info(dynamic raw);
+
+  @protected
+  GameAction dco_decode_game_action(dynamic raw);
+
+  @protected
+  GameEvent dco_decode_game_event(dynamic raw);
+
+  @protected
+  GameEventType dco_decode_game_event_type(dynamic raw);
+
+  @protected
+  GameParticipant dco_decode_game_participant(dynamic raw);
+
+  @protected
+  GamePhaseChange dco_decode_game_phase_change(dynamic raw);
+
+  @protected
+  GameStatus dco_decode_game_status(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  LeaveRoomRequest dco_decode_leave_room_request(dynamic raw);
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
+  List<ChatEntry> dco_decode_list_chat_entry(dynamic raw);
+
+  @protected
+  List<DeathInfo> dco_decode_list_death_info(dynamic raw);
+
+  @protected
+  List<ParticipantInfoDto> dco_decode_list_participant_info_dto(dynamic raw);
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  NightActionRequest dco_decode_night_action_request(dynamic raw);
+
+  @protected
   String? dco_decode_opt_String(dynamic raw);
+
+  @protected
+  UuidValue? dco_decode_opt_Uuid(dynamic raw);
+
+  @protected
+  Value?
+  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    dynamic raw,
+  );
+
+  @protected
+  DateTime? dco_decode_opt_box_autoadd_Chrono_Utc(dynamic raw);
+
+  @protected
+  int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  List<ChatEntry>? dco_decode_opt_list_chat_entry(dynamic raw);
+
+  @protected
+  ParticipantInfoDto dco_decode_participant_info_dto(dynamic raw);
+
+  @protected
+  PhaseType dco_decode_phase_type(dynamic raw);
+
+  @protected
+  Room dco_decode_room(dynamic raw);
+
+  @protected
+  RoomStateSync dco_decode_room_state_sync(dynamic raw);
+
+  @protected
+  ServerResponse dco_decode_server_response(dynamic raw);
+
+  @protected
+  SkillType dco_decode_skill_type(dynamic raw);
+
+  @protected
+  StartGameRequest dco_decode_start_game_request(dynamic raw);
+
+  @protected
+  int dco_decode_u_32(dynamic raw);
+
+  @protected
+  BigInt dco_decode_u_64(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -76,14 +258,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt dco_decode_usize(dynamic raw);
 
   @protected
-  Vote dco_decode_vote(dynamic raw);
-
-  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
   Api
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Value
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
     SseDeserializer deserializer,
   );
 
@@ -94,8 +279,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DateTime sse_decode_Chrono_Utc(SseDeserializer deserializer);
+
+  @protected
   Api
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Value
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
     SseDeserializer deserializer,
   );
 
@@ -103,19 +297,206 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  UuidValue sse_decode_Uuid(SseDeserializer deserializer);
+
+  @protected
+  bool sse_decode_bool(SseDeserializer deserializer);
+
+  @protected
+  Value
+  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DateTime sse_decode_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
+
+  @protected
+  CastVoteRequest sse_decode_box_autoadd_cast_vote_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ChatEntry sse_decode_box_autoadd_chat_entry(SseDeserializer deserializer);
+
+  @protected
+  ChatMessage sse_decode_box_autoadd_chat_message(SseDeserializer deserializer);
+
+  @protected
+  ChatMessageRequest sse_decode_box_autoadd_chat_message_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  GameAction sse_decode_box_autoadd_game_action(SseDeserializer deserializer);
+
+  @protected
+  GameEvent sse_decode_box_autoadd_game_event(SseDeserializer deserializer);
+
+  @protected
+  GameParticipant sse_decode_box_autoadd_game_participant(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  GamePhaseChange sse_decode_box_autoadd_game_phase_change(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  LeaveRoomRequest sse_decode_box_autoadd_leave_room_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  NightActionRequest sse_decode_box_autoadd_night_action_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ParticipantInfoDto sse_decode_box_autoadd_participant_info_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Room sse_decode_box_autoadd_room(SseDeserializer deserializer);
+
+  @protected
+  RoomStateSync sse_decode_box_autoadd_room_state_sync(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ServerResponse sse_decode_box_autoadd_server_response(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StartGameRequest sse_decode_box_autoadd_start_game_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  User sse_decode_box_autoadd_user(SseDeserializer deserializer);
+
+  @protected
+  CastVoteRequest sse_decode_cast_vote_request(SseDeserializer deserializer);
+
+  @protected
+  ChatEntry sse_decode_chat_entry(SseDeserializer deserializer);
+
+  @protected
   ChatMessage sse_decode_chat_message(SseDeserializer deserializer);
+
+  @protected
+  ChatMessageRequest sse_decode_chat_message_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DeathInfo sse_decode_death_info(SseDeserializer deserializer);
+
+  @protected
+  GameAction sse_decode_game_action(SseDeserializer deserializer);
+
+  @protected
+  GameEvent sse_decode_game_event(SseDeserializer deserializer);
+
+  @protected
+  GameEventType sse_decode_game_event_type(SseDeserializer deserializer);
+
+  @protected
+  GameParticipant sse_decode_game_participant(SseDeserializer deserializer);
+
+  @protected
+  GamePhaseChange sse_decode_game_phase_change(SseDeserializer deserializer);
+
+  @protected
+  GameStatus sse_decode_game_status(SseDeserializer deserializer);
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  LeaveRoomRequest sse_decode_leave_room_request(SseDeserializer deserializer);
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<ChatEntry> sse_decode_list_chat_entry(SseDeserializer deserializer);
+
+  @protected
+  List<DeathInfo> sse_decode_list_death_info(SseDeserializer deserializer);
+
+  @protected
+  List<ParticipantInfoDto> sse_decode_list_participant_info_dto(
+    SseDeserializer deserializer,
+  );
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  NightActionRequest sse_decode_night_action_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
+
+  @protected
+  UuidValue? sse_decode_opt_Uuid(SseDeserializer deserializer);
+
+  @protected
+  Value?
+  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DateTime? sse_decode_opt_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
+
+  @protected
+  int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  List<ChatEntry>? sse_decode_opt_list_chat_entry(SseDeserializer deserializer);
+
+  @protected
+  ParticipantInfoDto sse_decode_participant_info_dto(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PhaseType sse_decode_phase_type(SseDeserializer deserializer);
+
+  @protected
+  Room sse_decode_room(SseDeserializer deserializer);
+
+  @protected
+  RoomStateSync sse_decode_room_state_sync(SseDeserializer deserializer);
+
+  @protected
+  ServerResponse sse_decode_server_response(SseDeserializer deserializer);
+
+  @protected
+  SkillType sse_decode_skill_type(SseDeserializer deserializer);
+
+  @protected
+  StartGameRequest sse_decode_start_game_request(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -128,12 +509,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt sse_decode_usize(SseDeserializer deserializer);
-
-  @protected
-  Vote sse_decode_vote(SseDeserializer deserializer);
-
-  @protected
-  bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
   void sse_encode_AnyhowException(
@@ -150,10 +525,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    Value self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
     Api self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_Chrono_Utc(DateTime self, SseSerializer serializer);
 
   @protected
   void
@@ -163,16 +548,204 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    Value self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_Uuid(UuidValue self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void
+  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    Value self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_Chrono_Utc(
+    DateTime self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_cast_vote_request(
+    CastVoteRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_chat_entry(
+    ChatEntry self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_chat_message(
+    ChatMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_chat_message_request(
+    ChatMessageRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_game_action(
+    GameAction self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_game_event(
+    GameEvent self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_game_participant(
+    GameParticipant self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_game_phase_change(
+    GamePhaseChange self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_leave_room_request(
+    LeaveRoomRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_night_action_request(
+    NightActionRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_participant_info_dto(
+    ParticipantInfoDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_room(Room self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_room_state_sync(
+    RoomStateSync self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_server_response(
+    ServerResponse self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_start_game_request(
+    StartGameRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_user(User self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_cast_vote_request(
+    CastVoteRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_chat_entry(ChatEntry self, SseSerializer serializer);
 
   @protected
   void sse_encode_chat_message(ChatMessage self, SseSerializer serializer);
 
   @protected
+  void sse_encode_chat_message_request(
+    ChatMessageRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_death_info(DeathInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_game_action(GameAction self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_game_event(GameEvent self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_game_event_type(GameEventType self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_game_participant(
+    GameParticipant self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_game_phase_change(
+    GamePhaseChange self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_game_status(GameStatus self, SseSerializer serializer);
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_leave_room_request(
+    LeaveRoomRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_chat_entry(
+    List<ChatEntry> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_death_info(
+    List<DeathInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_participant_info_dto(
+    List<ParticipantInfoDto> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_prim_u_8_strict(
@@ -181,7 +754,74 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_night_action_request(
+    NightActionRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_Uuid(UuidValue? self, SseSerializer serializer);
+
+  @protected
+  void
+  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    Value? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_Chrono_Utc(
+    DateTime? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_list_chat_entry(
+    List<ChatEntry>? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_participant_info_dto(
+    ParticipantInfoDto self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_phase_type(PhaseType self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_room(Room self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_room_state_sync(RoomStateSync self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_server_response(
+    ServerResponse self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_skill_type(SkillType self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_start_game_request(
+    StartGameRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
@@ -194,12 +834,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_vote(Vote self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_bool(bool self, SseSerializer serializer);
 }
 
 // Section: wire_class
@@ -222,6 +856,22 @@ class RustLibWire implements BaseWire {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
         ptr,
       );
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+        ptr,
+      );
 }
 
 @JS('wasm_bindgen')
@@ -237,6 +887,16 @@ extension type RustLibWasmModule._(JSObject _) implements JSObject {
 
   external void
   rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
+    int ptr,
+  );
+
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
     int ptr,
   );
 }

@@ -5,34 +5,35 @@
 
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:uuid/uuid.dart';
 
 class ChatMessage {
-  final String messageId;
-  final String roomId;
-  final String senderId;
-  final String senderName;
-  final String message;
-  final String phaseType;
-  final String createdAt;
+  final UuidValue messageId;
+  final UuidValue gameId;
+  final UuidValue? phaseId;
+  final UuidValue? senderId;
+  final String chatScope;
+  final String messageText;
+  final DateTime createdAt;
 
   const ChatMessage({
     required this.messageId,
-    required this.roomId,
-    required this.senderId,
-    required this.senderName,
-    required this.message,
-    required this.phaseType,
+    required this.gameId,
+    this.phaseId,
+    this.senderId,
+    required this.chatScope,
+    required this.messageText,
     required this.createdAt,
   });
 
   @override
   int get hashCode =>
       messageId.hashCode ^
-      roomId.hashCode ^
+      gameId.hashCode ^
+      phaseId.hashCode ^
       senderId.hashCode ^
-      senderName.hashCode ^
-      message.hashCode ^
-      phaseType.hashCode ^
+      chatScope.hashCode ^
+      messageText.hashCode ^
       createdAt.hashCode;
 
   @override
@@ -41,35 +42,200 @@ class ChatMessage {
       other is ChatMessage &&
           runtimeType == other.runtimeType &&
           messageId == other.messageId &&
-          roomId == other.roomId &&
+          gameId == other.gameId &&
+          phaseId == other.phaseId &&
           senderId == other.senderId &&
-          senderName == other.senderName &&
-          message == other.message &&
-          phaseType == other.phaseType &&
+          chatScope == other.chatScope &&
+          messageText == other.messageText &&
           createdAt == other.createdAt;
 }
 
+class GameAction {
+  final UuidValue actionId;
+  final UuidValue gameId;
+  final UuidValue phaseId;
+  final UuidValue actorId;
+  final UuidValue? targetId;
+  final String actionType;
+  final String? actionResult;
+  final DateTime createdAt;
+
+  const GameAction({
+    required this.actionId,
+    required this.gameId,
+    required this.phaseId,
+    required this.actorId,
+    this.targetId,
+    required this.actionType,
+    this.actionResult,
+    required this.createdAt,
+  });
+
+  @override
+  int get hashCode =>
+      actionId.hashCode ^
+      gameId.hashCode ^
+      phaseId.hashCode ^
+      actorId.hashCode ^
+      targetId.hashCode ^
+      actionType.hashCode ^
+      actionResult.hashCode ^
+      createdAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GameAction &&
+          runtimeType == other.runtimeType &&
+          actionId == other.actionId &&
+          gameId == other.gameId &&
+          phaseId == other.phaseId &&
+          actorId == other.actorId &&
+          targetId == other.targetId &&
+          actionType == other.actionType &&
+          actionResult == other.actionResult &&
+          createdAt == other.createdAt;
+}
+
+class GameParticipant {
+  final UuidValue gameParticipantId;
+  final UuidValue gameId;
+  final UuidValue playerId;
+  final int roleId;
+  final int? revealedRoleId;
+  final bool isAlive;
+  final int seatNumber;
+  final DateTime joinedAt;
+  final DateTime? diedAt;
+  final String? deathReason;
+
+  const GameParticipant({
+    required this.gameParticipantId,
+    required this.gameId,
+    required this.playerId,
+    required this.roleId,
+    this.revealedRoleId,
+    required this.isAlive,
+    required this.seatNumber,
+    required this.joinedAt,
+    this.diedAt,
+    this.deathReason,
+  });
+
+  @override
+  int get hashCode =>
+      gameParticipantId.hashCode ^
+      gameId.hashCode ^
+      playerId.hashCode ^
+      roleId.hashCode ^
+      revealedRoleId.hashCode ^
+      isAlive.hashCode ^
+      seatNumber.hashCode ^
+      joinedAt.hashCode ^
+      diedAt.hashCode ^
+      deathReason.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GameParticipant &&
+          runtimeType == other.runtimeType &&
+          gameParticipantId == other.gameParticipantId &&
+          gameId == other.gameId &&
+          playerId == other.playerId &&
+          roleId == other.roleId &&
+          revealedRoleId == other.revealedRoleId &&
+          isAlive == other.isAlive &&
+          seatNumber == other.seatNumber &&
+          joinedAt == other.joinedAt &&
+          diedAt == other.diedAt &&
+          deathReason == other.deathReason;
+}
+
+enum GameStatus { waiting, starting, playing, finished, closed }
+
+class Room {
+  final UuidValue roomId;
+  final UuidValue ownerId;
+  final String roomName;
+  final String roomType;
+  final int maxPlayers;
+  final GameStatus roomStatus;
+  final DateTime? autoStartAt;
+  final bool startedByOwner;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  const Room({
+    required this.roomId,
+    required this.ownerId,
+    required this.roomName,
+    required this.roomType,
+    required this.maxPlayers,
+    required this.roomStatus,
+    this.autoStartAt,
+    required this.startedByOwner,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  @override
+  int get hashCode =>
+      roomId.hashCode ^
+      ownerId.hashCode ^
+      roomName.hashCode ^
+      roomType.hashCode ^
+      maxPlayers.hashCode ^
+      roomStatus.hashCode ^
+      autoStartAt.hashCode ^
+      startedByOwner.hashCode ^
+      createdAt.hashCode ^
+      updatedAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Room &&
+          runtimeType == other.runtimeType &&
+          roomId == other.roomId &&
+          ownerId == other.ownerId &&
+          roomName == other.roomName &&
+          roomType == other.roomType &&
+          maxPlayers == other.maxPlayers &&
+          roomStatus == other.roomStatus &&
+          autoStartAt == other.autoStartAt &&
+          startedByOwner == other.startedByOwner &&
+          createdAt == other.createdAt &&
+          updatedAt == other.updatedAt;
+}
+
 class User {
-  final String userId;
+  final UuidValue playerId;
   final String username;
+  final String? email;
   final String passwordHash;
-  final String createdAt;
-  final String? lastLogin;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? lastLogin;
 
   const User({
-    required this.userId,
+    required this.playerId,
     required this.username,
+    this.email,
     required this.passwordHash,
     required this.createdAt,
+    required this.updatedAt,
     this.lastLogin,
   });
 
   @override
   int get hashCode =>
-      userId.hashCode ^
+      playerId.hashCode ^
       username.hashCode ^
+      email.hashCode ^
       passwordHash.hashCode ^
       createdAt.hashCode ^
+      updatedAt.hashCode ^
       lastLogin.hashCode;
 
   @override
@@ -77,48 +243,11 @@ class User {
       identical(this, other) ||
       other is User &&
           runtimeType == other.runtimeType &&
-          userId == other.userId &&
+          playerId == other.playerId &&
           username == other.username &&
+          email == other.email &&
           passwordHash == other.passwordHash &&
           createdAt == other.createdAt &&
+          updatedAt == other.updatedAt &&
           lastLogin == other.lastLogin;
-}
-
-class Vote {
-  final String voteId;
-  final String roomId;
-  final String phaseId;
-  final String voterId;
-  final String targetId;
-  final String createdAt;
-
-  const Vote({
-    required this.voteId,
-    required this.roomId,
-    required this.phaseId,
-    required this.voterId,
-    required this.targetId,
-    required this.createdAt,
-  });
-
-  @override
-  int get hashCode =>
-      voteId.hashCode ^
-      roomId.hashCode ^
-      phaseId.hashCode ^
-      voterId.hashCode ^
-      targetId.hashCode ^
-      createdAt.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is Vote &&
-          runtimeType == other.runtimeType &&
-          voteId == other.voteId &&
-          roomId == other.roomId &&
-          phaseId == other.phaseId &&
-          voterId == other.voterId &&
-          targetId == other.targetId &&
-          createdAt == other.createdAt;
 }

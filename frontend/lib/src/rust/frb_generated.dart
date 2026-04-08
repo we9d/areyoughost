@@ -9,8 +9,13 @@ import 'dart:convert';
 import 'frb_generated.dart';
 import 'frb_generated.io.dart'
     if (dart.library.js_interop) 'frb_generated.web.dart';
+import 'game_logic/phase_machine.dart';
+import 'game_logic/roles.dart';
+import 'lib.dart';
 import 'models.dart';
+import 'network/message.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:uuid/uuid.dart';
 
 /// Main entrypoint of the Rust API
 class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
@@ -65,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 480678061;
+  int get rustContentHash => 1457168077;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -76,17 +81,59 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
-  Future<Vote> crateApiApiCastVote({
+  Future<String> crateApiApiAcceptInvite({
+    required Api that,
+    required String inviteCode,
+  });
+
+  Future<String> crateApiApiAddGameAction({
+    required Api that,
+    required String actorId,
+    String? targetId,
+    required String actionType,
+  });
+
+  Future<String> crateApiApiCastVote({
     required Api that,
     required String roomId,
-    required String voterId,
     required String targetId,
+  });
+
+  Future<String> crateApiApiConnectToServer({
+    required Api that,
+    required String addr,
   });
 
   Future<String> crateApiApiCreateRoom({
     required Api that,
     required String roomName,
     required int maxPlayers,
+  });
+
+  Future<String> crateApiApiDeclineInvite({
+    required Api that,
+    required String inviteCode,
+  });
+
+  Future<void> crateApiApiDummyTypes({
+    required Api that,
+    required User u,
+    required Room r,
+    required GameParticipant p,
+    required ChatMessage cm,
+    required GameAction ga,
+    required ChatEntry ce,
+    required RoomStateSync rss,
+    required GamePhaseChange gpc,
+    required GameEvent ge,
+    required ServerResponse sr,
+    required StartGameRequest sq,
+    required CastVoteRequest vq,
+    required NightActionRequest nq,
+    required ChatMessageRequest cq,
+    required LeaveRoomRequest lq,
+    required ParticipantInfoDto pd,
+    Value? v,
   });
 
   Future<String> crateApiApiForceNextPhase({required Api that});
@@ -98,6 +145,11 @@ abstract class RustLibApi extends BaseApi {
   Future<String> crateApiApiJoinRoom({
     required Api that,
     required String hostIp,
+  });
+
+  Future<String> crateApiApiLeaveRoom({
+    required Api that,
+    required String roomId,
   });
 
   Future<User> crateApiApiLogin({
@@ -116,11 +168,16 @@ abstract class RustLibApi extends BaseApi {
     required String password,
   });
 
-  Future<ChatMessage> crateApiApiSendMessage({
+  Future<String> crateApiApiSendLogin({
+    required Api that,
+    required String username,
+    required String password,
+  });
+
+  Future<String> crateApiApiSendMessage({
     required Api that,
     required String roomId,
-    required String userId,
-    required String message,
+    required String messageText,
   });
 
   Future<String> crateApiApiStartGame({
@@ -130,8 +187,8 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiApiSubmitAction({
     required Api that,
-    required String actorId,
-    required String actionType,
+    required String roomId,
+    required SkillType actionType,
     String? targetId,
   });
 
@@ -141,7 +198,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiApiUpdateUsername({
     required Api that,
-    required String userId,
+    required String playerId,
     required String newUsername,
   });
 
@@ -150,6 +207,12 @@ abstract class RustLibApi extends BaseApi {
   RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_Api;
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ApiPtr;
+
+  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_Value;
+
+  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_Value;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ValuePtr;
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -161,10 +224,87 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
-  Future<Vote> crateApiApiCastVote({
+  Future<String> crateApiApiAcceptInvite({
+    required Api that,
+    required String inviteCode,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
+            that,
+            serializer,
+          );
+          sse_encode_String(inviteCode, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 1,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiAcceptInviteConstMeta,
+        argValues: [that, inviteCode],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiApiAcceptInviteConstMeta => const TaskConstMeta(
+    debugName: "Api_accept_invite",
+    argNames: ["that", "inviteCode"],
+  );
+
+  @override
+  Future<String> crateApiApiAddGameAction({
+    required Api that,
+    required String actorId,
+    String? targetId,
+    required String actionType,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
+            that,
+            serializer,
+          );
+          sse_encode_String(actorId, serializer);
+          sse_encode_opt_String(targetId, serializer);
+          sse_encode_String(actionType, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiAddGameActionConstMeta,
+        argValues: [that, actorId, targetId, actionType],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiApiAddGameActionConstMeta => const TaskConstMeta(
+    debugName: "Api_add_game_action",
+    argNames: ["that", "actorId", "targetId", "actionType"],
+  );
+
+  @override
+  Future<String> crateApiApiCastVote({
     required Api that,
     required String roomId,
-    required String voterId,
     required String targetId,
   }) {
     return handler.executeNormal(
@@ -176,21 +316,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_String(roomId, serializer);
-          sse_encode_String(voterId, serializer);
           sse_encode_String(targetId, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 1,
+            funcId: 3,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_vote,
+          decodeSuccessData: sse_decode_String,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiApiCastVoteConstMeta,
-        argValues: [that, roomId, voterId, targetId],
+        argValues: [that, roomId, targetId],
         apiImpl: this,
       ),
     );
@@ -198,7 +337,44 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiApiCastVoteConstMeta => const TaskConstMeta(
     debugName: "Api_cast_vote",
-    argNames: ["that", "roomId", "voterId", "targetId"],
+    argNames: ["that", "roomId", "targetId"],
+  );
+
+  @override
+  Future<String> crateApiApiConnectToServer({
+    required Api that,
+    required String addr,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
+            that,
+            serializer,
+          );
+          sse_encode_String(addr, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiConnectToServerConstMeta,
+        argValues: [that, addr],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiApiConnectToServerConstMeta => const TaskConstMeta(
+    debugName: "Api_connect_to_server",
+    argNames: ["that", "addr"],
   );
 
   @override
@@ -220,7 +396,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 5,
             port: port_,
           );
         },
@@ -241,6 +417,153 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<String> crateApiApiDeclineInvite({
+    required Api that,
+    required String inviteCode,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
+            that,
+            serializer,
+          );
+          sse_encode_String(inviteCode, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiDeclineInviteConstMeta,
+        argValues: [that, inviteCode],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiApiDeclineInviteConstMeta => const TaskConstMeta(
+    debugName: "Api_decline_invite",
+    argNames: ["that", "inviteCode"],
+  );
+
+  @override
+  Future<void> crateApiApiDummyTypes({
+    required Api that,
+    required User u,
+    required Room r,
+    required GameParticipant p,
+    required ChatMessage cm,
+    required GameAction ga,
+    required ChatEntry ce,
+    required RoomStateSync rss,
+    required GamePhaseChange gpc,
+    required GameEvent ge,
+    required ServerResponse sr,
+    required StartGameRequest sq,
+    required CastVoteRequest vq,
+    required NightActionRequest nq,
+    required ChatMessageRequest cq,
+    required LeaveRoomRequest lq,
+    required ParticipantInfoDto pd,
+    Value? v,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_user(u, serializer);
+          sse_encode_box_autoadd_room(r, serializer);
+          sse_encode_box_autoadd_game_participant(p, serializer);
+          sse_encode_box_autoadd_chat_message(cm, serializer);
+          sse_encode_box_autoadd_game_action(ga, serializer);
+          sse_encode_box_autoadd_chat_entry(ce, serializer);
+          sse_encode_box_autoadd_room_state_sync(rss, serializer);
+          sse_encode_box_autoadd_game_phase_change(gpc, serializer);
+          sse_encode_box_autoadd_game_event(ge, serializer);
+          sse_encode_box_autoadd_server_response(sr, serializer);
+          sse_encode_box_autoadd_start_game_request(sq, serializer);
+          sse_encode_box_autoadd_cast_vote_request(vq, serializer);
+          sse_encode_box_autoadd_night_action_request(nq, serializer);
+          sse_encode_box_autoadd_chat_message_request(cq, serializer);
+          sse_encode_box_autoadd_leave_room_request(lq, serializer);
+          sse_encode_box_autoadd_participant_info_dto(pd, serializer);
+          sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+            v,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiApiDummyTypesConstMeta,
+        argValues: [
+          that,
+          u,
+          r,
+          p,
+          cm,
+          ga,
+          ce,
+          rss,
+          gpc,
+          ge,
+          sr,
+          sq,
+          vq,
+          nq,
+          cq,
+          lq,
+          pd,
+          v,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiApiDummyTypesConstMeta => const TaskConstMeta(
+    debugName: "Api_dummy_types",
+    argNames: [
+      "that",
+      "u",
+      "r",
+      "p",
+      "cm",
+      "ga",
+      "ce",
+      "rss",
+      "gpc",
+      "ge",
+      "sr",
+      "sq",
+      "vq",
+      "nq",
+      "cq",
+      "lq",
+      "pd",
+      "v",
+    ],
+  );
+
+  @override
   Future<String> crateApiApiForceNextPhase({required Api that}) {
     return handler.executeNormal(
       NormalTask(
@@ -253,7 +576,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 8,
             port: port_,
           );
         },
@@ -286,7 +609,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 9,
             port: port_,
           );
         },
@@ -317,7 +640,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 10,
             port: port_,
           );
         },
@@ -352,7 +675,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 11,
             port: port_,
           );
         },
@@ -370,6 +693,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiApiJoinRoomConstMeta => const TaskConstMeta(
     debugName: "Api_join_room",
     argNames: ["that", "hostIp"],
+  );
+
+  @override
+  Future<String> crateApiApiLeaveRoom({
+    required Api that,
+    required String roomId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
+            that,
+            serializer,
+          );
+          sse_encode_String(roomId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 12,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiLeaveRoomConstMeta,
+        argValues: [that, roomId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiApiLeaveRoomConstMeta => const TaskConstMeta(
+    debugName: "Api_leave_room",
+    argNames: ["that", "roomId"],
   );
 
   @override
@@ -391,7 +751,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 13,
             port: port_,
           );
         },
@@ -421,7 +781,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 14,
             port: port_,
           );
         },
@@ -450,7 +810,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 15,
             port: port_,
           );
         },
@@ -490,7 +850,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 16,
             port: port_,
           );
         },
@@ -511,11 +871,49 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  Future<ChatMessage> crateApiApiSendMessage({
+  Future<String> crateApiApiSendLogin({
+    required Api that,
+    required String username,
+    required String password,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
+            that,
+            serializer,
+          );
+          sse_encode_String(username, serializer);
+          sse_encode_String(password, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiSendLoginConstMeta,
+        argValues: [that, username, password],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiApiSendLoginConstMeta => const TaskConstMeta(
+    debugName: "Api_send_login",
+    argNames: ["that", "username", "password"],
+  );
+
+  @override
+  Future<String> crateApiApiSendMessage({
     required Api that,
     required String roomId,
-    required String userId,
-    required String message,
+    required String messageText,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -526,21 +924,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_String(roomId, serializer);
-          sse_encode_String(userId, serializer);
-          sse_encode_String(message, serializer);
+          sse_encode_String(messageText, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 18,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_chat_message,
+          decodeSuccessData: sse_decode_String,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiApiSendMessageConstMeta,
-        argValues: [that, roomId, userId, message],
+        argValues: [that, roomId, messageText],
         apiImpl: this,
       ),
     );
@@ -548,7 +945,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiApiSendMessageConstMeta => const TaskConstMeta(
     debugName: "Api_send_message",
-    argNames: ["that", "roomId", "userId", "message"],
+    argNames: ["that", "roomId", "messageText"],
   );
 
   @override
@@ -568,7 +965,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 19,
             port: port_,
           );
         },
@@ -591,8 +988,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<String> crateApiApiSubmitAction({
     required Api that,
-    required String actorId,
-    required String actionType,
+    required String roomId,
+    required SkillType actionType,
     String? targetId,
   }) {
     return handler.executeNormal(
@@ -603,13 +1000,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_String(actorId, serializer);
-          sse_encode_String(actionType, serializer);
+          sse_encode_String(roomId, serializer);
+          sse_encode_skill_type(actionType, serializer);
           sse_encode_opt_String(targetId, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 20,
             port: port_,
           );
         },
@@ -618,7 +1015,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiApiSubmitActionConstMeta,
-        argValues: [that, actorId, actionType, targetId],
+        argValues: [that, roomId, actionType, targetId],
         apiImpl: this,
       ),
     );
@@ -626,7 +1023,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiApiSubmitActionConstMeta => const TaskConstMeta(
     debugName: "Api_submit_action",
-    argNames: ["that", "actorId", "actionType", "targetId"],
+    argNames: ["that", "roomId", "actionType", "targetId"],
   );
 
   @override
@@ -642,7 +1039,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 21,
             port: port_,
           );
         },
@@ -673,7 +1070,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 22,
             port: port_,
           );
         },
@@ -694,7 +1091,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<void> crateApiApiUpdateUsername({
     required Api that,
-    required String userId,
+    required String playerId,
     required String newUsername,
   }) {
     return handler.executeNormal(
@@ -705,12 +1102,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_String(userId, serializer);
+          sse_encode_String(playerId, serializer);
           sse_encode_String(newUsername, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 23,
             port: port_,
           );
         },
@@ -719,7 +1116,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiApiUpdateUsernameConstMeta,
-        argValues: [that, userId, newUsername],
+        argValues: [that, playerId, newUsername],
         apiImpl: this,
       ),
     );
@@ -727,7 +1124,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiApiUpdateUsernameConstMeta => const TaskConstMeta(
     debugName: "Api_update_username",
-    argNames: ["that", "userId", "newUsername"],
+    argNames: ["that", "playerId", "newUsername"],
   );
 
   RustArcIncrementStrongCountFnType
@@ -737,6 +1134,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RustArcDecrementStrongCountFnType
   get rust_arc_decrement_strong_count_Api => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_Value => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_Value => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue;
 
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
@@ -754,12 +1159,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Value
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ValueImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   Api
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return ApiImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  DateTime dco_decode_Chrono_Utc(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeTimestamp(ts: dco_decode_i_64(raw).toInt(), isUtc: true);
   }
 
   @protected
@@ -772,9 +1192,174 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Value
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ValueImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   String dco_decode_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as String;
+  }
+
+  @protected
+  UuidValue dco_decode_Uuid(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return UuidValue.fromByteList(dco_decode_list_prim_u_8_strict(raw));
+  }
+
+  @protected
+  bool dco_decode_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as bool;
+  }
+
+  @protected
+  Value
+  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+      raw,
+    );
+  }
+
+  @protected
+  DateTime dco_decode_box_autoadd_Chrono_Utc(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_Chrono_Utc(raw);
+  }
+
+  @protected
+  CastVoteRequest dco_decode_box_autoadd_cast_vote_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_cast_vote_request(raw);
+  }
+
+  @protected
+  ChatEntry dco_decode_box_autoadd_chat_entry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_chat_entry(raw);
+  }
+
+  @protected
+  ChatMessage dco_decode_box_autoadd_chat_message(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_chat_message(raw);
+  }
+
+  @protected
+  ChatMessageRequest dco_decode_box_autoadd_chat_message_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_chat_message_request(raw);
+  }
+
+  @protected
+  GameAction dco_decode_box_autoadd_game_action(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_game_action(raw);
+  }
+
+  @protected
+  GameEvent dco_decode_box_autoadd_game_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_game_event(raw);
+  }
+
+  @protected
+  GameParticipant dco_decode_box_autoadd_game_participant(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_game_participant(raw);
+  }
+
+  @protected
+  GamePhaseChange dco_decode_box_autoadd_game_phase_change(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_game_phase_change(raw);
+  }
+
+  @protected
+  int dco_decode_box_autoadd_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  LeaveRoomRequest dco_decode_box_autoadd_leave_room_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_leave_room_request(raw);
+  }
+
+  @protected
+  NightActionRequest dco_decode_box_autoadd_night_action_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_night_action_request(raw);
+  }
+
+  @protected
+  ParticipantInfoDto dco_decode_box_autoadd_participant_info_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_participant_info_dto(raw);
+  }
+
+  @protected
+  Room dco_decode_box_autoadd_room(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_room(raw);
+  }
+
+  @protected
+  RoomStateSync dco_decode_box_autoadd_room_state_sync(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_room_state_sync(raw);
+  }
+
+  @protected
+  ServerResponse dco_decode_box_autoadd_server_response(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_server_response(raw);
+  }
+
+  @protected
+  StartGameRequest dco_decode_box_autoadd_start_game_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_start_game_request(raw);
+  }
+
+  @protected
+  User dco_decode_box_autoadd_user(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_user(raw);
+  }
+
+  @protected
+  CastVoteRequest dco_decode_cast_vote_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return CastVoteRequest(
+      roomId: dco_decode_Uuid(arr[0]),
+      targetId: dco_decode_Uuid(arr[1]),
+    );
+  }
+
+  @protected
+  ChatEntry dco_decode_chat_entry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return ChatEntry(
+      senderUsername: dco_decode_String(arr[0]),
+      messageText: dco_decode_String(arr[1]),
+      timestamp: dco_decode_u_64(arr[2]),
+    );
   }
 
   @protected
@@ -784,14 +1369,121 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 7)
       throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return ChatMessage(
-      messageId: dco_decode_String(arr[0]),
-      roomId: dco_decode_String(arr[1]),
-      senderId: dco_decode_String(arr[2]),
-      senderName: dco_decode_String(arr[3]),
-      message: dco_decode_String(arr[4]),
-      phaseType: dco_decode_String(arr[5]),
-      createdAt: dco_decode_String(arr[6]),
+      messageId: dco_decode_Uuid(arr[0]),
+      gameId: dco_decode_Uuid(arr[1]),
+      phaseId: dco_decode_opt_Uuid(arr[2]),
+      senderId: dco_decode_opt_Uuid(arr[3]),
+      chatScope: dco_decode_String(arr[4]),
+      messageText: dco_decode_String(arr[5]),
+      createdAt: dco_decode_Chrono_Utc(arr[6]),
     );
+  }
+
+  @protected
+  ChatMessageRequest dco_decode_chat_message_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return ChatMessageRequest(
+      roomId: dco_decode_Uuid(arr[0]),
+      messageText: dco_decode_String(arr[1]),
+    );
+  }
+
+  @protected
+  DeathInfo dco_decode_death_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return DeathInfo(
+      playerId: dco_decode_Uuid(arr[0]),
+      username: dco_decode_String(arr[1]),
+      roleName: dco_decode_String(arr[2]),
+    );
+  }
+
+  @protected
+  GameAction dco_decode_game_action(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return GameAction(
+      actionId: dco_decode_Uuid(arr[0]),
+      gameId: dco_decode_Uuid(arr[1]),
+      phaseId: dco_decode_Uuid(arr[2]),
+      actorId: dco_decode_Uuid(arr[3]),
+      targetId: dco_decode_opt_Uuid(arr[4]),
+      actionType: dco_decode_String(arr[5]),
+      actionResult: dco_decode_opt_String(arr[6]),
+      createdAt: dco_decode_Chrono_Utc(arr[7]),
+    );
+  }
+
+  @protected
+  GameEvent dco_decode_game_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return GameEvent(
+      eventType: dco_decode_game_event_type(arr[0]),
+      deaths: dco_decode_list_death_info(arr[1]),
+      winnerFaction: dco_decode_opt_String(arr[2]),
+      extra:
+          dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+            arr[3],
+          ),
+    );
+  }
+
+  @protected
+  GameEventType dco_decode_game_event_type(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return GameEventType.values[raw as int];
+  }
+
+  @protected
+  GameParticipant dco_decode_game_participant(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return GameParticipant(
+      gameParticipantId: dco_decode_Uuid(arr[0]),
+      gameId: dco_decode_Uuid(arr[1]),
+      playerId: dco_decode_Uuid(arr[2]),
+      roleId: dco_decode_i_32(arr[3]),
+      revealedRoleId: dco_decode_opt_box_autoadd_i_32(arr[4]),
+      isAlive: dco_decode_bool(arr[5]),
+      seatNumber: dco_decode_i_32(arr[6]),
+      joinedAt: dco_decode_Chrono_Utc(arr[7]),
+      diedAt: dco_decode_opt_box_autoadd_Chrono_Utc(arr[8]),
+      deathReason: dco_decode_opt_String(arr[9]),
+    );
+  }
+
+  @protected
+  GamePhaseChange dco_decode_game_phase_change(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return GamePhaseChange(
+      phase: dco_decode_phase_type(arr[0]),
+      dayNumber: dco_decode_u_32(arr[1]),
+      durationSecs: dco_decode_u_32(arr[2]),
+      serverTimestamp: dco_decode_u_64(arr[3]),
+      nightChatHistory: dco_decode_opt_list_chat_entry(arr[4]),
+    );
+  }
+
+  @protected
+  GameStatus dco_decode_game_status(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return GameStatus.values[raw as int];
   }
 
   @protected
@@ -801,9 +1493,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeI64(raw);
+  }
+
+  @protected
+  LeaveRoomRequest dco_decode_leave_room_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    return LeaveRoomRequest(roomId: dco_decode_Uuid(arr[0]));
+  }
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_String).toList();
+  }
+
+  @protected
+  List<ChatEntry> dco_decode_list_chat_entry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_chat_entry).toList();
+  }
+
+  @protected
+  List<DeathInfo> dco_decode_list_death_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_death_info).toList();
+  }
+
+  @protected
+  List<ParticipantInfoDto> dco_decode_list_participant_info_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_participant_info_dto).toList();
   }
 
   @protected
@@ -813,9 +1538,152 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  NightActionRequest dco_decode_night_action_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return NightActionRequest(
+      roomId: dco_decode_Uuid(arr[0]),
+      actionType: dco_decode_skill_type(arr[1]),
+      targetId: dco_decode_opt_Uuid(arr[2]),
+    );
+  }
+
+  @protected
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
+  }
+
+  @protected
+  UuidValue? dco_decode_opt_Uuid(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_Uuid(raw);
+  }
+
+  @protected
+  Value?
+  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+            raw,
+          );
+  }
+
+  @protected
+  DateTime? dco_decode_opt_box_autoadd_Chrono_Utc(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_Chrono_Utc(raw);
+  }
+
+  @protected
+  int? dco_decode_opt_box_autoadd_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_i_32(raw);
+  }
+
+  @protected
+  List<ChatEntry>? dco_decode_opt_list_chat_entry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_chat_entry(raw);
+  }
+
+  @protected
+  ParticipantInfoDto dco_decode_participant_info_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return ParticipantInfoDto(
+      playerId: dco_decode_Uuid(arr[0]),
+      username: dco_decode_String(arr[1]),
+      isAlive: dco_decode_bool(arr[2]),
+      seatNumber: dco_decode_i_32(arr[3]),
+      isOnline: dco_decode_bool(arr[4]),
+    );
+  }
+
+  @protected
+  PhaseType dco_decode_phase_type(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return PhaseType.values[raw as int];
+  }
+
+  @protected
+  Room dco_decode_room(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return Room(
+      roomId: dco_decode_Uuid(arr[0]),
+      ownerId: dco_decode_Uuid(arr[1]),
+      roomName: dco_decode_String(arr[2]),
+      roomType: dco_decode_String(arr[3]),
+      maxPlayers: dco_decode_i_32(arr[4]),
+      roomStatus: dco_decode_game_status(arr[5]),
+      autoStartAt: dco_decode_opt_box_autoadd_Chrono_Utc(arr[6]),
+      startedByOwner: dco_decode_bool(arr[7]),
+      createdAt: dco_decode_Chrono_Utc(arr[8]),
+      updatedAt: dco_decode_Chrono_Utc(arr[9]),
+    );
+  }
+
+  @protected
+  RoomStateSync dco_decode_room_state_sync(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return RoomStateSync(
+      roomId: dco_decode_Uuid(arr[0]),
+      participants: dco_decode_list_participant_info_dto(arr[1]),
+      aliveCount: dco_decode_u_32(arr[2]),
+    );
+  }
+
+  @protected
+  ServerResponse dco_decode_server_response(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return ServerResponse(
+      success: dco_decode_bool(arr[0]),
+      error: dco_decode_opt_String(arr[1]),
+    );
+  }
+
+  @protected
+  SkillType dco_decode_skill_type(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return SkillType.values[raw as int];
+  }
+
+  @protected
+  StartGameRequest dco_decode_start_game_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    return StartGameRequest(roomId: dco_decode_Uuid(arr[0]));
+  }
+
+  @protected
+  int dco_decode_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  BigInt dco_decode_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeU64(raw);
   }
 
   @protected
@@ -834,14 +1702,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   User dco_decode_user(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return User(
-      userId: dco_decode_String(arr[0]),
+      playerId: dco_decode_Uuid(arr[0]),
       username: dco_decode_String(arr[1]),
-      passwordHash: dco_decode_String(arr[2]),
-      createdAt: dco_decode_String(arr[3]),
-      lastLogin: dco_decode_opt_String(arr[4]),
+      email: dco_decode_opt_String(arr[2]),
+      passwordHash: dco_decode_String(arr[3]),
+      createdAt: dco_decode_Chrono_Utc(arr[4]),
+      updatedAt: dco_decode_Chrono_Utc(arr[5]),
+      lastLogin: dco_decode_opt_box_autoadd_Chrono_Utc(arr[6]),
     );
   }
 
@@ -849,22 +1719,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt dco_decode_usize(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeU64(raw);
-  }
-
-  @protected
-  Vote dco_decode_vote(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
-    return Vote(
-      voteId: dco_decode_String(arr[0]),
-      roomId: dco_decode_String(arr[1]),
-      phaseId: dco_decode_String(arr[2]),
-      voterId: dco_decode_String(arr[3]),
-      targetId: dco_decode_String(arr[4]),
-      createdAt: dco_decode_String(arr[5]),
-    );
   }
 
   @protected
@@ -887,6 +1741,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Value
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return ValueImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   Api
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
     SseDeserializer deserializer,
@@ -896,6 +1762,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
+  }
+
+  @protected
+  DateTime sse_decode_Chrono_Utc(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_64(deserializer);
+    return DateTime.fromMicrosecondsSinceEpoch(inner.toInt(), isUtc: true);
   }
 
   @protected
@@ -911,6 +1784,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Value
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return ValueImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_prim_u_8_strict(deserializer);
@@ -918,30 +1803,340 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UuidValue sse_decode_Uuid(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_list_prim_u_8_strict(deserializer);
+    return UuidValue.fromByteList(inner);
+  }
+
+  @protected
+  bool sse_decode_bool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint8() != 0;
+  }
+
+  @protected
+  Value
+  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+      deserializer,
+    ));
+  }
+
+  @protected
+  DateTime sse_decode_box_autoadd_Chrono_Utc(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_Chrono_Utc(deserializer));
+  }
+
+  @protected
+  CastVoteRequest sse_decode_box_autoadd_cast_vote_request(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_cast_vote_request(deserializer));
+  }
+
+  @protected
+  ChatEntry sse_decode_box_autoadd_chat_entry(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_chat_entry(deserializer));
+  }
+
+  @protected
+  ChatMessage sse_decode_box_autoadd_chat_message(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_chat_message(deserializer));
+  }
+
+  @protected
+  ChatMessageRequest sse_decode_box_autoadd_chat_message_request(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_chat_message_request(deserializer));
+  }
+
+  @protected
+  GameAction sse_decode_box_autoadd_game_action(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_game_action(deserializer));
+  }
+
+  @protected
+  GameEvent sse_decode_box_autoadd_game_event(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_game_event(deserializer));
+  }
+
+  @protected
+  GameParticipant sse_decode_box_autoadd_game_participant(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_game_participant(deserializer));
+  }
+
+  @protected
+  GamePhaseChange sse_decode_box_autoadd_game_phase_change(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_game_phase_change(deserializer));
+  }
+
+  @protected
+  int sse_decode_box_autoadd_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_i_32(deserializer));
+  }
+
+  @protected
+  LeaveRoomRequest sse_decode_box_autoadd_leave_room_request(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_leave_room_request(deserializer));
+  }
+
+  @protected
+  NightActionRequest sse_decode_box_autoadd_night_action_request(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_night_action_request(deserializer));
+  }
+
+  @protected
+  ParticipantInfoDto sse_decode_box_autoadd_participant_info_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_participant_info_dto(deserializer));
+  }
+
+  @protected
+  Room sse_decode_box_autoadd_room(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_room(deserializer));
+  }
+
+  @protected
+  RoomStateSync sse_decode_box_autoadd_room_state_sync(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_room_state_sync(deserializer));
+  }
+
+  @protected
+  ServerResponse sse_decode_box_autoadd_server_response(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_server_response(deserializer));
+  }
+
+  @protected
+  StartGameRequest sse_decode_box_autoadd_start_game_request(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_start_game_request(deserializer));
+  }
+
+  @protected
+  User sse_decode_box_autoadd_user(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_user(deserializer));
+  }
+
+  @protected
+  CastVoteRequest sse_decode_cast_vote_request(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_roomId = sse_decode_Uuid(deserializer);
+    var var_targetId = sse_decode_Uuid(deserializer);
+    return CastVoteRequest(roomId: var_roomId, targetId: var_targetId);
+  }
+
+  @protected
+  ChatEntry sse_decode_chat_entry(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_senderUsername = sse_decode_String(deserializer);
+    var var_messageText = sse_decode_String(deserializer);
+    var var_timestamp = sse_decode_u_64(deserializer);
+    return ChatEntry(
+      senderUsername: var_senderUsername,
+      messageText: var_messageText,
+      timestamp: var_timestamp,
+    );
+  }
+
+  @protected
   ChatMessage sse_decode_chat_message(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_messageId = sse_decode_String(deserializer);
-    var var_roomId = sse_decode_String(deserializer);
-    var var_senderId = sse_decode_String(deserializer);
-    var var_senderName = sse_decode_String(deserializer);
-    var var_message = sse_decode_String(deserializer);
-    var var_phaseType = sse_decode_String(deserializer);
-    var var_createdAt = sse_decode_String(deserializer);
+    var var_messageId = sse_decode_Uuid(deserializer);
+    var var_gameId = sse_decode_Uuid(deserializer);
+    var var_phaseId = sse_decode_opt_Uuid(deserializer);
+    var var_senderId = sse_decode_opt_Uuid(deserializer);
+    var var_chatScope = sse_decode_String(deserializer);
+    var var_messageText = sse_decode_String(deserializer);
+    var var_createdAt = sse_decode_Chrono_Utc(deserializer);
     return ChatMessage(
       messageId: var_messageId,
-      roomId: var_roomId,
+      gameId: var_gameId,
+      phaseId: var_phaseId,
       senderId: var_senderId,
-      senderName: var_senderName,
-      message: var_message,
-      phaseType: var_phaseType,
+      chatScope: var_chatScope,
+      messageText: var_messageText,
       createdAt: var_createdAt,
     );
+  }
+
+  @protected
+  ChatMessageRequest sse_decode_chat_message_request(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_roomId = sse_decode_Uuid(deserializer);
+    var var_messageText = sse_decode_String(deserializer);
+    return ChatMessageRequest(roomId: var_roomId, messageText: var_messageText);
+  }
+
+  @protected
+  DeathInfo sse_decode_death_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_playerId = sse_decode_Uuid(deserializer);
+    var var_username = sse_decode_String(deserializer);
+    var var_roleName = sse_decode_String(deserializer);
+    return DeathInfo(
+      playerId: var_playerId,
+      username: var_username,
+      roleName: var_roleName,
+    );
+  }
+
+  @protected
+  GameAction sse_decode_game_action(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_actionId = sse_decode_Uuid(deserializer);
+    var var_gameId = sse_decode_Uuid(deserializer);
+    var var_phaseId = sse_decode_Uuid(deserializer);
+    var var_actorId = sse_decode_Uuid(deserializer);
+    var var_targetId = sse_decode_opt_Uuid(deserializer);
+    var var_actionType = sse_decode_String(deserializer);
+    var var_actionResult = sse_decode_opt_String(deserializer);
+    var var_createdAt = sse_decode_Chrono_Utc(deserializer);
+    return GameAction(
+      actionId: var_actionId,
+      gameId: var_gameId,
+      phaseId: var_phaseId,
+      actorId: var_actorId,
+      targetId: var_targetId,
+      actionType: var_actionType,
+      actionResult: var_actionResult,
+      createdAt: var_createdAt,
+    );
+  }
+
+  @protected
+  GameEvent sse_decode_game_event(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_eventType = sse_decode_game_event_type(deserializer);
+    var var_deaths = sse_decode_list_death_info(deserializer);
+    var var_winnerFaction = sse_decode_opt_String(deserializer);
+    var var_extra =
+        sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+          deserializer,
+        );
+    return GameEvent(
+      eventType: var_eventType,
+      deaths: var_deaths,
+      winnerFaction: var_winnerFaction,
+      extra: var_extra,
+    );
+  }
+
+  @protected
+  GameEventType sse_decode_game_event_type(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return GameEventType.values[inner];
+  }
+
+  @protected
+  GameParticipant sse_decode_game_participant(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_gameParticipantId = sse_decode_Uuid(deserializer);
+    var var_gameId = sse_decode_Uuid(deserializer);
+    var var_playerId = sse_decode_Uuid(deserializer);
+    var var_roleId = sse_decode_i_32(deserializer);
+    var var_revealedRoleId = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_isAlive = sse_decode_bool(deserializer);
+    var var_seatNumber = sse_decode_i_32(deserializer);
+    var var_joinedAt = sse_decode_Chrono_Utc(deserializer);
+    var var_diedAt = sse_decode_opt_box_autoadd_Chrono_Utc(deserializer);
+    var var_deathReason = sse_decode_opt_String(deserializer);
+    return GameParticipant(
+      gameParticipantId: var_gameParticipantId,
+      gameId: var_gameId,
+      playerId: var_playerId,
+      roleId: var_roleId,
+      revealedRoleId: var_revealedRoleId,
+      isAlive: var_isAlive,
+      seatNumber: var_seatNumber,
+      joinedAt: var_joinedAt,
+      diedAt: var_diedAt,
+      deathReason: var_deathReason,
+    );
+  }
+
+  @protected
+  GamePhaseChange sse_decode_game_phase_change(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_phase = sse_decode_phase_type(deserializer);
+    var var_dayNumber = sse_decode_u_32(deserializer);
+    var var_durationSecs = sse_decode_u_32(deserializer);
+    var var_serverTimestamp = sse_decode_u_64(deserializer);
+    var var_nightChatHistory = sse_decode_opt_list_chat_entry(deserializer);
+    return GamePhaseChange(
+      phase: var_phase,
+      dayNumber: var_dayNumber,
+      durationSecs: var_durationSecs,
+      serverTimestamp: var_serverTimestamp,
+      nightChatHistory: var_nightChatHistory,
+    );
+  }
+
+  @protected
+  GameStatus sse_decode_game_status(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return GameStatus.values[inner];
   }
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getInt32();
+  }
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getPlatformInt64();
+  }
+
+  @protected
+  LeaveRoomRequest sse_decode_leave_room_request(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_roomId = sse_decode_Uuid(deserializer);
+    return LeaveRoomRequest(roomId: var_roomId);
   }
 
   @protected
@@ -957,10 +2152,63 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ChatEntry> sse_decode_list_chat_entry(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ChatEntry>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_chat_entry(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<DeathInfo> sse_decode_list_death_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DeathInfo>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_death_info(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<ParticipantInfoDto> sse_decode_list_participant_info_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ParticipantInfoDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_participant_info_dto(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
+  NightActionRequest sse_decode_night_action_request(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_roomId = sse_decode_Uuid(deserializer);
+    var var_actionType = sse_decode_skill_type(deserializer);
+    var var_targetId = sse_decode_opt_Uuid(deserializer);
+    return NightActionRequest(
+      roomId: var_roomId,
+      actionType: var_actionType,
+      targetId: var_targetId,
+    );
   }
 
   @protected
@@ -972,6 +2220,170 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     } else {
       return null;
     }
+  }
+
+  @protected
+  UuidValue? sse_decode_opt_Uuid(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_Uuid(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  Value?
+  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+        deserializer,
+      ));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  DateTime? sse_decode_opt_box_autoadd_Chrono_Utc(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_Chrono_Utc(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_i_32(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  List<ChatEntry>? sse_decode_opt_list_chat_entry(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_chat_entry(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  ParticipantInfoDto sse_decode_participant_info_dto(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_playerId = sse_decode_Uuid(deserializer);
+    var var_username = sse_decode_String(deserializer);
+    var var_isAlive = sse_decode_bool(deserializer);
+    var var_seatNumber = sse_decode_i_32(deserializer);
+    var var_isOnline = sse_decode_bool(deserializer);
+    return ParticipantInfoDto(
+      playerId: var_playerId,
+      username: var_username,
+      isAlive: var_isAlive,
+      seatNumber: var_seatNumber,
+      isOnline: var_isOnline,
+    );
+  }
+
+  @protected
+  PhaseType sse_decode_phase_type(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return PhaseType.values[inner];
+  }
+
+  @protected
+  Room sse_decode_room(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_roomId = sse_decode_Uuid(deserializer);
+    var var_ownerId = sse_decode_Uuid(deserializer);
+    var var_roomName = sse_decode_String(deserializer);
+    var var_roomType = sse_decode_String(deserializer);
+    var var_maxPlayers = sse_decode_i_32(deserializer);
+    var var_roomStatus = sse_decode_game_status(deserializer);
+    var var_autoStartAt = sse_decode_opt_box_autoadd_Chrono_Utc(deserializer);
+    var var_startedByOwner = sse_decode_bool(deserializer);
+    var var_createdAt = sse_decode_Chrono_Utc(deserializer);
+    var var_updatedAt = sse_decode_Chrono_Utc(deserializer);
+    return Room(
+      roomId: var_roomId,
+      ownerId: var_ownerId,
+      roomName: var_roomName,
+      roomType: var_roomType,
+      maxPlayers: var_maxPlayers,
+      roomStatus: var_roomStatus,
+      autoStartAt: var_autoStartAt,
+      startedByOwner: var_startedByOwner,
+      createdAt: var_createdAt,
+      updatedAt: var_updatedAt,
+    );
+  }
+
+  @protected
+  RoomStateSync sse_decode_room_state_sync(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_roomId = sse_decode_Uuid(deserializer);
+    var var_participants = sse_decode_list_participant_info_dto(deserializer);
+    var var_aliveCount = sse_decode_u_32(deserializer);
+    return RoomStateSync(
+      roomId: var_roomId,
+      participants: var_participants,
+      aliveCount: var_aliveCount,
+    );
+  }
+
+  @protected
+  ServerResponse sse_decode_server_response(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_success = sse_decode_bool(deserializer);
+    var var_error = sse_decode_opt_String(deserializer);
+    return ServerResponse(success: var_success, error: var_error);
+  }
+
+  @protected
+  SkillType sse_decode_skill_type(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return SkillType.values[inner];
+  }
+
+  @protected
+  StartGameRequest sse_decode_start_game_request(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_roomId = sse_decode_Uuid(deserializer);
+    return StartGameRequest(roomId: var_roomId);
+  }
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint32();
+  }
+
+  @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getBigUint64();
   }
 
   @protected
@@ -988,16 +2400,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   User sse_decode_user(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_userId = sse_decode_String(deserializer);
+    var var_playerId = sse_decode_Uuid(deserializer);
     var var_username = sse_decode_String(deserializer);
+    var var_email = sse_decode_opt_String(deserializer);
     var var_passwordHash = sse_decode_String(deserializer);
-    var var_createdAt = sse_decode_String(deserializer);
-    var var_lastLogin = sse_decode_opt_String(deserializer);
+    var var_createdAt = sse_decode_Chrono_Utc(deserializer);
+    var var_updatedAt = sse_decode_Chrono_Utc(deserializer);
+    var var_lastLogin = sse_decode_opt_box_autoadd_Chrono_Utc(deserializer);
     return User(
-      userId: var_userId,
+      playerId: var_playerId,
       username: var_username,
+      email: var_email,
       passwordHash: var_passwordHash,
       createdAt: var_createdAt,
+      updatedAt: var_updatedAt,
       lastLogin: var_lastLogin,
     );
   }
@@ -1006,31 +2422,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt sse_decode_usize(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getBigUint64();
-  }
-
-  @protected
-  Vote sse_decode_vote(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_voteId = sse_decode_String(deserializer);
-    var var_roomId = sse_decode_String(deserializer);
-    var var_phaseId = sse_decode_String(deserializer);
-    var var_voterId = sse_decode_String(deserializer);
-    var var_targetId = sse_decode_String(deserializer);
-    var var_createdAt = sse_decode_String(deserializer);
-    return Vote(
-      voteId: var_voteId,
-      roomId: var_roomId,
-      phaseId: var_phaseId,
-      voterId: var_voterId,
-      targetId: var_targetId,
-      createdAt: var_createdAt,
-    );
-  }
-
-  @protected
-  bool sse_decode_bool(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getUint8() != 0;
   }
 
   @protected
@@ -1057,6 +2448,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    Value self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as ValueImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
     Api self,
     SseSerializer serializer,
@@ -1064,6 +2468,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as ApiImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void sse_encode_Chrono_Utc(DateTime self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(
+      PlatformInt64Util.from(self.microsecondsSinceEpoch),
       serializer,
     );
   }
@@ -1082,21 +2495,319 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    Value self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as ValueImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
   }
 
   @protected
+  void sse_encode_Uuid(UuidValue self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_prim_u_8_strict(self.toBytes(), serializer);
+  }
+
+  @protected
+  void sse_encode_bool(bool self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint8(self ? 1 : 0);
+  }
+
+  @protected
+  void
+  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    Value self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+      self,
+      serializer,
+    );
+  }
+
+  @protected
+  void sse_encode_box_autoadd_Chrono_Utc(
+    DateTime self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Chrono_Utc(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_cast_vote_request(
+    CastVoteRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_cast_vote_request(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_chat_entry(
+    ChatEntry self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_chat_entry(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_chat_message(
+    ChatMessage self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_chat_message(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_chat_message_request(
+    ChatMessageRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_chat_message_request(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_game_action(
+    GameAction self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_game_action(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_game_event(
+    GameEvent self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_game_event(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_game_participant(
+    GameParticipant self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_game_participant(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_game_phase_change(
+    GamePhaseChange self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_game_phase_change(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_leave_room_request(
+    LeaveRoomRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_leave_room_request(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_night_action_request(
+    NightActionRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_night_action_request(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_participant_info_dto(
+    ParticipantInfoDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_participant_info_dto(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_room(Room self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_room(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_room_state_sync(
+    RoomStateSync self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_room_state_sync(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_server_response(
+    ServerResponse self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_server_response(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_start_game_request(
+    StartGameRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_start_game_request(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_user(User self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_user(self, serializer);
+  }
+
+  @protected
+  void sse_encode_cast_vote_request(
+    CastVoteRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Uuid(self.roomId, serializer);
+    sse_encode_Uuid(self.targetId, serializer);
+  }
+
+  @protected
+  void sse_encode_chat_entry(ChatEntry self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.senderUsername, serializer);
+    sse_encode_String(self.messageText, serializer);
+    sse_encode_u_64(self.timestamp, serializer);
+  }
+
+  @protected
   void sse_encode_chat_message(ChatMessage self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.messageId, serializer);
-    sse_encode_String(self.roomId, serializer);
-    sse_encode_String(self.senderId, serializer);
-    sse_encode_String(self.senderName, serializer);
-    sse_encode_String(self.message, serializer);
-    sse_encode_String(self.phaseType, serializer);
-    sse_encode_String(self.createdAt, serializer);
+    sse_encode_Uuid(self.messageId, serializer);
+    sse_encode_Uuid(self.gameId, serializer);
+    sse_encode_opt_Uuid(self.phaseId, serializer);
+    sse_encode_opt_Uuid(self.senderId, serializer);
+    sse_encode_String(self.chatScope, serializer);
+    sse_encode_String(self.messageText, serializer);
+    sse_encode_Chrono_Utc(self.createdAt, serializer);
+  }
+
+  @protected
+  void sse_encode_chat_message_request(
+    ChatMessageRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Uuid(self.roomId, serializer);
+    sse_encode_String(self.messageText, serializer);
+  }
+
+  @protected
+  void sse_encode_death_info(DeathInfo self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Uuid(self.playerId, serializer);
+    sse_encode_String(self.username, serializer);
+    sse_encode_String(self.roleName, serializer);
+  }
+
+  @protected
+  void sse_encode_game_action(GameAction self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Uuid(self.actionId, serializer);
+    sse_encode_Uuid(self.gameId, serializer);
+    sse_encode_Uuid(self.phaseId, serializer);
+    sse_encode_Uuid(self.actorId, serializer);
+    sse_encode_opt_Uuid(self.targetId, serializer);
+    sse_encode_String(self.actionType, serializer);
+    sse_encode_opt_String(self.actionResult, serializer);
+    sse_encode_Chrono_Utc(self.createdAt, serializer);
+  }
+
+  @protected
+  void sse_encode_game_event(GameEvent self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_game_event_type(self.eventType, serializer);
+    sse_encode_list_death_info(self.deaths, serializer);
+    sse_encode_opt_String(self.winnerFaction, serializer);
+    sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+      self.extra,
+      serializer,
+    );
+  }
+
+  @protected
+  void sse_encode_game_event_type(
+    GameEventType self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_game_participant(
+    GameParticipant self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Uuid(self.gameParticipantId, serializer);
+    sse_encode_Uuid(self.gameId, serializer);
+    sse_encode_Uuid(self.playerId, serializer);
+    sse_encode_i_32(self.roleId, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.revealedRoleId, serializer);
+    sse_encode_bool(self.isAlive, serializer);
+    sse_encode_i_32(self.seatNumber, serializer);
+    sse_encode_Chrono_Utc(self.joinedAt, serializer);
+    sse_encode_opt_box_autoadd_Chrono_Utc(self.diedAt, serializer);
+    sse_encode_opt_String(self.deathReason, serializer);
+  }
+
+  @protected
+  void sse_encode_game_phase_change(
+    GamePhaseChange self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_phase_type(self.phase, serializer);
+    sse_encode_u_32(self.dayNumber, serializer);
+    sse_encode_u_32(self.durationSecs, serializer);
+    sse_encode_u_64(self.serverTimestamp, serializer);
+    sse_encode_opt_list_chat_entry(self.nightChatHistory, serializer);
+  }
+
+  @protected
+  void sse_encode_game_status(GameStatus self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
@@ -1106,11 +2817,62 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putPlatformInt64(self);
+  }
+
+  @protected
+  void sse_encode_leave_room_request(
+    LeaveRoomRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Uuid(self.roomId, serializer);
+  }
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_String(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_chat_entry(
+    List<ChatEntry> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_chat_entry(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_death_info(
+    List<DeathInfo> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_death_info(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_participant_info_dto(
+    List<ParticipantInfoDto> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_participant_info_dto(item, serializer);
     }
   }
 
@@ -1125,6 +2887,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_night_action_request(
+    NightActionRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Uuid(self.roomId, serializer);
+    sse_encode_skill_type(self.actionType, serializer);
+    sse_encode_opt_Uuid(self.targetId, serializer);
+  }
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -1132,6 +2905,151 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (self != null) {
       sse_encode_String(self, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_opt_Uuid(UuidValue? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_Uuid(self, serializer);
+    }
+  }
+
+  @protected
+  void
+  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+    Value? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+        self,
+        serializer,
+      );
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_Chrono_Utc(
+    DateTime? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_Chrono_Utc(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_i_32(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_list_chat_entry(
+    List<ChatEntry>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_chat_entry(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_participant_info_dto(
+    ParticipantInfoDto self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Uuid(self.playerId, serializer);
+    sse_encode_String(self.username, serializer);
+    sse_encode_bool(self.isAlive, serializer);
+    sse_encode_i_32(self.seatNumber, serializer);
+    sse_encode_bool(self.isOnline, serializer);
+  }
+
+  @protected
+  void sse_encode_phase_type(PhaseType self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_room(Room self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Uuid(self.roomId, serializer);
+    sse_encode_Uuid(self.ownerId, serializer);
+    sse_encode_String(self.roomName, serializer);
+    sse_encode_String(self.roomType, serializer);
+    sse_encode_i_32(self.maxPlayers, serializer);
+    sse_encode_game_status(self.roomStatus, serializer);
+    sse_encode_opt_box_autoadd_Chrono_Utc(self.autoStartAt, serializer);
+    sse_encode_bool(self.startedByOwner, serializer);
+    sse_encode_Chrono_Utc(self.createdAt, serializer);
+    sse_encode_Chrono_Utc(self.updatedAt, serializer);
+  }
+
+  @protected
+  void sse_encode_room_state_sync(
+    RoomStateSync self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Uuid(self.roomId, serializer);
+    sse_encode_list_participant_info_dto(self.participants, serializer);
+    sse_encode_u_32(self.aliveCount, serializer);
+  }
+
+  @protected
+  void sse_encode_server_response(
+    ServerResponse self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.success, serializer);
+    sse_encode_opt_String(self.error, serializer);
+  }
+
+  @protected
+  void sse_encode_skill_type(SkillType self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_start_game_request(
+    StartGameRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Uuid(self.roomId, serializer);
+  }
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint32(self);
+  }
+
+  @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putBigUint64(self);
   }
 
   @protected
@@ -1148,34 +3066,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_user(User self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.userId, serializer);
+    sse_encode_Uuid(self.playerId, serializer);
     sse_encode_String(self.username, serializer);
+    sse_encode_opt_String(self.email, serializer);
     sse_encode_String(self.passwordHash, serializer);
-    sse_encode_String(self.createdAt, serializer);
-    sse_encode_opt_String(self.lastLogin, serializer);
+    sse_encode_Chrono_Utc(self.createdAt, serializer);
+    sse_encode_Chrono_Utc(self.updatedAt, serializer);
+    sse_encode_opt_box_autoadd_Chrono_Utc(self.lastLogin, serializer);
   }
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
-  }
-
-  @protected
-  void sse_encode_vote(Vote self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.voteId, serializer);
-    sse_encode_String(self.roomId, serializer);
-    sse_encode_String(self.phaseId, serializer);
-    sse_encode_String(self.voterId, serializer);
-    sse_encode_String(self.targetId, serializer);
-    sse_encode_String(self.createdAt, serializer);
-  }
-
-  @protected
-  void sse_encode_bool(bool self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putUint8(self ? 1 : 0);
   }
 }
 
@@ -1198,16 +3101,33 @@ class ApiImpl extends RustOpaque implements Api {
         RustLib.instance.api.rust_arc_decrement_strong_count_ApiPtr,
   );
 
-  Future<Vote> castVote({
-    required String roomId,
-    required String voterId,
-    required String targetId,
-  }) => RustLib.instance.api.crateApiApiCastVote(
+  Future<String> acceptInvite({required String inviteCode}) => RustLib
+      .instance
+      .api
+      .crateApiApiAcceptInvite(that: this, inviteCode: inviteCode);
+
+  Future<String> addGameAction({
+    required String actorId,
+    String? targetId,
+    required String actionType,
+  }) => RustLib.instance.api.crateApiApiAddGameAction(
     that: this,
-    roomId: roomId,
-    voterId: voterId,
+    actorId: actorId,
     targetId: targetId,
+    actionType: actionType,
   );
+
+  /// Cast a vote during the Day phase.
+  Future<String> castVote({required String roomId, required String targetId}) =>
+      RustLib.instance.api.crateApiApiCastVote(
+        that: this,
+        roomId: roomId,
+        targetId: targetId,
+      );
+
+  /// Connect to the Rust Backend via Binary TCP (SRS 3.1.4.1.1.2)
+  Future<String> connectToServer({required String addr}) =>
+      RustLib.instance.api.crateApiApiConnectToServer(that: this, addr: addr);
 
   Future<String> createRoom({
     required String roomName,
@@ -1218,9 +3138,55 @@ class ApiImpl extends RustOpaque implements Api {
     maxPlayers: maxPlayers,
   );
 
+  Future<String> declineInvite({required String inviteCode}) => RustLib
+      .instance
+      .api
+      .crateApiApiDeclineInvite(that: this, inviteCode: inviteCode);
+
+  /// Internal use only: Ensures FRB generates Dart classes for these types.
+  Future<void> dummyTypes({
+    required User u,
+    required Room r,
+    required GameParticipant p,
+    required ChatMessage cm,
+    required GameAction ga,
+    required ChatEntry ce,
+    required RoomStateSync rss,
+    required GamePhaseChange gpc,
+    required GameEvent ge,
+    required ServerResponse sr,
+    required StartGameRequest sq,
+    required CastVoteRequest vq,
+    required NightActionRequest nq,
+    required ChatMessageRequest cq,
+    required LeaveRoomRequest lq,
+    required ParticipantInfoDto pd,
+    Value? v,
+  }) => RustLib.instance.api.crateApiApiDummyTypes(
+    that: this,
+    u: u,
+    r: r,
+    p: p,
+    cm: cm,
+    ga: ga,
+    ce: ce,
+    rss: rss,
+    gpc: gpc,
+    ge: ge,
+    sr: sr,
+    sq: sq,
+    vq: vq,
+    nq: nq,
+    cq: cq,
+    lq: lq,
+    pd: pd,
+    v: v,
+  );
+
   Future<String> forceNextPhase() =>
       RustLib.instance.api.crateApiApiForceNextPhase(that: this);
 
+  /// Get current game state summary. Stub — actual state is managed server-side.
   Future<String> getGameState() =>
       RustLib.instance.api.crateApiApiGetGameState(that: this);
 
@@ -1230,7 +3196,9 @@ class ApiImpl extends RustOpaque implements Api {
   Future<String> joinRoom({required String hostIp}) =>
       RustLib.instance.api.crateApiApiJoinRoom(that: this, hostIp: hostIp);
 
-  /// Stub: auth is handled by HTTP POST /auth/login
+  Future<String> leaveRoom({required String roomId}) =>
+      RustLib.instance.api.crateApiApiLeaveRoom(that: this, roomId: roomId);
+
   Future<User> login({required String username, required String password}) =>
       RustLib.instance.api.crateApiApiLogin(
         that: this,
@@ -1246,28 +3214,37 @@ class ApiImpl extends RustOpaque implements Api {
         password: password,
       );
 
-  Future<ChatMessage> sendMessage({
+  /// Execute Custom Binary Authentication (SRS 3.1.4.4)
+  Future<String> sendLogin({
+    required String username,
+    required String password,
+  }) => RustLib.instance.api.crateApiApiSendLogin(
+    that: this,
+    username: username,
+    password: password,
+  );
+
+  /// Send a chat message.
+  Future<String> sendMessage({
     required String roomId,
-    required String userId,
-    required String message,
+    required String messageText,
   }) => RustLib.instance.api.crateApiApiSendMessage(
     that: this,
     roomId: roomId,
-    userId: userId,
-    message: message,
+    messageText: messageText,
   );
 
-  /// Start the game engine for a specific room
   Future<String> startGame({required String roomId}) =>
       RustLib.instance.api.crateApiApiStartGame(that: this, roomId: roomId);
 
+  /// Submit a night/day action.
   Future<String> submitAction({
-    required String actorId,
-    required String actionType,
+    required String roomId,
+    required SkillType actionType,
     String? targetId,
   }) => RustLib.instance.api.crateApiApiSubmitAction(
     that: this,
-    actorId: actorId,
+    roomId: roomId,
     actionType: actionType,
     targetId: targetId,
   );
@@ -1278,13 +3255,32 @@ class ApiImpl extends RustOpaque implements Api {
   /// Stub: DB is server-side only
   Future<String> testDb() => RustLib.instance.api.crateApiApiTestDb(that: this);
 
-  /// Stub: profile updates not yet implemented
   Future<void> updateUsername({
-    required String userId,
+    required String playerId,
     required String newUsername,
   }) => RustLib.instance.api.crateApiApiUpdateUsername(
     that: this,
-    userId: userId,
+    playerId: playerId,
     newUsername: newUsername,
+  );
+}
+
+@sealed
+class ValueImpl extends RustOpaque implements Value {
+  // Not to be used by end users
+  ValueImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  ValueImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_Value,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_Value,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_ValuePtr,
   );
 }

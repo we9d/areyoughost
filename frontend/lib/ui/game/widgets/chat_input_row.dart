@@ -88,12 +88,7 @@ class _ChatInputRowState extends State<ChatInputRow> {
                     PhosphorIcons.maskHappy(),
                     color: Colors.white,
                   ),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => RolesDialog(),
-                    );
-                  },
+                  onPressed: widget.onRoleInfoTap,
                 ),
 
                 const SizedBox(width: 6),

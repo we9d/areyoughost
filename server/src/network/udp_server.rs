@@ -2,7 +2,7 @@ use tokio::net::UdpSocket;
 use tracing::{info, error};
 use std::sync::Arc;
 use crate::state::manager::AppState;
-use super::protocol::MessageType;
+use areyoughost_core::network::message::MessageType;
 
 pub async fn start_udp_server(_state: Arc<AppState>, port: u16) {
     let addr = format!("0.0.0.0:{}", port);
@@ -20,7 +20,7 @@ pub async fn start_udp_server(_state: Arc<AppState>, port: u16) {
                             continue;
                         }
 
-                        let msg_type = MessageType::from(buf[0]);
+                        let msg_type = MessageType::from_byte(buf[0]).unwrap_or(MessageType::Error);
                         
                         // Extract exactly 16 bytes for UUID
                         let uuid_bytes: [u8; 16] = buf[1..17].try_into().unwrap_or_default();

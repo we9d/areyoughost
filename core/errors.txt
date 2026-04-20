@@ -1,0 +1,118 @@
+    Checking areyoughost_core v0.1.0 (D:\AreYouGhost\areyoughost\core)
+warning: unused import: `crate::db::postgres::PostgresDb`
+  --> core\src\api.rs:12:5
+   |
+12 | use crate::db::postgres::PostgresDb;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0277]: the `?` operator can only be applied to values that implement `Try`
+   --> core\src\frb_generated.rs:426:29
+    |
+426 | ...                   crate::api::Api::login(&*api_that_guard, api_username, api_password)?;
+    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the `?` operator cannot be applied to type `impl std::future::Future<Output = Result<models::User, anyhow::Error>>`
+    |
+    = help: the trait `Try` is not implemented for `impl std::future::Future<Output = Result<models::User, anyhow::Error>>`
+note: this implements `Future` and its output type supports `?`, but the future cannot be awaited in a synchronous function
+   --> core\src\frb_generated.rs:426:97
+    |
+410 |                     (move || {
+    |                      ------- this is not `async`
+...
+426 |                             crate::api::Api::login(&*api_that_guard, api_username, api_password)?;
+    |                                                                                                 ^
+
+error: this function depends on never type fallback being `()`
+   --> core\src\frb_generated.rs:380:1
+    |
+380 | / fn wire__crate__api__Api_login_impl(
+381 | |     port_: flutter_rust_bridge::for_generated::MessagePort,
+382 | |     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+383 | |     rust_vec_len_: i32,
+384 | |     data_len_: i32,
+385 | | ) {
+    | |_^
+    |
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in Rust 2024 and in a future release in all editions!
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/never-type-fallback.html>
+    = help: specify the types explicitly
+note: in edition 2024, the requirement `!: SseEncode` will fail
+   --> core\src\frb_generated.rs:409:40
+    |
+409 |                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+    |                                        ^
+    = note: `#[deny(dependency_on_unit_never_type_fallback)]` (part of `#[deny(rust_2024_compatibility)]`) on by default
+help: use `()` annotations to avoid fallback changes
+    |
+409 -                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+409 +                 transform_result_sse::<(), flutter_rust_bridge::for_generated::anyhow::Error>(
+    |
+
+error[E0277]: the `?` operator can only be applied to values that implement `Try`
+   --> core\src\frb_generated.rs:512:41
+    |
+512 |                           let output_ok = crate::api::Api::register(
+    |  _________________________________________^
+513 | |                             &*api_that_guard,
+514 | |                             api_username,
+515 | |                             api_password,
+516 | |                         )?;
+    | |__________________________^ the `?` operator cannot be applied to type `impl std::future::Future<Output = Result<models::User, anyhow::Error>>`
+    |
+    = help: the trait `Try` is not implemented for `impl std::future::Future<Output = Result<models::User, anyhow::Error>>`
+note: this implements `Future` and its output type supports `?`, but the future cannot be awaited in a synchronous function
+   --> core\src\frb_generated.rs:516:26
+    |
+497 |                     (move || {
+    |                      ------- this is not `async`
+...
+516 |                         )?;
+    |                          ^
+
+error: this function depends on never type fallback being `()`
+   --> core\src\frb_generated.rs:467:1
+    |
+467 | / fn wire__crate__api__Api_register_impl(
+468 | |     port_: flutter_rust_bridge::for_generated::MessagePort,
+469 | |     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+470 | |     rust_vec_len_: i32,
+471 | |     data_len_: i32,
+472 | | ) {
+    | |_^
+    |
+    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in Rust 2024 and in a future release in all editions!
+    = note: for more information, see <https://doc.rust-lang.org/edition-guide/rust-2024/never-type-fallback.html>
+    = help: specify the types explicitly
+note: in edition 2024, the requirement `!: SseEncode` will fail
+   --> core\src\frb_generated.rs:496:40
+    |
+496 |                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+    |                                        ^
+help: use `()` annotations to avoid fallback changes
+    |
+496 -                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+496 +                 transform_result_sse::<(), flutter_rust_bridge::for_generated::anyhow::Error>(
+    |
+
+warning: variable does not need to be mutable
+   --> core\src\api.rs:267:13
+    |
+267 |         let mut role_iter = roles.into_iter();
+    |             ----^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `role_iter`
+   --> core\src\api.rs:267:13
+    |
+267 |         let mut role_iter = roles.into_iter();
+    |             ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_role_iter`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+For more information about this error, try `rustc --explain E0277`.
+warning: `areyoughost_core` (lib) generated 3 warnings
+error: could not compile `areyoughost_core` (lib) due to 6 previous errors; 3 warnings emitted

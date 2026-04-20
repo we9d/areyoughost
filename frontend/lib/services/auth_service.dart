@@ -99,6 +99,7 @@ class AuthService {
     final hashedPassword = hashPassword(password);
 
     try {
+      await RustApi.instance.connectServer(ip: "127.0.0.1:3001");
       final user = await RustApi.instance.login(
         username: username,
         password: hashedPassword,
@@ -143,6 +144,7 @@ class AuthService {
     final hashedPassword = hashPassword(password);
 
     try {
+      await RustApi.instance.connectServer(ip: "127.0.0.1:3001");
       final user = await RustApi.instance.register(
         username: username,
         password: hashedPassword,

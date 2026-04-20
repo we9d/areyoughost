@@ -65,7 +65,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1105343733;
+  int get rustContentHash => -565906177;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -81,6 +81,11 @@ abstract class RustLibApi extends BaseApi {
     required String roomId,
     required String voterId,
     required String targetId,
+  });
+
+  Future<void> crateApiApiConnectServer({
+    required Api that,
+    required String ip,
   });
 
   Future<String> crateApiApiCreateRoom({
@@ -107,6 +112,8 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<Api> crateApiApiNew({required String databaseUrl});
+
+  Future<Api> crateApiApiNewWithDb({required String databaseUrl});
 
   Future<User> crateApiApiRegister({
     required Api that,
@@ -200,6 +207,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<void> crateApiApiConnectServer({
+    required Api that,
+    required String ip,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi(
+            that,
+            serializer,
+          );
+          sse_encode_String(ip, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiApiConnectServerConstMeta,
+        argValues: [that, ip],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiApiConnectServerConstMeta => const TaskConstMeta(
+    debugName: "Api_connect_server",
+    argNames: ["that", "ip"],
+  );
+
+  @override
   Future<String> crateApiApiCreateRoom({
     required Api that,
     required String roomName,
@@ -218,7 +262,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 3,
             port: port_,
           );
         },
@@ -251,7 +295,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 4,
             port: port_,
           );
         },
@@ -284,7 +328,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 5,
             port: port_,
           );
         },
@@ -315,7 +359,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
@@ -350,7 +394,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 7,
             port: port_,
           );
         },
@@ -389,7 +433,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -419,7 +463,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -437,6 +481,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiApiNewConstMeta =>
       const TaskConstMeta(debugName: "Api_new", argNames: ["databaseUrl"]);
+
+  @override
+  Future<Api> crateApiApiNewWithDb({required String databaseUrl}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(databaseUrl, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 10,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerApi,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiApiNewWithDbConstMeta,
+        argValues: [databaseUrl],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiApiNewWithDbConstMeta => const TaskConstMeta(
+    debugName: "Api_new_with_db",
+    argNames: ["databaseUrl"],
+  );
 
   @override
   Future<User> crateApiApiRegister({
@@ -457,7 +532,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 11,
             port: port_,
           );
         },
@@ -498,7 +573,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 12,
             port: port_,
           );
         },
@@ -535,7 +610,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 13,
             port: port_,
           );
         },
@@ -576,7 +651,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 14,
             port: port_,
           );
         },
@@ -609,7 +684,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 15,
             port: port_,
           );
         },
@@ -640,7 +715,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 16,
             port: port_,
           );
         },
@@ -677,7 +752,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 17,
             port: port_,
           );
         },
@@ -1176,6 +1251,10 @@ class ApiImpl extends RustOpaque implements Api {
     targetId: targetId,
   );
 
+  /// Initialize the Raw TCP Connection to the server
+  Future<void> connectServer({required String ip}) =>
+      RustLib.instance.api.crateApiApiConnectServer(that: this, ip: ip);
+
   Future<String> createRoom({
     required String roomName,
     required int maxPlayers,
@@ -1197,7 +1276,7 @@ class ApiImpl extends RustOpaque implements Api {
   Future<String> joinRoom({required String hostIp}) =>
       RustLib.instance.api.crateApiApiJoinRoom(that: this, hostIp: hostIp);
 
-  /// User authentication
+  /// Raw TCP Protocol Login
   Future<User> login({required String username, required String password}) =>
       RustLib.instance.api.crateApiApiLogin(
         that: this,
@@ -1205,7 +1284,7 @@ class ApiImpl extends RustOpaque implements Api {
         password: password,
       );
 
-  /// User registration
+  /// Raw TCP Protocol Register
   Future<User> register({required String username, required String password}) =>
       RustLib.instance.api.crateApiApiRegister(
         that: this,
@@ -1242,10 +1321,10 @@ class ApiImpl extends RustOpaque implements Api {
   Future<String> testConnection() =>
       RustLib.instance.api.crateApiApiTestConnection(that: this);
 
-  /// Test database connection
+  /// Stub: DB is server-side only
   Future<String> testDb() => RustLib.instance.api.crateApiApiTestDb(that: this);
 
-  /// Update username
+  /// Stub: profile updates not yet implemented
   Future<void> updateUsername({
     required String userId,
     required String newUsername,

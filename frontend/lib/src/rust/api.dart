@@ -15,6 +15,9 @@ abstract class Api implements RustOpaqueInterface {
     required String targetId,
   });
 
+  /// Initialize the Raw TCP Connection to the server
+  Future<void> connectServer({required String ip});
+
   Future<String> createRoom({
     required String roomName,
     required int maxPlayers,
@@ -28,14 +31,19 @@ abstract class Api implements RustOpaqueInterface {
 
   Future<String> joinRoom({required String hostIp});
 
-  /// User authentication
+  /// Raw TCP Protocol Login
   Future<User> login({required String username, required String password});
 
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
+  /// Create a new Api instance. The database_url is ignored — DB is managed by the HTTP server.
   static Future<Api> newInstance({required String databaseUrl}) =>
       RustLib.instance.api.crateApiApiNew(databaseUrl: databaseUrl);
 
-  /// User registration
+  /// Compatibility constructor used by Flutter bridge (database_url ignored — auth is HTTP-only now)
+  static Future<Api> newWithDb({required String databaseUrl}) =>
+      RustLib.instance.api.crateApiApiNewWithDb(databaseUrl: databaseUrl);
+
+  /// Raw TCP Protocol Register
   Future<User> register({required String username, required String password});
 
   Future<ChatMessage> sendMessage({
@@ -55,10 +63,10 @@ abstract class Api implements RustOpaqueInterface {
 
   Future<String> testConnection();
 
-  /// Test database connection
+  /// Stub: DB is server-side only
   Future<String> testDb();
 
-  /// Update username
+  /// Stub: profile updates not yet implemented
   Future<void> updateUsername({
     required String userId,
     required String newUsername,

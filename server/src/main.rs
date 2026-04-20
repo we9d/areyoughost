@@ -14,6 +14,7 @@ mod auth;
 mod routes;
 mod state;
 mod ws;
+mod raw_tcp;
 
 use routes::health::health_check;
 use routes::auth::{login, register};
@@ -86,7 +87,7 @@ async fn main() {
         // WebSocket
         .route("/ws", get(ws::ws_handler))
         .layer(CorsLayer::permissive())
-        .with_state(state);
+        .with_state(state.clone());
 
     // ── Bind and serve ────────────────────────────────────────────
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
@@ -94,6 +95,12 @@ async fn main() {
     tracing::info!("POST /auth/register  — create account");
     tracing::info!("POST /auth/login     — get JWT");
     tracing::info!("WS   /ws             — WebSocket (auth.hello required)");
+    tracing::info!("Raw TCP Protocol     — 3001");
+
+    let tcp_state = state.clone();
+    tokio::spawn(async move {
+        raw_tcp::start_raw_tcp_server(tcp_state).await;
+    });
 
     let listener = TcpListener::bind(addr)
         .await

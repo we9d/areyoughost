@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:areyoughost/services/session_manager.dart';
@@ -96,36 +97,52 @@ class AuthService {
       return {'success': false, 'error': passwordError};
     }
 
-    final hashedPassword = hashPassword(password);
-
     try {
-      await RustApi.instance.connectServer(ip: "127.0.0.1:3001");
-      final user = await RustApi.instance.login(
-        username: username,
-        password: hashedPassword,
+      final response = await http.post(
+        Uri.parse('http://localhost:3000/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': username,
+          'password': password, // The server handles hashing
+        }),
       );
 
-      // Login successful
-      final userId = user.userId;
+      final data = jsonDecode(response.body);
 
-      // Save session
-      await SessionManager.saveSession(userId: userId, username: user.username);
+      if (response.statusCode == 200) {
+        // Login successful
+        final userId = data['player']['id'];
+        final uname = data['player']['username'];
+        final token = data['accessToken'];
+        
+        // Save session
+        await SessionManager.saveSession(userId: userId, username: uname, token: token);
+        
+        // Store Token (optional: expand SessionManager to hold JWT)
+        // await SessionManager.saveToken(token);
 
-      // Update state
-      currentUser.value = user;
+        // Update state
+        currentUser.value = User(
+          userId: userId,
+          username: uname,
+          passwordHash: '',
+          createdAt: '',
+          lastLogin: null,
+        );
 
-      return {'success': true, 'userId': userId, 'username': user.username};
+        return {'success': true, 'userId': userId, 'username': uname, 'token': token};
+      } else {
+        return {'success': false, 'error': data['error'] ?? 'Login failed'};
+      }
     } catch (e) {
-      return {
-        'success': false,
-        'error': e.toString().replaceAll('Exception: ', ''),
-      };
+      return {'success': false, 'error': 'Cannot connect to server'};
     }
   }
 
   // Register function
   static Future<Map<String, dynamic>> register({
     required String username,
+    required String email,
     required String password,
   }) async {
     // Validate username
@@ -134,36 +151,53 @@ class AuthService {
       return {'success': false, 'error': usernameError};
     }
 
+    // Validate email
+    if (email.trim().isEmpty) {
+        return {'success': false, 'error': 'กรุณากรอกอีเมล'};
+    }
+
     // Validate password
     final passwordError = validatePassword(password);
     if (passwordError != null) {
       return {'success': false, 'error': passwordError};
     }
 
-    // Hash password
-    final hashedPassword = hashPassword(password);
-
     try {
-      await RustApi.instance.connectServer(ip: "127.0.0.1:3001");
-      final user = await RustApi.instance.register(
-        username: username,
-        password: hashedPassword,
+      final response = await http.post(
+        Uri.parse('http://localhost:3000/auth/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': username,
+          'email': email,
+          'password': password, // The server handles hashing
+        }),
       );
 
-      final userId = user.userId;
+      final data = jsonDecode(response.body);
 
-      // Save session
-      await SessionManager.saveSession(userId: userId, username: user.username);
+      if (response.statusCode == 201) {
+        // Register successful
+        final userId = data['player']['id'];
+        final uname = data['player']['username'];
 
-      // Update state
-      currentUser.value = user;
+        // Save session
+        await SessionManager.saveSession(userId: userId, username: uname);
 
-      return {'success': true, 'userId': userId, 'username': user.username};
+        // Update state
+        currentUser.value = User(
+          userId: userId,
+          username: uname,
+          passwordHash: '',
+          createdAt: '',
+          lastLogin: null,
+        );
+
+        return {'success': true, 'userId': userId, 'username': uname};
+      } else {
+        return {'success': false, 'error': data['error'] ?? 'Registration failed'};
+      }
     } catch (e) {
-      return {
-        'success': false,
-        'error': e.toString().replaceAll('Exception: ', ''),
-      };
+      return {'success': false, 'error': 'Cannot connect to server'};
     }
   }
 

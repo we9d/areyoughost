@@ -31,7 +31,7 @@ abstract class Api implements RustOpaqueInterface {
 
   Future<String> joinRoom({required String hostIp});
 
-  /// Raw TCP Protocol Login
+  /// Stub: auth is handled by HTTP POST /auth/login
   Future<User> login({required String username, required String password});
 
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
@@ -43,7 +43,7 @@ abstract class Api implements RustOpaqueInterface {
   static Future<Api> newWithDb({required String databaseUrl}) =>
       RustLib.instance.api.crateApiApiNewWithDb(databaseUrl: databaseUrl);
 
-  /// Raw TCP Protocol Register
+  /// Stub: auth is handled by HTTP POST /auth/register
   Future<User> register({required String username, required String password});
 
   Future<ChatMessage> sendMessage({

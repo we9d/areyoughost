@@ -17,8 +17,10 @@ import 'package:areyoughost/theme/app_theme.dart';
 // removed unused import of GameScreen to avoid unresolved URI during analysis
 import 'package:areyoughost/ui/widgets/mobile_wrapper.dart';
 import 'package:areyoughost/services/auth_service.dart';
+import 'package:areyoughost/services/ws_service.dart';
+import 'package:areyoughost/services/invite_store.dart';
 import 'package:areyoughost/ui/home/home.dart';
-import 'package:areyoughost/services/rust_api.dart';
+import 'package:areyoughost/ui/game/game_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,8 +50,29 @@ Future<void> main() async {
 }
 
 /// Main application widget
-class AreYouGhostApp extends StatelessWidget {
+class AreYouGhostApp extends StatefulWidget {
   const AreYouGhostApp({super.key});
+
+  @override
+  State<AreYouGhostApp> createState() => _AreYouGhostAppState();
+}
+
+class _AreYouGhostAppState extends State<AreYouGhostApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Listen globally for invite.received events from any WS connection
+    WsService.instance.stream.listen((msg) {
+      if (msg['type'] == 'invite.received') {
+        final payload = msg['payload'] as Map<String, dynamic>? ?? {};
+        InviteStore.instance.add(PendingInvite(
+          inviteCode: payload['inviteCode'] as String? ?? '',
+          fromPlayerId: payload['fromPlayerId'] as String? ?? '',
+          fromUsername: payload['fromUsername'] as String? ?? 'เพื่อน',
+        ));
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +84,10 @@ class AreYouGhostApp extends StatelessWidget {
       builder: (context, child) {
         return MobileWrapper(child: child!);
       },
-      home: const HomeScreen(),
+
+      /// เปิดเกมตรงไปที่ GameScreen
+      home: const HomeScreen(
+      ),
     );
   }
 }

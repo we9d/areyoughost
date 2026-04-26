@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 
 class AcceptInviteButton extends StatelessWidget {
   final VoidCallback onPressed;
+  final String label;
 
   const AcceptInviteButton({
     super.key,
     required this.onPressed,
+    this.label = 'ยอมรับ',
   });
 
   @override
@@ -24,9 +26,9 @@ class AcceptInviteButton extends StatelessWidget {
         stops: [0.0, 1.5],
       ),
       onPressed: onPressed,
-      child: const Text(
-        'ยอมรับ',
-        style: TextStyle(
+      child: Text(
+        label,
+        style: const TextStyle(
           color: Colors.black,
           fontSize: 20,
           fontWeight: FontWeight.bold,

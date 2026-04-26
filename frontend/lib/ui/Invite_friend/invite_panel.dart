@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
+import 'package:areyoughost/services/auth_service.dart';
+import 'package:areyoughost/services/invite_store.dart';
 import 'package:areyoughost/services/ws_service.dart';
 
 /// Bottom sheet invite panel — shown from WaitingRoomScreen for the host.
@@ -15,6 +18,7 @@ class InvitePanel extends StatefulWidget {
 class _InvitePanelState extends State<InvitePanel> {
   final _friendIdController = TextEditingController();
   bool _sent = false;
+  bool _sending = false;
   String? _error;
 
   @override
@@ -23,14 +27,65 @@ class _InvitePanelState extends State<InvitePanel> {
     super.dispose();
   }
 
-  void _sendInvite() {
+  Future<void> _sendInvite() async {
     final friendId = _friendIdController.text.trim();
     if (friendId.isEmpty) {
       setState(() => _error = 'กรุณากรอก ID เพื่อน');
       return;
     }
-    WsService.instance.sendInvite(friendId, widget.inviteCode);
-    setState(() {_sent = true; _error = null;});
+
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+
+    try {
+      final msg = await WsService.instance.sendInviteAndWait(friendId, widget.inviteCode);
+      if (!mounted) return;
+
+      if (msg['type'] == 'invite.sent') {
+        setState(() {
+          _sent = true;
+          _sending = false;
+          _error = null;
+        });
+        return;
+      }
+
+      final payload = msg['payload'];
+      final code = payload is Map ? payload['code'] as String? : null;
+      final message = payload is Map ? payload['message'] as String? : null;
+
+      // Dev helper: if friend is offline, allow local simulation for UI development.
+      if (kDebugMode && code == 'FRIEND_NOT_ONLINE') {
+        final me = AuthService.currentUser.value;
+        final simulatedCode = 'SIM-${DateTime.now().millisecondsSinceEpoch}';
+        InviteStore.instance.add(
+          PendingInvite(
+            inviteCode: simulatedCode,
+            fromPlayerId: me?.userId ?? 'debug-self',
+            fromUsername: me?.username ?? 'ผู้เล่นทดสอบ',
+          ),
+        );
+        setState(() {
+          _sent = true;
+          _sending = false;
+          _error = 'โหมดพัฒนา: จำลองการส่งคำเชิญแล้ว';
+        });
+        return;
+      }
+
+      setState(() {
+        _sending = false;
+        _error = message?.isNotEmpty == true ? message : 'ส่งคำเชิญไม่สำเร็จ';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _sending = false;
+        _error = 'ส่งคำเชิญไม่สำเร็จ (หมดเวลารอการตอบกลับ)';
+      });
+    }
   }
 
   @override
@@ -147,7 +202,7 @@ class _InvitePanelState extends State<InvitePanel> {
               ),
               const SizedBox(width: 12),
               ElevatedButton(
-                onPressed: _sent ? null : _sendInvite,
+                onPressed: (_sent || _sending) ? null : _sendInvite,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF7C3AED),
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -156,7 +211,7 @@ class _InvitePanelState extends State<InvitePanel> {
                   ),
                 ),
                 child: Text(
-                  _sent ? '✓' : 'ส่ง',
+                  _sending ? '...' : (_sent ? '✓' : 'ส่ง'),
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
               ),

@@ -6,7 +6,8 @@ use futures::{SinkExt, StreamExt};
 use serde_json::json;
 use tokio::sync::mpsc;
 
-use crate::auth::verify_jwt;
+use crate::session_auth::authenticate_first_message;
+use crate::persistence::insert_match_event;
 use crate::state::manager::AppState;
 
 pub mod messages;
@@ -35,7 +36,7 @@ pub async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     });
 
     // ── Phase 3: verify JWT before allowing any other message ─────
-    let (player_id, username) = match wait_for_auth(&mut receiver, &tx, &state.jwt_secret).await {
+    let (player_id, username) = match wait_for_auth(&mut receiver, &tx, &state).await {
         Some(claims) => (claims.0, claims.1),
         None => {
             tracing::warn!("Connection closed before authentication");
@@ -45,17 +46,42 @@ pub async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
     tracing::info!("Player '{}' (id={}) authenticated via JWT", username, player_id);
 
-    // Register connection
+    // Register/replace active connection for this player.
+    // Single-session ownership: latest authenticated socket wins.
     state.connections.insert(player_id.clone(), tx.clone());
+    let resumed = state.consume_pending_disconnect(&player_id);
+    let resume_token = state.issue_resume_token(&player_id);
 
     // Confirm auth success
     let _ = tx.send(Message::Text(
         serde_json::to_string(&ServerMessage::new(
             "auth.ok",
-            json!({ "playerId": player_id, "username": username }),
+            json!({
+                "playerId": player_id,
+                "username": username,
+                "resumeToken": resume_token
+            }),
         ))
         .unwrap(),
     ));
+    if resumed {
+        let _ = tx.send(Message::Text(
+            serde_json::to_string(&ServerMessage::new(
+                "session.resumed",
+                json!({ "playerId": player_id }),
+            ))
+            .unwrap(),
+        ));
+
+        // Send latest room snapshot to help client resync quickly.
+        if let Some(room_id) = state.player_rooms.get(&player_id).map(|r| r.clone()) {
+            if let Some(room_state) = state.get_room_state(&room_id) {
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::new("room.state", room_state)).unwrap(),
+                ));
+            }
+        }
+    }
 
     // ── Main message loop ─────────────────────────────────────────
     while let Some(msg) = receiver.next().await {
@@ -91,7 +117,7 @@ pub async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     }
 
     // ── Cleanup ───────────────────────────────────────────────────
-    tracing::info!("Cleaning up connection for player '{}'", player_id);
+    tracing::info!("Connection closed for player '{}'", player_id);
     state.connections.remove(&player_id);
 
     {
@@ -99,20 +125,9 @@ pub async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         queue.retain(|id| id != &player_id);
     }
 
-    if let Some(room_id) = state.leave_room(&player_id).await {
-        // Broadcast that player left to the rest of the room
-        let left_msg = ServerMessage::new(
-            "room.player_left",
-            serde_json::json!({ "playerId": player_id }),
-        );
-        state.broadcast_to_room(&room_id, &serde_json::to_string(&left_msg).unwrap());
-
-        // Broadcast updated room state
-        if let Some(room_state) = state.get_room_state(&room_id) {
-            let state_msg = ServerMessage::new("room.state", room_state);
-            state.broadcast_to_room(&room_id, &serde_json::to_string(&state_msg).unwrap());
-        }
-    }
+    // Do not immediately remove room membership on network drops.
+    // Start grace window; leave-room will be finalized only if no reconnect.
+    state.mark_pending_disconnect(&player_id);
 
     send_task.abort();
 }
@@ -122,51 +137,14 @@ pub async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 async fn wait_for_auth(
     receiver: &mut futures::stream::SplitStream<WebSocket>,
     tx: &mpsc::UnboundedSender<Message>,
-    jwt_secret: &str,
+    state: &Arc<AppState>,
 ) -> Option<(String, String)> {
     match receiver.next().await {
         Some(Ok(Message::Text(text))) => {
-            match serde_json::from_str::<ClientMessage>(&text) {
-                Ok(msg) if msg.msg_type == "auth.hello" => {
-                    // Extract token from payload
-                    let token = match msg.payload.get("token").and_then(|v| v.as_str()) {
-                        Some(t) => t.to_string(),
-                        None => {
-                            let _ = tx.send(Message::Text(
-                                serde_json::to_string(&ServerMessage::error(
-                                    "INVALID_AUTH",
-                                    "Missing token in auth.hello payload",
-                                ))
-                                .unwrap(),
-                            ));
-                            return None;
-                        }
-                    };
-
-                    // Verify JWT
-                    match verify_jwt(&token, jwt_secret) {
-                        Ok(claims) => Some((claims.sub, claims.username)),
-                        Err(e) => {
-                            tracing::warn!("JWT verify failed: {e}");
-                            let _ = tx.send(Message::Text(
-                                serde_json::to_string(&ServerMessage::error(
-                                    "UNAUTHORIZED",
-                                    "Invalid or expired token",
-                                ))
-                                .unwrap(),
-                            ));
-                            None
-                        }
-                    }
-                }
-                _ => {
-                    let _ = tx.send(Message::Text(
-                        serde_json::to_string(&ServerMessage::error(
-                            "UNAUTHORIZED",
-                            "First message must be auth.hello { token }",
-                        ))
-                        .unwrap(),
-                    ));
+            match authenticate_first_message(&text, state).await {
+                Ok(pair) => Some(pair),
+                Err(sm) => {
+                    let _ = tx.send(Message::Text(serde_json::to_string(&sm).unwrap()));
                     None
                 }
             }
@@ -175,7 +153,7 @@ async fn wait_for_auth(
     }
 }
 
-async fn handle_client_message(
+pub(crate) async fn handle_client_message(
     msg: ClientMessage,
     player_id: &str,
     username: &str,
@@ -206,9 +184,22 @@ async fn handle_client_message(
                             json!({ "playerId": player_id, "username": username }),
                         );
                         state.broadcast_to_room(&room_id, &serde_json::to_string(&joined_notify).unwrap());
+                    } else {
+                        tracing::error!(
+                            "quick_play ok but get_room_state missing room_id={} (in-memory rooms out of sync)",
+                            room_id
+                        );
+                        let _ = tx.send(Message::Text(
+                            serde_json::to_string(&ServerMessage::error(
+                                "QUICK_PLAY_FAILED",
+                                "Room state missing after quick play; check server logs",
+                            ))
+                            .unwrap(),
+                        ));
                     }
                 }
                 Err(e) => {
+                    tracing::error!("Player '{}' mm.quick_play failed: {}", player_id, e);
                     let _ = tx.send(Message::Text(
                         serde_json::to_string(&ServerMessage::error("QUICK_PLAY_FAILED", &e)).unwrap(),
                     ));
@@ -232,9 +223,32 @@ async fn handle_client_message(
                             json!({ "roomId": room_id, "inviteCode": invite_code, "room": room_state }),
                         );
                         let _ = tx.send(Message::Text(serde_json::to_string(&response).unwrap()));
+                        tracing::info!(
+                            "Player '{}' room.created sent (room_id={}, invite={})",
+                            player_id,
+                            room_id,
+                            invite_code
+                        );
+                    } else {
+                        tracing::error!(
+                            "create_private ok but get_room_state missing room_id={}",
+                            room_id
+                        );
+                        let _ = tx.send(Message::Text(
+                            serde_json::to_string(&ServerMessage::error(
+                                "CREATE_PRIVATE_FAILED",
+                                "Room state missing after create; check server logs",
+                            ))
+                            .unwrap(),
+                        ));
                     }
                 }
                 Err(e) => {
+                    tracing::error!(
+                        "Player '{}' room.create_private failed: {}",
+                        player_id,
+                        e
+                    );
                     let _ = tx.send(Message::Text(
                         serde_json::to_string(&ServerMessage::error("CREATE_PRIVATE_FAILED", &e)).unwrap(),
                     ));
@@ -488,6 +502,190 @@ async fn handle_client_message(
                     ))
                     .unwrap(),
                 ));
+            } else {
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::error("NOT_IN_ROOM", "You are not in a room"))
+                        .unwrap(),
+                ));
+            }
+        }
+
+        // ── Game Runtime (server authoritative) ───────────────────
+        "game.start" => {
+            let room_id = state.player_rooms.get(player_id).map(|r| r.clone());
+            if let Some(room_id) = room_id {
+                match state.start_game(&room_id, player_id) {
+                    Ok(payload) => {
+                        let db = state.db.clone();
+                        let rid = room_id.clone();
+                        let pl = payload.clone();
+                        tokio::spawn(async move {
+                            let room_uuid = uuid::Uuid::parse_str(&rid).ok();
+                            if let Err(e) =
+                                insert_match_event(&db, room_uuid, None, "game.started", pl).await
+                            {
+                                tracing::warn!("match_events insert failed: {}", e);
+                            }
+                        });
+                        let started = ServerMessage::new("game.started", payload);
+                        state.broadcast_to_room(
+                            &room_id,
+                            &serde_json::to_string(&started).unwrap(),
+                        );
+                        if let Some(room_state) = state.get_room_state(&room_id) {
+                            let state_msg = ServerMessage::new("room.state", room_state);
+                            state.broadcast_to_room(
+                                &room_id,
+                                &serde_json::to_string(&state_msg).unwrap(),
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Message::Text(
+                            serde_json::to_string(&ServerMessage::error("GAME_START_FAILED", &e))
+                                .unwrap(),
+                        ));
+                    }
+                }
+            } else {
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::error("NOT_IN_ROOM", "You are not in a room"))
+                        .unwrap(),
+                ));
+            }
+        }
+
+        "game.submit_action" => {
+            let room_id = state.player_rooms.get(player_id).map(|r| r.clone());
+            let request_id = msg.req_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            let action_type = msg.payload.get("actionType").and_then(|v| v.as_str());
+            let target_id = msg
+                .payload
+                .get("targetId")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            if let (Some(room_id), Some(action_type)) = (room_id, action_type) {
+                match state.submit_action(&room_id, player_id, &request_id, action_type, target_id) {
+                    Ok(_) => {
+                        let ack = ServerMessage::new(
+                            "game.action_accepted",
+                            json!({ "requestId": request_id }),
+                        );
+                        let _ = tx.send(Message::Text(serde_json::to_string(&ack).unwrap()));
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Message::Text(
+                            serde_json::to_string(&ServerMessage::error("ACTION_REJECTED", &e)).unwrap(),
+                        ));
+                    }
+                }
+            } else {
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::error(
+                        "INVALID_PAYLOAD",
+                        "Missing actionType or room context",
+                    ))
+                    .unwrap(),
+                ));
+            }
+        }
+
+        "game.vote" => {
+            let room_id = state.player_rooms.get(player_id).map(|r| r.clone());
+            let request_id = msg.req_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            let target_id = msg.payload.get("targetId").and_then(|v| v.as_str());
+
+            if let (Some(room_id), Some(target_id)) = (room_id, target_id) {
+                match state.submit_vote(&room_id, player_id, &request_id, target_id) {
+                    Ok(_) => {
+                        let ack = ServerMessage::new(
+                            "game.vote_accepted",
+                            json!({ "requestId": request_id, "targetId": target_id }),
+                        );
+                        let _ = tx.send(Message::Text(serde_json::to_string(&ack).unwrap()));
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Message::Text(
+                            serde_json::to_string(&ServerMessage::error("VOTE_REJECTED", &e)).unwrap(),
+                        ));
+                    }
+                }
+            } else {
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::error(
+                        "INVALID_PAYLOAD",
+                        "Missing targetId or room context",
+                    ))
+                    .unwrap(),
+                ));
+            }
+        }
+
+        "game.chat" => {
+            let room_id = state.player_rooms.get(player_id).map(|r| r.clone());
+            let text = msg.payload.get("text").and_then(|v| v.as_str());
+
+            if let (Some(room_id), Some(text)) = (room_id, text) {
+                match state.validate_chat_sender(&room_id, player_id) {
+                    Ok(_) => {
+                        let chat_msg = ServerMessage::new(
+                            "game.chat_message",
+                            json!({
+                                "roomId": room_id,
+                                "playerId": player_id,
+                                "username": username,
+                                "text": text
+                            }),
+                        );
+                        state.broadcast_to_alive_in_room(
+                            &room_id,
+                            &serde_json::to_string(&chat_msg).unwrap(),
+                        );
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Message::Text(
+                            serde_json::to_string(&ServerMessage::error("CHAT_REJECTED", &e)).unwrap(),
+                        ));
+                    }
+                }
+            } else {
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::error(
+                        "INVALID_PAYLOAD",
+                        "Missing text or room context",
+                    ))
+                    .unwrap(),
+                ));
+            }
+        }
+
+        // Temporary host-only control for phase progression during integration.
+        "game.advance_phase" => {
+            let room_id = state.player_rooms.get(player_id).map(|r| r.clone());
+            if let Some(room_id) = room_id {
+                match state.advance_phase(&room_id, player_id) {
+                    Ok(payload) => {
+                        let phase_msg = ServerMessage::new("game.phase_changed", payload);
+                        state.broadcast_to_room(
+                            &room_id,
+                            &serde_json::to_string(&phase_msg).unwrap(),
+                        );
+                        if let Some(room_state) = state.get_room_state(&room_id) {
+                            let state_msg = ServerMessage::new("room.state", room_state);
+                            state.broadcast_to_room(
+                                &room_id,
+                                &serde_json::to_string(&state_msg).unwrap(),
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Message::Text(
+                            serde_json::to_string(&ServerMessage::error("PHASE_ADVANCE_FAILED", &e))
+                                .unwrap(),
+                        ));
+                    }
+                }
             } else {
                 let _ = tx.send(Message::Text(
                     serde_json::to_string(&ServerMessage::error("NOT_IN_ROOM", "You are not in a room"))

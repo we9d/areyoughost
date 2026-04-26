@@ -1,4 +1,5 @@
 import 'package:bootstrap_icons/bootstrap_icons.dart';
+import 'package:areyoughost/ui/widgets/network_or_asset_image.dart';
 import 'package:flutter/material.dart';
 
 class RoleDropdownCard extends StatefulWidget {
@@ -63,16 +64,18 @@ class _RoleDropdownCardState extends State<RoleDropdownCard> {
                   Container(
                     width: 58,
                     height: 58,
-                    padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
-                      color: Colors.black,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: Image.asset(
-                        widget.imagePath,
+                      child: NetworkOrAssetImage(
+                        path: widget.imagePath,
                         fit: BoxFit.cover,
+                        fallback: Image.asset(
+                          'assets/images/V01.jpg',
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                   ),

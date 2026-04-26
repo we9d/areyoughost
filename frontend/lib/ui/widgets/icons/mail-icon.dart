@@ -1,6 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 
+/// กล่อง "ไม่มีคำเชิญชวน" แบบเดียวกับ [MailIcon] — ใช้ร่วมกับ [MailNotiIcon] เมื่อยังไม่มีคำเชิญ
+void showEmptyMailDialog(BuildContext context) {
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const _MailDialog(),
+  );
+}
+
 class MailIcon extends StatelessWidget {
   const MailIcon({super.key});
 
@@ -12,15 +21,7 @@ class MailIcon extends StatelessWidget {
         color: Colors.white,
         size: 25,
       ),
-      onPressed: () {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) {
-            return const _MailDialog();
-          },
-        );
-      },
+      onPressed: () => showEmptyMailDialog(context),
     );
   }
 }

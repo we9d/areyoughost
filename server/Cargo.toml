@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 description = "HTTP/WebSocket server for Are You Ghost game"
+default-run = "server"
 
 [[bin]]
 name = "server"

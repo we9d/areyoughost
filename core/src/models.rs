@@ -55,6 +55,8 @@ pub struct GameParticipant {
     pub user_id: String,
     pub username: String, // Denormalized for convenience
     pub role: Option<String>,
+    pub current_faction: Option<String>,
+    pub transformed_to_ghoul: bool,
     pub is_alive: bool,
     pub seat_number: i32,
     pub joined_at: String,

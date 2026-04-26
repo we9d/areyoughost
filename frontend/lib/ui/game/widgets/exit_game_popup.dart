@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' as m;
+import 'package:areyoughost/ui/game/mode_select_screen.dart';
 
 class ExitGamePopup extends m.StatelessWidget {
   const ExitGamePopup({super.key});
@@ -61,8 +62,12 @@ class ExitGamePopup extends m.StatelessWidget {
               cursor: m.SystemMouseCursors.click,
               child: m.GestureDetector(
                 onTap: () {
-                  m.Navigator.pop(context);
-                  m.Navigator.pop(context);
+                  m.Navigator.of(context).pushAndRemoveUntil(
+                    m.MaterialPageRoute(
+                      builder: (_) => const ModeSelectScreen(),
+                    ),
+                    (route) => false,
+                  );
                 },
                 child: m.Container(
                   width: 160,

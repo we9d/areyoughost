@@ -2,21 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:areyoughost/models/mock_models.dart';
 import 'package:areyoughost/ui/game/player_sign.dart';
 import 'package:areyoughost/ui/game/widgets/point_hand.dart';
+import 'package:areyoughost/ui/widgets/network_or_asset_image.dart';
 
 class PlayerGridDay extends StatelessWidget {
   final List<PlayerModel> players;
   final int myPlayerNumber;
-  final int? selectedTarget;
-  final bool isVotePhase;
+  final Map<int, int> dayVoteTargetByVoter;
+  final Map<int, int> dayVoteCountByTarget;
+  final bool dayVoteEnabled;
   final Function(int) onPlayerTap;
+  final Map<int, String> skillIconByPlayerNumber;
+  final Map<int, bool> aliveByPlayerNumber;
 
   const PlayerGridDay({
     super.key,
     required this.players,
     required this.myPlayerNumber,
-    required this.selectedTarget,
-    required this.isVotePhase,
+    required this.dayVoteTargetByVoter,
+    required this.dayVoteCountByTarget,
+    required this.dayVoteEnabled,
     required this.onPlayerTap,
+    this.skillIconByPlayerNumber = const <int, String>{},
+    this.aliveByPlayerNumber = const <int, bool>{},
   });
 
   @override
@@ -40,6 +47,7 @@ class PlayerGridDay extends StatelessWidget {
                   }
 
                   final p = players[index];
+                  final isAlive = aliveByPlayerNumber[p.number] ?? true;
 
                   return Expanded(
                     child: Padding(
@@ -49,6 +57,9 @@ class PlayerGridDay extends StatelessWidget {
                           onPlayerTap(p.number);
                         },
                         child: Stack(
+                          // Without expand, Stack width follows the narrowest non-positioned
+                          // child (e.g. short "1 p01" text), so card 1 looked half-width.
+                          fit: StackFit.expand,
                           children: [
 
                             /// Player Card
@@ -70,11 +81,13 @@ class PlayerGridDay extends StatelessWidget {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       textAlign: TextAlign.center,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
                                         height: 1.1,
-                                        color: Colors.black,
+                                        color: p.number == myPlayerNumber
+                                            ? const Color(0xFFC2185B)
+                                            : Colors.black,
                                       ),
                                     ),
                                   ),
@@ -83,39 +96,69 @@ class PlayerGridDay extends StatelessWidget {
 
                                   /// Player image
                                   Expanded(
-                                    child: Image.asset(
-                                      'assets/images/defaultPlayer.png',
-                                      fit: BoxFit.cover,
-                                      alignment: Alignment.bottomCenter,
-                                    ),
+                                    child: isAlive
+                                        ? Image.asset(
+                                            'assets/images/defaultPlayer.png',
+                                            fit: BoxFit.cover,
+                                            alignment: Alignment.bottomCenter,
+                                          )
+                                        : Padding(
+                                            padding: const EdgeInsets.all(8),
+                                            child: Image.asset(
+                                              'assets/images/player_dead_urn.png',
+                                              fit: BoxFit.contain,
+                                              errorBuilder: (_, _, _) => Image.asset(
+                                                'assets/images/ash.png',
+                                                fit: BoxFit.contain,
+                                              ),
+                                            ),
+                                          ),
                                   ),
                                 ],
                               ),
                             ),
 
-                            /// Vote UI
-                            if (isVotePhase) ...[
-
-                              /// Wooden Sign
-                              if (p.number == myPlayerNumber)
-                                if (selectedTarget != null)
-                                  PlayerSign(number: selectedTarget!)
-                                else
-                                  const SizedBox()
-                              else
-                                PlayerSign(number: (p.number * 3) % 16 + 1),
-
-                              /// ☝️ Point Hand
+                            if (skillIconByPlayerNumber.containsKey(p.number))
                               Positioned(
-                                right: 32,
-                                top: 25,
-                                child: Transform.scale(
-                                  scale: 1,
-                                  child: PointHand(
-                                    number: p.number,
+                                bottom: 6,
+                                right: 6,
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: NetworkOrAssetImage(
+                                      path: skillIconByPlayerNumber[p.number]!,
+                                      fit: BoxFit.contain,
+                                      fallback: const Icon(
+                                        Icons.auto_fix_high,
+                                        size: 14,
+                                        color: Colors.deepPurple,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
+                            /// Day vote UI: sign = who this player voted,
+                            /// point hand number = vote count received.
+                            if (dayVoteEnabled) ...[
+                              if (dayVoteTargetByVoter[p.number] != null)
+                                PlayerSign(number: dayVoteTargetByVoter[p.number]!),
+                              if ((dayVoteCountByTarget[p.number] ?? 0) > 0)
+                                Positioned(
+                                  right: 32,
+                                  top: 25,
+                                  child: Transform.scale(
+                                    scale: 1,
+                                    child: PointHand(
+                                      number: dayVoteCountByTarget[p.number]!,
+                                      numberColor:
+                                          dayVoteTargetByVoter[myPlayerNumber] == p.number
+                                          ? Colors.red
+                                          : Colors.black,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ],
                         ),

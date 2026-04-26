@@ -2,13 +2,25 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:areyoughost/services/app_config.dart';
 import 'package:areyoughost/services/session_manager.dart';
-import 'package:areyoughost/services/rust_api.dart';
+import 'package:areyoughost/services/ws_service.dart';
 import 'package:areyoughost/src/rust/models.dart';
 
 class AuthService {
   // Global auth state
   static final ValueNotifier<User?> currentUser = ValueNotifier<User?>(null);
+
+  static String _friendlyErrorMessage(Object error) {
+    final raw = error.toString();
+    if (raw.contains('FormatException') || raw.contains('Unexpected end of input')) {
+      return 'เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
+    }
+    if (raw.contains('SocketException') || raw.contains('ClientException')) {
+      return 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้';
+    }
+    return raw.replaceAll('Exception: ', '');
+  }
 
   // Username validation: Allow any characters
   static String? validateUsername(String? username) {
@@ -75,6 +87,21 @@ class AuthService {
         createdAt: '', // Not needed for display
         lastLogin: null,
       );
+
+      // Bring WS presence online as early as app startup so friends can see us online
+      // without waiting for user to enter game mode screens.
+      final token = session['token'] ?? '';
+      if (token.isNotEmpty && !WsService.instance.isConnected) {
+        try {
+          await WsService.instance.connect(token);
+          await WsService.instance.waitForAny(
+            {'auth.ok', 'session.resumed'},
+            timeout: const Duration(seconds: 5),
+          );
+        } catch (_) {
+          // Ignore startup WS errors: app can still function and reconnect later.
+        }
+      }
     } else {
       currentUser.value = null;
     }
@@ -99,7 +126,7 @@ class AuthService {
 
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:3000/auth/login'),
+        Uri.parse('${AppConfig.apiBaseUrl}/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'username': username,
@@ -114,7 +141,10 @@ class AuthService {
         final userId = data['player']['id'];
         final uname = data['player']['username'];
         final token = data['accessToken'];
-        
+
+        // ปิด WS เก่า (และล้าง resume token) ก่อนเปลี่ยน session — ไม่งั้น room.create_private ยังใช้ตัวตนผู้ใช้เก่า
+        await WsService.instance.disconnect();
+
         // Save session
         await SessionManager.saveSession(userId: userId, username: uname, token: token);
         
@@ -129,6 +159,17 @@ class AuthService {
           createdAt: '',
           lastLogin: null,
         );
+
+        // Connect immediately after login so online status appears right away.
+        if (token is String && token.isNotEmpty) {
+          try {
+            await WsService.instance.connect(token);
+            await WsService.instance.waitForAny(
+              {'auth.ok', 'session.resumed'},
+              timeout: const Duration(seconds: 5),
+            );
+          } catch (_) {}
+        }
 
         return {'success': true, 'userId': userId, 'username': uname, 'token': token};
       } else {
@@ -164,7 +205,7 @@ class AuthService {
 
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:3000/auth/register'),
+        Uri.parse('${AppConfig.apiBaseUrl}/auth/register'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'username': username,
@@ -179,6 +220,8 @@ class AuthService {
         // Register successful
         final userId = data['player']['id'];
         final uname = data['player']['username'];
+
+        await WsService.instance.disconnect();
 
         // Save session
         await SessionManager.saveSession(userId: userId, username: uname);
@@ -203,6 +246,7 @@ class AuthService {
 
   // Logout function
   static Future<void> logout() async {
+    await WsService.instance.disconnect();
     await SessionManager.clearSession();
     currentUser.value = null;
   }
@@ -221,15 +265,39 @@ class AuthService {
     }
 
     try {
-      await RustApi.instance.updateUsername(
-        userId: user.userId,
-        newUsername: newUsername,
+      final response = await http.post(
+        Uri.parse('${AppConfig.apiBaseUrl}/auth/update-username'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': user.userId,
+          'new_username': newUsername,
+        }),
       );
+
+      Map<String, dynamic> data = const {};
+      if (response.body.isNotEmpty) {
+        try {
+          data = jsonDecode(response.body) as Map<String, dynamic>;
+        } catch (_) {
+          data = const {};
+        }
+      }
+      if (response.statusCode != 200) {
+        final serverError = data['error'];
+        if (serverError is String && serverError.isNotEmpty) {
+          return {'success': false, 'error': serverError};
+        }
+        return {
+          'success': false,
+          'error': 'เปลี่ยนชื่อไม่สำเร็จ (HTTP ${response.statusCode})',
+        };
+      }
 
       // Update session and state
       await SessionManager.saveSession(
         userId: user.userId,
         username: newUsername,
+        token: (await SessionManager.getSession())?['token'],
       );
 
       // Create new user object with updated username
@@ -243,10 +311,7 @@ class AuthService {
 
       return {'success': true};
     } catch (e) {
-      return {
-        'success': false,
-        'error': e.toString().replaceAll('Exception: ', ''),
-      };
+      return {'success': false, 'error': _friendlyErrorMessage(e)};
     }
   }
 

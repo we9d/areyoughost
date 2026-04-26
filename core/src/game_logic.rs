@@ -1,8 +1,12 @@
 pub mod chat_system;
+pub mod day_resolver;
+pub mod gm_spec;
 pub mod night_resolver;
 pub mod phase_machine;
 pub mod role_distributor;
 pub mod roles;
+pub mod rules_locked;
 pub mod state;
+pub mod vote_resolver;
 pub mod vote_system;
 pub mod win_checker;

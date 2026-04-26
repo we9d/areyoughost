@@ -1,12 +1,22 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:areyoughost/services/role_service.dart';
 import 'role_result_card.dart';
 import 'package:areyoughost/ui/game/game_screen.dart';
+import 'package:areyoughost/ui/game/role_deck.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class RandomRoleScreen extends StatefulWidget {
   final String? roomId;
-  const RandomRoleScreen({super.key, this.roomId});
+  final int playerCount;
+  final List<String>? playerNamesInJoinOrder;
+
+  const RandomRoleScreen({
+    super.key,
+    this.roomId,
+    this.playerCount = 8,
+    this.playerNamesInJoinOrder,
+  });
 
   @override
   State<RandomRoleScreen> createState() => _RandomRoleScreenState();
@@ -14,33 +24,17 @@ class RandomRoleScreen extends StatefulWidget {
 
 class _RandomRoleScreenState extends State<RandomRoleScreen>
     with SingleTickerProviderStateMixin {
-  static const List<String> roles = [
-    'ชาวบ้าน',
-    'ร่างทรง',
-    'แพทย์',
-    'ทหาร',
-    'ตำรวจ',
-    'พระธุดงค์',
-    'หมอผีคุณไสย',
-    'สัปเหร่อ',
-    'คนดวงซวย',
-    'ผีปอบ',
-    'ผีกระสือใหญ่',
-    'ผีตายโหง',
-    'ผีเปรต',
-    'หมอผีดำ',
-    'ฆาตกรต่อเนื่อง',
-    'เจ้ากรรมนายเวร',
-  ];
-
   late final AnimationController _controller;
   late final ScrollController _scrollController;
+  late final List<String> _roles;
+  final Map<String, RoleDisplayItem> _roleCatalogByName = <String, RoleDisplayItem>{};
   int _finalIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
+    _roles = buildBalancedRoleDeck(widget.playerCount);
 
     _controller = AnimationController(
       vsync: this,
@@ -57,11 +51,33 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
     });
 
     _startRandom();
+    _loadRoleCatalog();
+  }
+
+  Future<void> _loadRoleCatalog() async {
+    try {
+      final roles = await RoleService.fetchRoles();
+      if (!mounted) return;
+      setState(() {
+        _roleCatalogByName
+          ..clear()
+          ..addEntries(
+            roles.map(
+              (r) => MapEntry<String, RoleDisplayItem>(
+                RoleService.normalizeKey(r.roleName),
+                r,
+              ),
+            ),
+          );
+      });
+    } catch (_) {
+      // Keep random role UI usable even if roles endpoint is unavailable.
+    }
   }
 
   void _startRandom() {
     final random = Random();
-    _finalIndex = random.nextInt(roles.length);
+    _finalIndex = random.nextInt(_roles.length);
     _controller.forward(from: 0);
   }
 
@@ -70,7 +86,7 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
 
     const itemHeight = 48.0;
     final maxScroll =
-        roles.length * itemHeight * 6 + _finalIndex * itemHeight;
+        _roles.length * itemHeight * 6 + _finalIndex * itemHeight;
 
     final value =
         Curves.easeOut.transform(_controller.value) * maxScroll;
@@ -91,7 +107,12 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
   }
 
   void _showRoleResult() {
-    final role = roles[_finalIndex];
+    final role = _roles[_finalIndex];
+    final roleInfo = _roleCatalogByName[RoleService.normalizeKey(role)];
+    final roleImage = roleInfo?.imagePath ?? 'assets/images/V01.jpg';
+    final roleDescription = (roleInfo?.description.trim().isNotEmpty ?? false)
+        ? roleInfo!.description
+        : 'คุณได้รับบทบาท $role';
 
     showDialog<void>(
       context: context,
@@ -101,8 +122,8 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
         insetPadding: const EdgeInsets.all(24),
         child: RoleResultCard(
           roleName: role,
-          description: 'คุณได้รับบทบาท $role',
-          imagePath: 'assets/images/Login-Register.jpg',
+          description: roleDescription,
+          imagePath: roleImage,
           showDuration: const Duration(seconds: 5),
           onComplete: () {
             if (!mounted) return;
@@ -112,6 +133,8 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
                 builder: (_) => GameScreen(
                   roomId: widget.roomId ?? 'quick-room',
                   role: role,
+                  roomRolePool: _roles,
+                  playerNamesInJoinOrder: widget.playerNamesInJoinOrder,
                 ),
               ),
             );
@@ -138,7 +161,7 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
           // ===== DARK OVERLAY =====
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.35),
+              color: Colors.black.withValues(alpha: 0.35),
             ),
           ),
 
@@ -213,9 +236,9 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
                               controller: _scrollController,
                               physics:
                                   const NeverScrollableScrollPhysics(),
-                              itemCount: roles.length * 20,
+                              itemCount: _roles.length * 20,
                               itemBuilder: (_, i) {
-                                final role = roles[i % roles.length];
+                                final role = _roles[i % _roles.length];
                                 return SizedBox(
                                   height: 48,
                                   child: Center(
@@ -248,4 +271,5 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
       ),
     );
   }
+
 }

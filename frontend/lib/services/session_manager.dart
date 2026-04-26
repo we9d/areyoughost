@@ -15,8 +15,13 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyUserId, userId);
     await prefs.setString(_keyUsername, username);
-    await prefs.setBool(_keyIsLoggedIn, true);
-    if (token != null) await prefs.setString(_keyToken, token);
+    final hasToken = token != null && token.isNotEmpty;
+    await prefs.setBool(_keyIsLoggedIn, hasToken);
+    if (hasToken) {
+      await prefs.setString(_keyToken, token);
+    } else {
+      await prefs.remove(_keyToken);
+    }
   }
 
   // Get current session
@@ -49,6 +54,7 @@ class SessionManager {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyUserId);
     await prefs.remove(_keyUsername);
+    await prefs.remove(_keyToken);
     await prefs.setBool(_keyIsLoggedIn, false);
   }
 

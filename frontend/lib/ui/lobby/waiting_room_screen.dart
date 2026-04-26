@@ -158,8 +158,8 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
                   ),
                 ),
 
-                // Invite Code (private rooms)
-                if (_room.inviteCode != null)
+                // รหัสชวนแสดงเฉพาะโฮสต์ (ผู้รับคำเชิญเข้าผ่านกล่องคำเชิญได้โดยไม่ต้องเห็นรหัส)
+                if (isHost && _room.inviteCode != null)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Container(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'skill_popup_result.dart';
+import 'package:areyoughost/ui/widgets/network_or_asset_image.dart';
 
 class SkillPopupChoice extends StatelessWidget {
   final String skill1Name;
@@ -53,11 +54,14 @@ class SkillPopupChoice extends StatelessWidget {
               ],
             ),
 
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Image.asset(
-                image,
-                fit: BoxFit.contain,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Padding(
+                padding: const EdgeInsets.all(0),
+                child: NetworkOrAssetImage(
+                  path: image,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
           ),

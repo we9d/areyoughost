@@ -21,7 +21,7 @@ class InviteChat extends StatelessWidget {
         borderRadius: BorderRadius.circular(40),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -34,6 +34,7 @@ class InviteChat extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
+              onSubmitted: (_) => onSend(),
               textAlignVertical: TextAlignVertical.center,
               style: const TextStyle(
                 color: Colors.black,

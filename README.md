@@ -85,14 +85,15 @@ graph LR
 - [Rust](https://www.rust-lang.org/tools/install) (latest stable)
 - [Flutter](https://flutter.dev/docs/get-started/install) (latest stable)
 - [Visual Studio](https://visualstudio.microsoft.com/vs/community/) (with C++ build tools)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop) (for PostgreSQL)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) (optional, local tools only)
 - [Git](https://git-scm.com/downloads)
 
 ### Run the Server
 
 ```powershell
-# Start database
-docker-compose up -d
+# Configure Supabase connection
+Copy-Item .env.example -Destination .env
+# Edit DATABASE_URL and JWT_SECRET in .env
 
 # Run server
 cargo run -p areyoughost_server
@@ -163,15 +164,15 @@ Copy-Item .env.example -Destination .env
 
 Edit `.env` with your local configuration (defaults work for development).
 
-### 6. Start PostgreSQL
+### 6. Configure Supabase Database
 
 ```powershell
-docker-compose up -d
+Copy-Item .env.example -Destination .env
+# Edit .env and set your Supabase DATABASE_URL (sslmode=require)
 ```
 
-This starts:
-- PostgreSQL on `localhost:5432`
-- PgAdmin on http://localhost:8080
+The backend is Supabase-only in production path.
+Docker/Postgres is optional for local experimentation, not required for deployment.
 
 ### 7. Build the Project
 
@@ -793,7 +794,7 @@ Select-String -Path .env -Pattern "^DATABASE_URL"
 # Test connection with sqlx-cli
 cargo install sqlx-cli
 sqlx db create
-sqlx migrate run
+sqlx migrate run --source core/migrations
 ```
 
 ### Performance Testing
@@ -823,7 +824,7 @@ Copy-Item .env.example -Destination .env
 
 ```env
 # Database Configuration
-DATABASE_URL=postgres://admin:admin@localhost:5432/areyoughost
+DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?sslmode=require
 DB_CONNECTION_POOL_SIZE=10
 
 # Server Configuration
@@ -849,7 +850,7 @@ CLOUDFLARE_TUNNEL_TOKEN=your-token-here
 CLOUDFLARE_TUNNEL_URL=your-tunnel.cfargotunnel.com
 ```
 
-### Docker Compose Variables
+### Optional Local Docker Variables
 
 **Edit `docker-compose.yml`:**
 ```yaml
@@ -931,7 +932,7 @@ cargo audit                              # Check vulnerabilities
 
 # Database
 sqlx db create                           # Create database
-sqlx migrate run                         # Run migrations
+sqlx migrate run --source core/migrations # Run migrations
 sqlx migrate add <name>                  # Create migration
 ```
 

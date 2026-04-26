@@ -44,6 +44,12 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+#[derive(Deserialize)]
+pub struct UpdateUsernameRequest {
+    pub user_id: String,
+    pub new_username: String,
+}
+
 // ─── Handlers ────────────────────────────────────────────────────
 
 /// POST /auth/register
@@ -200,4 +206,58 @@ pub async fn login(
             }
         })),
     )
+}
+
+/// POST /auth/update-username
+pub async fn update_username(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<UpdateUsernameRequest>,
+) -> impl IntoResponse {
+    let new_username = body.new_username.trim().to_string();
+    if new_username.len() < 3 || new_username.len() > 20 {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": "username must be 3-20 characters" })),
+        );
+    }
+
+    let user_id = match Uuid::parse_str(body.user_id.trim()) {
+        Ok(v) => v,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "invalid user_id format" })),
+            )
+        }
+    };
+
+    let result = sqlx::query(
+        "UPDATE players SET username = $1, updated_at = now() WHERE player_id = $2",
+    )
+    .bind(&new_username)
+    .bind(user_id)
+    .execute(&state.db)
+    .await;
+
+    match result {
+        Ok(done) if done.rows_affected() == 1 => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "success": true, "username": new_username })),
+        ),
+        Ok(_) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "player not found" })),
+        ),
+        Err(sqlx::Error::Database(e)) if e.constraint() == Some("players_username_key") => (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "error": "username already taken" })),
+        ),
+        Err(e) => {
+            tracing::error!("update_username DB error: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+        }
+    }
 }

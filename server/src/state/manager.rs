@@ -2,12 +2,14 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use areyoughost_core::game_logic::role_engine::{
-    check_win as engine_check_win, resolve_night, EngineNightAction, EnginePlayerState,
-    NightActionType, SkillUsageState,
+    check_win as engine_check_win, resolve_night, team_of_role, EngineNightAction,
+    EnginePlayerState, NightActionType, SkillUsageState, Team,
 };
 use areyoughost_core::game_logic::vote_resolver::{VoteOutcome, VoteResolver};
 use dashmap::DashMap;
+use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
+use rand::SeedableRng;
 use sqlx::PgPool;
 use std::collections::{HashMap, HashSet, VecDeque};
 use tokio::sync::{mpsc, Mutex};
@@ -120,6 +122,9 @@ pub struct AppState {
 
     // Quick play countdown deadline per room (unix seconds)
     pub quickplay_countdown_deadlines: DashMap<RoomId, i64>,
+
+    /// When true, room membership skips Postgres writes (used by automated QA tests).
+    pub skip_persistence: bool,
 }
 
 impl AppState {
@@ -149,6 +154,7 @@ impl AppState {
         day_phase_secs: u64,
         night_phase_secs: u64,
         voting_phase_secs: u64,
+        skip_persistence: bool,
     ) -> Arc<Self> {
         Arc::new(Self {
             db,
@@ -167,6 +173,7 @@ impl AppState {
             pending_disconnects: DashMap::new(),
             reconnect_grace_secs,
             quickplay_countdown_deadlines: DashMap::new(),
+            skip_persistence,
         })
     }
 
@@ -279,6 +286,10 @@ impl AppState {
         let deadline = Self::now_unix_secs() + self.reconnect_grace_secs as i64;
         let player_id_owned = player_id.to_string();
         self.pending_disconnects.insert(player_id_owned.clone(), deadline);
+
+        if self.skip_persistence {
+            return;
+        }
 
         let state = Arc::clone(self);
         tokio::spawn(async move {
@@ -406,6 +417,9 @@ impl AppState {
     }
 
     pub fn schedule_quickplay_start(self: &Arc<Self>, room_id: &str) {
+        if self.skip_persistence {
+            return;
+        }
         let room_id = room_id.to_string();
         let (eligible, players_len) = match self.rooms.get(&room_id) {
             Some(room) => (
@@ -544,6 +558,32 @@ impl AppState {
             .next()
             .unwrap_or("INVITE")
             .to_uppercase();
+
+        if self.skip_persistence {
+            let room = Room {
+                room_id: room_id.clone(),
+                players: vec![PlayerInfo {
+                    player_id: host_id.clone(),
+                    username,
+                    is_ready: false,
+                    is_host: true,
+                }],
+                max_players: 16,
+                is_public: false,
+                status: "waiting".to_string(),
+            };
+
+            self.rooms.insert(room_id.clone(), room);
+            self.player_rooms.insert(host_id, room_id.clone());
+            self.invites.insert(invite_code.clone(), room_id.clone());
+
+            tracing::info!(
+                "Created private room {} with invite_code {} (skip_persistence)",
+                room_id,
+                invite_code
+            );
+            return Ok((room_id, invite_code));
+        }
 
         let now = chrono::Utc::now();
         let mut tx = self.db.begin().await
@@ -790,6 +830,38 @@ impl AppState {
         let player_uuid = uuid::Uuid::parse_str(player_id_str)
             .map_err(|_| "Invalid player ID format".to_string())?;
 
+        if self.skip_persistence {
+            let mut room_ref = self
+                .rooms
+                .get_mut(room_id_str)
+                .ok_or_else(|| "Room not found".to_string())?;
+
+            if room_ref.players.len() >= room_ref.max_players {
+                return Err("Room is full".to_string());
+            }
+
+            if room_ref.players.iter().any(|p| p.player_id == player_id_str) {
+                return Err("Already in room".to_string());
+            }
+
+            room_ref.players.push(PlayerInfo {
+                player_id: player_id_str.to_string(),
+                username,
+                is_ready: false,
+                is_host: false,
+            });
+            drop(room_ref);
+
+            self.player_rooms
+                .insert(player_id_str.to_string(), room_id_str.to_string());
+            tracing::info!(
+                "Player {} joined room {} (skip_persistence)",
+                player_id_str,
+                room_id_str
+            );
+            return Ok(());
+        }
+
         // 1. Check if room exists in memory
         let mut room_ref = self.rooms.get_mut(room_id_str)
             .ok_or_else(|| "Room not found".to_string())?;
@@ -857,25 +929,27 @@ impl AppState {
             room.players.retain(|p| p.player_id != player_id_str);
         }
 
-        // Persist leave synchronously so DB state is not silently lost on process/network hiccups.
-        if let (Ok(r_uuid), Ok(p_uuid)) =
-            (uuid::Uuid::parse_str(&room_id), uuid::Uuid::parse_str(player_id_str))
-        {
-            if let Err(e) = sqlx::query(
-                "UPDATE room_members SET member_status = 'LEFT', left_at = now() 
-                 WHERE room_id = $1 AND player_id = $2"
-            )
-            .bind(r_uuid)
-            .bind(p_uuid)
-            .execute(&self.db)
-            .await
+        if !self.skip_persistence {
+            // Persist leave synchronously so DB state is not silently lost on process/network hiccups.
+            if let (Ok(r_uuid), Ok(p_uuid)) =
+                (uuid::Uuid::parse_str(&room_id), uuid::Uuid::parse_str(player_id_str))
             {
-                tracing::error!(
-                    "leave_room DB update failed for player={} room={}: {}",
-                    player_id_str,
-                    room_id,
-                    e
-                );
+                if let Err(e) = sqlx::query(
+                    "UPDATE room_members SET member_status = 'LEFT', left_at = now() 
+                 WHERE room_id = $1 AND player_id = $2"
+                )
+                .bind(r_uuid)
+                .bind(p_uuid)
+                .execute(&self.db)
+                .await
+                {
+                    tracing::error!(
+                        "leave_room DB update failed for player={} room={}: {}",
+                        player_id_str,
+                        room_id,
+                        e
+                    );
+                }
             }
         }
 
@@ -884,6 +958,14 @@ impl AppState {
     }
 
     pub async fn load_room_members(&self, room_id_str: &str) -> Vec<PlayerInfo> {
+        if self.skip_persistence {
+            return self
+                .rooms
+                .get(room_id_str)
+                .map(|room| room.players.clone())
+                .unwrap_or_default();
+        }
+
         let room_uuid = match uuid::Uuid::parse_str(room_id_str) {
             Ok(u) => u,
             Err(_) => return vec![],
@@ -920,85 +1002,101 @@ impl AppState {
     }
 
     pub fn broadcast_to_room(&self, room_id: &str, message: &str) {
-        if let Some(room) = self.rooms.get(room_id) {
-            for player in &room.players {
-                if let Some(tx) = self.connections.get(&player.player_id) {
-                    let _ = tx.send(Message::Text(message.to_string()));
-                }
+        let player_ids: Vec<String> = self
+            .rooms
+            .get(room_id)
+            .map(|room| {
+                room
+                    .players
+                    .iter()
+                    .map(|p| p.player_id.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        if player_ids.is_empty() {
+            return;
+        }
+        let text = message.to_string();
+        for pid in player_ids {
+            if let Some(tx) = self.connections.get(&pid) {
+                let _ = tx.send(Message::Text(text.clone()));
             }
         }
     }
 
     pub fn get_room_state(&self, room_id: &str) -> Option<serde_json::Value> {
-        self.rooms.get(room_id).map(|room| {
-            let runtime = self.active_games.get(room_id).map(|g| {
+        let room = self.rooms.get(room_id)?;
+        let room_id_owned = room.room_id.clone();
+        let players: Vec<serde_json::Value> = room
+            .players
+            .iter()
+            .map(|p| {
                 serde_json::json!({
-                    "phase": g.phase,
-                    "dayNo": g.day_no,
-                    "nightNo": g.night_no,
-                    "aliveCount": g.players.values().filter(|p| p.alive).count(),
-                    "phaseDeadlineAt": g.phase_deadline_at,
-                })
-            });
-            let quickplay_deadline_unix = self
-                .quickplay_countdown_deadlines
-                .get(room_id)
-                .map(|d| *d);
-
-            serde_json::json!({
-                "roomId": room.room_id,
-                "players": room.players.iter().map(|p| serde_json::json!({
                     "playerId": p.player_id,
                     "username": p.username,
                     "isReady": p.is_ready,
                     "isHost": p.is_host,
-                })).collect::<Vec<_>>(),
-                "maxPlayers": room.max_players,
-                "isPublic": room.is_public,
-                "status": room.status,
-                "runtime": runtime,
-                "quickplayDeadlineUnix": quickplay_deadline_unix,
+                })
             })
-        })
+            .collect();
+        let max_players = room.max_players;
+        let is_public = room.is_public;
+        let status = room.status.clone();
+        drop(room);
+
+        let runtime = self.active_games.get(room_id).map(|g| {
+            serde_json::json!({
+                "phase": g.phase,
+                "dayNo": g.day_no,
+                "nightNo": g.night_no,
+                "aliveCount": g.players.values().filter(|p| p.alive).count(),
+                "phaseDeadlineAt": g.phase_deadline_at,
+            })
+        });
+        let quickplay_deadline_unix = self
+            .quickplay_countdown_deadlines
+            .get(room_id)
+            .map(|d| *d);
+
+        Some(serde_json::json!({
+            "roomId": room_id_owned,
+            "players": players,
+            "maxPlayers": max_players,
+            "isPublic": is_public,
+            "status": status,
+            "runtime": runtime,
+            "quickplayDeadlineUnix": quickplay_deadline_unix,
+        }))
     }
 
-    async fn assign_roles_for_players(
+    /// Adds authoritative `myRole` / `myAlive` for one viewer (WebSocket owner) when a runtime game exists.
+    pub fn enrich_room_state_for_viewer(
         &self,
+        room_id: &str,
+        viewer_player_id: &str,
+        room_state: &mut serde_json::Value,
+    ) {
+        let Some(game) = self.active_games.get(room_id) else {
+            return;
+        };
+        let Some(p) = game.players.get(viewer_player_id) else {
+            return;
+        };
+        let Some(obj) = room_state.as_object_mut() else {
+            return;
+        };
+        obj.insert("myRole".to_string(), serde_json::json!(p.role));
+        obj.insert("myAlive".to_string(), serde_json::json!(p.alive));
+    }
+
+    /// Shuffle and assign roles from a pool that already has at least `players.len()` entries.
+    fn assign_roles_from_unique_pool(
+        mut unique_pool: Vec<String>,
         players: &[PlayerInfo],
     ) -> Result<(HashMap<PlayerId, String>, Vec<String>), String> {
         let player_count = players.len();
         if player_count == 0 {
             return Err("Cannot assign roles for empty room".to_string());
-        }
-
-        #[derive(sqlx::FromRow)]
-        struct RoleRow {
-            role_name: String,
-        }
-
-        let db_roles = sqlx::query_as::<_, RoleRow>(
-            "SELECT role_name FROM roles ORDER BY role_id ASC"
-        )
-        .fetch_all(&self.db)
-        .await
-        .unwrap_or_default();
-
-        let mut unique_pool = Vec::<String>::new();
-        let mut seen = HashSet::<String>::new();
-        for r in db_roles {
-            let role = r.role_name.trim().to_string();
-            if role.is_empty() {
-                continue;
-            }
-            if seen.insert(role.clone()) {
-                unique_pool.push(role);
-            }
-        }
-        if unique_pool.is_empty() {
-            unique_pool = Self::DEFAULT_ROLE_POOL_16
-                .iter()
-                .map(|r| (*r).to_string())
-                .collect();
         }
         if unique_pool.len() < player_count {
             return Err(format!(
@@ -1008,7 +1106,8 @@ impl AppState {
             ));
         }
 
-        let mut rng = rand::thread_rng();
+        // Fixed-seed RNG avoids `thread_rng` global locks (seen as long hangs under Windows + tokio tests).
+        let mut rng = StdRng::from_seed([7u8; 32]);
         unique_pool.shuffle(&mut rng);
         let mut selected = unique_pool.into_iter().take(player_count).collect::<Vec<_>>();
 
@@ -1036,6 +1135,46 @@ impl AppState {
             by_player.insert(p.player_id.clone(), selected[idx].clone());
         }
         Ok((by_player, selected))
+    }
+
+    async fn assign_roles_for_players(
+        &self,
+        players: &[PlayerInfo],
+    ) -> Result<(HashMap<PlayerId, String>, Vec<String>), String> {
+        let player_count = players.len();
+        if player_count == 0 {
+            return Err("Cannot assign roles for empty room".to_string());
+        }
+
+        #[derive(sqlx::FromRow)]
+        struct RoleRow {
+            role_name: String,
+        }
+
+        let db_roles: Vec<RoleRow> = sqlx::query_as::<_, RoleRow>("SELECT role_name FROM roles ORDER BY role_id ASC")
+            .fetch_all(&self.db)
+            .await
+            .unwrap_or_default();
+
+        let mut unique_pool = Vec::<String>::new();
+        let mut seen = HashSet::<String>::new();
+        for r in db_roles {
+            let role = r.role_name.trim().to_string();
+            if role.is_empty() {
+                continue;
+            }
+            if seen.insert(role.clone()) {
+                unique_pool.push(role);
+            }
+        }
+        if unique_pool.is_empty() {
+            unique_pool = Self::DEFAULT_ROLE_POOL_16
+                .iter()
+                .map(|r| (*r).to_string())
+                .collect();
+        }
+
+        Self::assign_roles_from_unique_pool(unique_pool, players)
     }
 
     pub async fn start_game(&self, room_id: &str, host_id: &str) -> Result<serde_json::Value, String> {
@@ -1068,7 +1207,15 @@ impl AppState {
         let players = room_snapshot.players.clone();
         drop(room_snapshot);
 
-        let (roles_by_player, selected_role_pool) = self.assign_roles_for_players(&players).await?;
+        let (roles_by_player, selected_role_pool) = if self.skip_persistence {
+            let unique_pool: Vec<String> = Self::DEFAULT_ROLE_POOL_16
+                .iter()
+                .map(|r| (*r).to_string())
+                .collect();
+            Self::assign_roles_from_unique_pool(unique_pool, &players)?
+        } else {
+            self.assign_roles_for_players(&players).await?
+        };
 
         let mut runtime_players = HashMap::new();
         for p in &players {
@@ -1281,20 +1428,28 @@ impl AppState {
             .get(room_id)
             .ok_or_else(|| "No active game for room".to_string())?;
 
-        if game.phase != RuntimePhase::Day {
-            return Err("Global chat allowed only during day".to_string());
-        }
-
-        let sender_alive = game
+        let sender = game
             .players
             .get(sender_id)
-            .map(|p| p.alive)
-            .unwrap_or(false);
-        if !sender_alive {
+            .ok_or_else(|| "Sender not in game".to_string())?;
+        if !sender.alive {
             return Err("Dead player cannot chat".to_string());
         }
 
-        Ok(())
+        match game.phase {
+            RuntimePhase::Day | RuntimePhase::Voting => Ok(()),
+            RuntimePhase::Night => {
+                let role_name = sender.role.as_deref().unwrap_or("ชาวบ้าน");
+                if team_of_role(role_name) == Team::Ghosts {
+                    Ok(())
+                } else {
+                    Err("Night chat is for ghost faction only".to_string())
+                }
+            }
+            RuntimePhase::Lobby | RuntimePhase::End => Err(
+                "Chat is only available during day or night gameplay".to_string(),
+            ),
+        }
     }
 
     pub fn broadcast_to_alive_in_room(&self, room_id: &str, message: &str) {
@@ -1306,6 +1461,36 @@ impl AppState {
                     .and_then(|g| g.players.get(&player.player_id).map(|s| s.alive))
                     .unwrap_or(true);
                 if !alive {
+                    continue;
+                }
+                if let Some(tx) = self.connections.get(&player.player_id) {
+                    let _ = tx.send(Message::Text(message.to_string()));
+                }
+            }
+        }
+    }
+
+    /// Night evil-team chat: only living players whose role is ghost faction (engine `Team::Ghosts`).
+    pub fn broadcast_to_alive_ghost_faction_in_room(&self, room_id: &str, message: &str) {
+        if let Some(room) = self.rooms.get(room_id) {
+            let runtime = self.active_games.get(room_id);
+            for player in &room.players {
+                let alive = runtime
+                    .as_ref()
+                    .and_then(|g| g.players.get(&player.player_id).map(|s| s.alive))
+                    .unwrap_or(true);
+                if !alive {
+                    continue;
+                }
+                let role_name = runtime
+                    .as_ref()
+                    .and_then(|g| {
+                        g.players
+                            .get(&player.player_id)
+                            .and_then(|s| s.role.as_deref())
+                    })
+                    .unwrap_or("ชาวบ้าน");
+                if team_of_role(role_name) != Team::Ghosts {
                     continue;
                 }
                 if let Some(tx) = self.connections.get(&player.player_id) {
@@ -1600,9 +1785,10 @@ mod tests {
 
     fn test_state() -> Arc<AppState> {
         let db = PgPoolOptions::new()
+            .acquire_timeout(Duration::from_secs(2))
             .connect_lazy("postgres://postgres:postgres@localhost/postgres")
             .expect("lazy pool");
-        AppState::new(db, "test-secret".to_string(), 90, 180, 120, 90)
+        AppState::new(db, "test-secret".to_string(), 90, 180, 120, 90, true)
     }
 
     fn seed_room(state: &Arc<AppState>, room_id: &str, host_id: &str, host_name: &str) {
@@ -1756,5 +1942,330 @@ mod tests {
         if phase_str == "End" {
             assert_eq!(phase["winnerKind"].as_str(), Some("ghosts"));
         }
+    }
+
+    fn seed_uuid_waiting_room(state: &Arc<AppState>, room_id: &str, players: &[(&str, &str, bool)]) {
+        let ps: Vec<PlayerInfo> = players
+            .iter()
+            .map(|(id, name, host)| PlayerInfo {
+                player_id: (*id).to_string(),
+                username: (*name).to_string(),
+                is_ready: false,
+                is_host: *host,
+            })
+            .collect();
+        state.rooms.insert(
+            room_id.to_string(),
+            Room {
+                room_id: room_id.to_string(),
+                players: ps,
+                max_players: 16,
+                is_public: true,
+                status: "waiting".to_string(),
+            },
+        );
+    }
+
+    #[tokio::test]
+    async fn qa_c1_start_game_initial_phase_is_night() {
+        let state = test_state();
+        let room_id = "40000000-0000-4000-8000-000000000001";
+        let host = "40000000-0000-4000-8000-000000000011";
+        let guest = "40000000-0000-4000-8000-000000000012";
+        seed_uuid_waiting_room(
+            &state,
+            room_id,
+            &[(host, "h", true), (guest, "g", false)],
+        );
+        let payload = state.start_game(room_id, host).await.expect("start");
+        let phase = format!("{}", payload["phase"]);
+        assert!(
+            phase.contains("Night"),
+            "expected Night in payload phase, got {phase}"
+        );
+    }
+
+    #[tokio::test]
+    async fn qa_c2_night_action_rejected_when_phase_is_day() {
+        let state = test_state();
+        let room_id = "41000000-0000-4000-8000-000000000001";
+        let ghost = "41000000-0000-4000-8000-000000000011";
+        let target = "41000000-0000-4000-8000-000000000012";
+        seed_uuid_waiting_room(
+            &state,
+            room_id,
+            &[(ghost, "ghost", true), (target, "v", false)],
+        );
+        state.start_game(room_id, ghost).await.expect("start");
+        {
+            let mut g = state.active_games.get_mut(room_id).unwrap();
+            g.phase = RuntimePhase::Day;
+            g.phase_deadline_at = i64::MAX / 4;
+            if let Some(p) = g.players.get_mut(ghost) {
+                p.role = Some("ผีปอบ".to_string());
+            }
+        }
+        let err = state
+            .submit_action(
+                room_id,
+                ghost,
+                "qa-c2-1",
+                "ghost_kill",
+                Some(target.to_string()),
+            )
+            .expect_err("day phase must reject night action");
+        assert!(
+            err.contains("night"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn qa_c3_unanimous_day_vote_executes_target() {
+        let state = test_state();
+        let room_id = "42000000-0000-4000-8000-000000000001";
+        let p1 = "42000000-0000-4000-8000-000000000011";
+        let p2 = "42000000-0000-4000-8000-000000000012";
+        let p3 = "42000000-0000-4000-8000-000000000013";
+        seed_uuid_waiting_room(
+            &state,
+            room_id,
+            &[(p1, "a", true), (p2, "b", false), (p3, "c", false)],
+        );
+        state.start_game(room_id, p1).await.expect("start");
+        {
+            let mut g = state.active_games.get_mut(room_id).unwrap();
+            // Deterministic outcome: random role deal can leave 1 ghost + 2 villagers; executing
+            // the villager then ends with ghosts >= villagers, so winnerKind is ghosts not villagers.
+            for pid in [p1, p2, p3] {
+                if let Some(p) = g.players.get_mut(pid) {
+                    p.role = Some("ชาวบ้าน".to_string());
+                    p.alive = true;
+                }
+            }
+            g.karma_targets.clear();
+            g.phase = RuntimePhase::Voting;
+            g.votes.clear();
+            g.phase_deadline_at = i64::MAX / 4;
+        }
+        assert!(state
+            .submit_vote(room_id, p1, "v1", p3)
+            .expect("vote")
+            .is_none());
+        assert!(state
+            .submit_vote(room_id, p2, "v2", p3)
+            .expect("vote")
+            .is_none());
+        let phase = state
+            .submit_vote(room_id, p3, "v3", p3)
+            .expect("vote")
+            .expect("all alive voted");
+        let phase_str = format!("{}", phase["phase"]);
+        assert!(
+            phase_str.contains("Night") || phase_str.contains("End"),
+            "expected Night or End after execution, got {phase_str}"
+        );
+        if phase_str.contains("End") {
+            assert_eq!(phase["winnerKind"].as_str(), Some("villagers"));
+        }
+        let g = state.active_games.get(room_id).unwrap();
+        assert!(!g.players[p3].alive);
+        assert!(g.players[p1].alive && g.players[p2].alive);
+    }
+
+    #[tokio::test]
+    async fn qa_c4_dead_player_cannot_vote_action_or_day_chat() {
+        let state = test_state();
+        let room_id = "43000000-0000-4000-8000-000000000001";
+        let alive = "43000000-0000-4000-8000-000000000011";
+        let dead = "43000000-0000-4000-8000-000000000012";
+        let other = "43000000-0000-4000-8000-000000000013";
+        seed_uuid_waiting_room(
+            &state,
+            room_id,
+            &[(alive, "a", true), (dead, "d", false), (other, "o", false)],
+        );
+        state.start_game(room_id, alive).await.expect("start");
+        {
+            let mut g = state.active_games.get_mut(room_id).unwrap();
+            g.players.get_mut(dead).unwrap().alive = false;
+            g.phase = RuntimePhase::Voting;
+            g.votes.clear();
+            g.phase_deadline_at = i64::MAX / 4;
+        }
+        let e = state
+            .submit_vote(room_id, dead, "vx", other)
+            .expect_err("dead cannot vote");
+        assert!(e.contains("Dead") || e.contains("dead"));
+
+        {
+            let mut g = state.active_games.get_mut(room_id).unwrap();
+            g.phase = RuntimePhase::Night;
+            g.actions.clear();
+            g.seen_request_ids.clear();
+            g.phase_deadline_at = i64::MAX / 4;
+            g.players.get_mut(alive).unwrap().role = Some("ผีปอบ".to_string());
+        }
+        let e2 = state
+            .submit_action(
+                room_id,
+                dead,
+                "ax",
+                "ghost_kill",
+                Some(other.to_string()),
+            )
+            .expect_err("dead cannot act");
+        assert!(e2.contains("Dead") || e2.contains("dead"));
+
+        {
+            let mut g = state.active_games.get_mut(room_id).unwrap();
+            g.phase = RuntimePhase::Day;
+            g.phase_deadline_at = i64::MAX / 4;
+        }
+        let e3 = state
+            .validate_chat_sender(room_id, dead)
+            .expect_err("dead cannot chat by day");
+        assert!(e3.contains("Dead") || e3.contains("dead"));
+    }
+
+    #[tokio::test]
+    async fn qa_c5_witch_revive_cancels_same_night_ghost_kill() {
+        let state = test_state();
+        let room_id = "44000000-0000-4000-8000-000000000001";
+        let ghost = "44000000-0000-4000-8000-000000000011";
+        let victim = "44000000-0000-4000-8000-000000000012";
+        let witch = "44000000-0000-4000-8000-000000000013";
+        seed_uuid_waiting_room(
+            &state,
+            room_id,
+            &[(ghost, "g", true), (victim, "v", false), (witch, "w", false)],
+        );
+        state.start_game(room_id, ghost).await.expect("start");
+        {
+            let mut g = state.active_games.get_mut(room_id).unwrap();
+            g.karma_targets.clear();
+            g.phase_deadline_at = i64::MAX / 4;
+            g.players.get_mut(ghost).unwrap().role = Some("ผีปอบ".to_string());
+            g.players.get_mut(victim).unwrap().role = Some("ชาวบ้าน".to_string());
+            g.players.get_mut(witch).unwrap().role = Some("หมอผีคุณไสย".to_string());
+        }
+        assert!(state
+            .submit_action(
+                room_id,
+                ghost,
+                "n1",
+                "ghost_kill",
+                Some(victim.to_string()),
+            )
+            .expect("ghost submits")
+            .is_none());
+        let phase = state
+            .submit_action(
+                room_id,
+                witch,
+                "n2",
+                "witch_revive",
+                Some(victim.to_string()),
+            )
+            .expect("witch submits")
+            .expect("night resolves");
+        assert!(
+            format!("{}", phase["phase"]).contains("Day")
+                || format!("{}", phase["phase"]).contains("End"),
+            "unexpected {phase}"
+        );
+        let g = state.active_games.get(room_id).unwrap();
+        assert!(g.players[victim].alive, "victim should be revived same night");
+    }
+
+    #[tokio::test]
+    async fn qa_c6_non_ghost_chat_rejected_at_night() {
+        let state = test_state();
+        let room_id = "45000000-0000-4000-8000-000000000001";
+        let p1 = "45000000-0000-4000-8000-000000000011";
+        let p2 = "45000000-0000-4000-8000-000000000012";
+        seed_uuid_waiting_room(&state, room_id, &[(p1, "a", true), (p2, "b", false)]);
+        state.start_game(room_id, p1).await.expect("start");
+        {
+            let mut g = state.active_games.get_mut(room_id).unwrap();
+            g.players.get_mut(p1).unwrap().role = Some("ชาวบ้าน".to_string());
+        }
+        let err = state
+            .validate_chat_sender(room_id, p1)
+            .expect_err("villager night chat");
+        assert!(
+            err.to_lowercase().contains("ghost") || err.to_lowercase().contains("night"),
+            "unexpected: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn qa_c6b_ghost_faction_may_chat_at_night() {
+        let state = test_state();
+        let room_id = "45000000-0000-4000-8000-000000000002";
+        let gh = "45000000-0000-4000-8000-000000000021";
+        let v = "45000000-0000-4000-8000-000000000022";
+        seed_uuid_waiting_room(&state, room_id, &[(gh, "g", true), (v, "v", false)]);
+        state.start_game(room_id, gh).await.expect("start");
+        {
+            let mut g = state.active_games.get_mut(room_id).unwrap();
+            g.players.get_mut(gh).unwrap().role = Some("ผีปอบ".to_string());
+            g.players.get_mut(v).unwrap().role = Some("ชาวบ้าน".to_string());
+        }
+        state.validate_chat_sender(room_id, gh).expect("ghost may chat at night");
+    }
+
+    #[tokio::test]
+    async fn qa_stability_pending_disconnect_recorded_without_background_leave() {
+        let state = test_state();
+        let pid = "46000000-0000-4000-8000-000000000011";
+        state.mark_pending_disconnect(pid);
+        assert!(state.pending_disconnects.contains_key(pid));
+        assert!(state.consume_pending_disconnect(pid));
+        assert!(!state.consume_pending_disconnect(pid));
+    }
+
+    fn drain_ws_until_contains(rx: &mut mpsc::UnboundedReceiver<Message>, needle: &str) -> String {
+        for _ in 0..64 {
+            let msg = rx.try_recv().expect("expected outbound ws message");
+            let text = match msg {
+                Message::Text(t) => t,
+                other => panic!("unexpected message: {other:?}"),
+            };
+            if text.contains(needle) {
+                return text;
+            }
+        }
+        panic!("no message containing {needle:?}");
+    }
+
+    /// `game.started` broadcast reaches every registered connection (mirrors WS `game.start` ack path).
+    #[tokio::test]
+    async fn qa_game_started_broadcasts_to_two_registered_connections() {
+        let state = test_state();
+        let room_id = "51000000-0000-4000-8000-000000000001";
+        let host = "51000000-0000-4000-8000-000000000011";
+        let guest = "51000000-0000-4000-8000-000000000012";
+        seed_uuid_waiting_room(
+            &state,
+            room_id,
+            &[(host, "h", true), (guest, "g", false)],
+        );
+        state.player_rooms.insert(host.to_string(), room_id.to_string());
+        state.player_rooms.insert(guest.to_string(), room_id.to_string());
+
+        let (host_tx, mut host_rx) = mpsc::unbounded_channel::<Message>();
+        let (guest_tx, mut guest_rx) = mpsc::unbounded_channel::<Message>();
+        state.connections.insert(host.to_string(), host_tx.clone());
+        state.connections.insert(guest.to_string(), guest_tx.clone());
+
+        let payload = state.start_game(room_id, host).await.expect("start");
+        let started = crate::ws::messages::ServerMessage::new("game.started", payload);
+        state.broadcast_to_room(room_id, &serde_json::to_string(&started).unwrap());
+
+        let h = drain_ws_until_contains(&mut host_rx, "game.started");
+        assert!(h.contains("game.started"));
+        let g = drain_ws_until_contains(&mut guest_rx, "game.started");
+        assert!(g.contains("game.started"));
     }
 }

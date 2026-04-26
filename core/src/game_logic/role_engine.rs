@@ -155,7 +155,14 @@ pub fn resolve_night(
             }
             NightActionType::DarkProtect => {
                 if let Some(t) = &action.target_id {
-                    dark_protect.insert(t.clone());
+                    // G14 can protect only ghost faction targets.
+                    let can_protect = players
+                        .get(t)
+                        .map(|p| team_of_role(&p.role) == Team::Ghosts)
+                        .unwrap_or(false);
+                    if can_protect {
+                        dark_protect.insert(t.clone());
+                    }
                 }
             }
             NightActionType::DarkCurse => {
@@ -191,8 +198,8 @@ pub fn resolve_night(
 
     let ghost_kill = majority_target(&ghost_targets);
     let mut kill_intents: Vec<(Option<String>, String)> = Vec::new();
-    if let Some(target) = ghost_kill {
-        kill_intents.push((None, target));
+    if let Some(target) = ghost_kill.as_ref() {
+        kill_intents.push((None, target.clone()));
     }
     for t in serial_kills {
         kill_intents.push((None, t));
@@ -255,7 +262,9 @@ pub fn resolve_night(
             .get(&target)
             .map(|p| role_from_th_name(&p.role) == RoleId::Unlucky)
             .unwrap_or(false);
-        if is_unlucky {
+        // V9 transforms only when the incoming fatal attack is from ghost kill source.
+        let from_ghost_attack = ghost_kill.as_ref().map(|g| g == &target).unwrap_or(false);
+        if is_unlucky && from_ghost_attack {
             if let Some(p) = players.get_mut(&target) {
                 p.role = "ผีปอบ".to_string();
                 out.transformed.push(target.clone());
@@ -384,5 +393,179 @@ mod tests {
         let out = resolve_night(&mut players, &actions, &mut usage);
         assert!(out.deaths.is_empty());
         assert_eq!(players["u"].role, "ผีปอบ");
+    }
+
+    #[test]
+    fn unlucky_does_not_transform_on_serial_kill() {
+        let mut players = HashMap::new();
+        players.insert(
+            "u".to_string(),
+            EnginePlayerState {
+                alive: true,
+                role: "คนดวงซวย".to_string(),
+                cursed_silenced_today: false,
+            },
+        );
+        players.insert(
+            "s".to_string(),
+            EnginePlayerState {
+                alive: true,
+                role: "ฆาตกรต่อเนื่อง".to_string(),
+                cursed_silenced_today: false,
+            },
+        );
+        let actions = vec![EngineNightAction {
+            actor_id: "s".to_string(),
+            action: NightActionType::SerialKill,
+            target_id: Some("u".to_string()),
+        }];
+        let mut usage = HashMap::new();
+        let out = resolve_night(&mut players, &actions, &mut usage);
+        assert_eq!(out.transformed.len(), 0);
+        assert!(out.deaths.contains(&"u".to_string()));
+        assert!(!players["u"].alive);
+    }
+
+    #[test]
+    fn dark_protect_blocks_only_ghost_targets() {
+        let mut players = HashMap::new();
+        players.insert(
+            "g".to_string(),
+            EnginePlayerState {
+                alive: true,
+                role: "ผีปอบ".to_string(),
+                cursed_silenced_today: false,
+            },
+        );
+        players.insert(
+            "v".to_string(),
+            EnginePlayerState {
+                alive: true,
+                role: "ชาวบ้าน".to_string(),
+                cursed_silenced_today: false,
+            },
+        );
+        players.insert(
+            "ds".to_string(),
+            EnginePlayerState {
+                alive: true,
+                role: "หมอผีดำ".to_string(),
+                cursed_silenced_today: false,
+            },
+        );
+        let mut usage = HashMap::new();
+
+        // Case 1: protect ghost works.
+        let actions1 = vec![
+            EngineNightAction {
+                actor_id: "ds".to_string(),
+                action: NightActionType::DarkProtect,
+                target_id: Some("g".to_string()),
+            },
+            EngineNightAction {
+                actor_id: "v".to_string(),
+                action: NightActionType::SerialKill,
+                target_id: Some("g".to_string()),
+            },
+        ];
+        let out1 = resolve_night(&mut players, &actions1, &mut usage);
+        assert!(out1.deaths.is_empty());
+        assert!(players["g"].alive);
+
+        // Case 2: trying to protect villager is ignored.
+        let actions2 = vec![
+            EngineNightAction {
+                actor_id: "ds".to_string(),
+                action: NightActionType::DarkProtect,
+                target_id: Some("v".to_string()),
+            },
+            EngineNightAction {
+                actor_id: "g".to_string(),
+                action: NightActionType::GhostKill,
+                target_id: Some("v".to_string()),
+            },
+        ];
+        let out2 = resolve_night(&mut players, &actions2, &mut usage);
+        assert!(out2.deaths.contains(&"v".to_string()));
+    }
+
+    #[test]
+    fn witch_revive_and_poison_are_single_use() {
+        let mut players = HashMap::new();
+        players.insert(
+            "w".to_string(),
+            EnginePlayerState {
+                alive: true,
+                role: "หมอผีคุณไสย".to_string(),
+                cursed_silenced_today: false,
+            },
+        );
+        players.insert(
+            "g".to_string(),
+            EnginePlayerState {
+                alive: true,
+                role: "ผีปอบ".to_string(),
+                cursed_silenced_today: false,
+            },
+        );
+        players.insert(
+            "v1".to_string(),
+            EnginePlayerState {
+                alive: true,
+                role: "ชาวบ้าน".to_string(),
+                cursed_silenced_today: false,
+            },
+        );
+        players.insert(
+            "v2".to_string(),
+            EnginePlayerState {
+                alive: true,
+                role: "ชาวบ้าน".to_string(),
+                cursed_silenced_today: false,
+            },
+        );
+        let mut usage = HashMap::new();
+
+        let night1 = vec![
+            EngineNightAction {
+                actor_id: "g".to_string(),
+                action: NightActionType::GhostKill,
+                target_id: Some("v1".to_string()),
+            },
+            EngineNightAction {
+                actor_id: "w".to_string(),
+                action: NightActionType::WitchRevive,
+                target_id: Some("v1".to_string()),
+            },
+            EngineNightAction {
+                actor_id: "w".to_string(),
+                action: NightActionType::WitchPoison,
+                target_id: Some("v2".to_string()),
+            },
+        ];
+        let out1 = resolve_night(&mut players, &night1, &mut usage);
+        assert!(out1.revived.contains(&"v1".to_string()));
+        assert!(out1.deaths.contains(&"v2".to_string()));
+
+        let night2 = vec![
+            EngineNightAction {
+                actor_id: "g".to_string(),
+                action: NightActionType::GhostKill,
+                target_id: Some("v1".to_string()),
+            },
+            EngineNightAction {
+                actor_id: "w".to_string(),
+                action: NightActionType::WitchRevive,
+                target_id: Some("v1".to_string()),
+            },
+            EngineNightAction {
+                actor_id: "w".to_string(),
+                action: NightActionType::WitchPoison,
+                target_id: Some("g".to_string()),
+            },
+        ];
+        let out2 = resolve_night(&mut players, &night2, &mut usage);
+        assert!(out2.revived.is_empty());
+        assert!(!out2.deaths.contains(&"g".to_string()));
     }
 }

@@ -8,6 +8,8 @@ class AppConfig {
   static const String _defaultWsUrl = 'ws://localhost:3000/ws';
   static const String _defaultStoragePublicBaseUrl =
       'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public';
+  static const String _defaultMobileWrapperBackgroundUrl =
+      'https://i.pinimg.com/736x/fd/0d/45/fd0d45e403f966860c73fe08efd651d6.jpg';
   static const String _configFileName = 'app_config.json';
 
   static final _runtimeConfig = _loadRuntimeConfig();
@@ -47,6 +49,17 @@ class AppConfig {
       return _runtimeConfig.storagePublicBaseUrl;
     }
     return _defaultStoragePublicBaseUrl;
+  }
+
+  /// Decorative background for [MobileWrapper] on desktop; override with
+  /// `--dart-define=MOBILE_WRAPPER_BG_URL=...` or `MOBILE_WRAPPER_BG_URL` env.
+  static String get mobileWrapperBackgroundUrl {
+    final fromEnv = Platform.environment['MOBILE_WRAPPER_BG_URL']?.trim() ?? '';
+    if (fromEnv.isNotEmpty) return fromEnv;
+    const fromDefine =
+        String.fromEnvironment('MOBILE_WRAPPER_BG_URL', defaultValue: '');
+    if (fromDefine.isNotEmpty) return fromDefine;
+    return _defaultMobileWrapperBackgroundUrl;
   }
 
   static _RuntimeConfig _loadRuntimeConfig() {

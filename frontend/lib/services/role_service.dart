@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:areyoughost/game/game_catalog.dart';
 import 'package:areyoughost/services/app_config.dart';
 import 'package:http/http.dart' as http;
 
@@ -38,6 +39,25 @@ class RoleSkillItem {
 }
 
 class RoleService {
+  static const Map<String, String> _roleCodeByRoleName = <String, String>{
+    GameRoles.villager: 'V1',
+    GameRoles.seer: 'V2',
+    GameRoles.doctor: 'V3',
+    GameRoles.soldier: 'V4',
+    GameRoles.police: 'V5',
+    GameRoles.monk: 'V6',
+    GameRoles.witch: 'V7',
+    GameRoles.undertaker: 'V8',
+    GameRoles.unlucky: 'V9',
+    GameRoles.ghoul: 'G10',
+    GameRoles.krasue: 'G11',
+    GameRoles.violentGhost: 'G12',
+    GameRoles.pret: 'G13',
+    GameRoles.darkShaman: 'G14',
+    GameRoles.serialKiller: 'S15',
+    GameRoles.karma: 'S16',
+  };
+
   static String normalizeKey(String input) {
     return input
         .trim()
@@ -50,6 +70,50 @@ class RoleService {
         .replaceAll('“', '')
         .replaceAll('”', '');
   }
+
+  static List<RoleSkillItem> defaultSkillsForRoleName(String roleName) {
+    final code = _roleCodeByRoleName[roleName.trim()];
+    if (code == null) return const <RoleSkillItem>[];
+    return _skillsForRoleCode(code, null, null);
+  }
+
+  static String? actionTypeForSkill({
+    required String skillName,
+    String? roleName,
+  }) {
+    final role = (roleName ?? '').trim();
+    switch (skillName.trim()) {
+      case GameSkills.seerCheck:
+        return 'seer_check';
+      case GameSkills.auraCheck:
+        return 'aura_check';
+      case GameSkills.policeCheck:
+        return 'police_check';
+      case GameSkills.soldierStandIn:
+        return 'soldier_guard';
+      case GameSkills.darkProtect:
+        return 'dark_protect';
+      case GameSkills.darkCurse:
+        return 'dark_curse';
+      case GameSkills.witchRevive:
+        return 'witch_revive';
+      case GameSkills.witchPoison:
+        return 'witch_poison';
+      case GameSkills.serialKill:
+        return 'serial_kill';
+      case GameSkills.ghostKill:
+        return 'ghost_kill';
+      case GameSkills.doctorProtect:
+      case GameSkills.doctorGuard:
+        return role == GameRoles.soldier ? 'soldier_guard' : 'doctor_protect';
+      default:
+        return null;
+    }
+  }
+
+  /// Resolved image URL for a canonical Thai skill title (uses storage base URL).
+  static String skillImageUrl(String canonicalSkillTitle) =>
+      _imagePathForSkillName(canonicalSkillTitle);
 
   static Future<List<RoleDisplayItem>> fetchRoles() async {
     final response = await http.get(
@@ -125,106 +189,106 @@ class RoleService {
       case 'V2':
         return [
           RoleSkillItem(
-            name: 'สกิลตาวิเศษ',
+            name: GameSkills.seerCheck,
             description: descOrDefault(
               skill1Text,
               'ตรวจฝ่ายผู้เล่น 1 คนในตอนกลางคืน',
             ),
-            imagePath: _imagePathForSkillName('สกิลตาวิเศษ'),
+            imagePath: _imagePathForSkillName(GameSkills.seerCheck),
           ),
         ];
       case 'V3':
         return [
           RoleSkillItem(
-            name: 'สกิลคุ้มครอง',
+            name: GameSkills.doctorGuard,
             description: descOrDefault(
               skill1Text,
               'ปกป้องผู้เล่น 1 คนในตอนกลางคืน',
             ),
-            imagePath: _imagePathForSkillName('สกิลคุ้มครอง'),
+            imagePath: _imagePathForSkillName(GameSkills.doctorGuard),
           ),
         ];
       case 'V4':
         return [
           RoleSkillItem(
-            name: 'สกิลปกป้อง',
+            name: GameSkills.doctorProtect,
             description: descOrDefault(
               skill1Text,
               'เลือกผู้เล่น 1 คน ถ้าถูกโจมตีทหารจะตายแทน',
             ),
-            imagePath: _imagePathForSkillName('สกิลปกป้อง'),
+            imagePath: _imagePathForSkillName(GameSkills.doctorProtect),
           ),
         ];
       case 'V5':
         return [
           RoleSkillItem(
-            name: 'สกิลสอบสวน',
+            name: GameSkills.policeCheck,
             description: descOrDefault(
               skill1Text,
               'ตรวจผู้เล่น 2 คนว่าอยู่ฝ่ายเดียวกันหรือไม่',
             ),
-            imagePath: _imagePathForSkillName('สกิลสอบสวน'),
+            imagePath: _imagePathForSkillName(GameSkills.policeCheck),
           ),
         ];
       case 'V6':
         return [
           RoleSkillItem(
-            name: 'สกิลตรวจออร่า',
+            name: GameSkills.auraCheck,
             description: descOrDefault(
               skill1Text,
               'ตรวจออร่าผู้เล่น 1 คน',
             ),
-            imagePath: _imagePathForSkillName('สกิลตรวจออร่า'),
+            imagePath: _imagePathForSkillName(GameSkills.auraCheck),
           ),
         ];
       case 'V7':
         return [
           RoleSkillItem(
-            name: 'สกิลชุบชีวิต',
+            name: GameSkills.witchRevive,
             description: descOrDefault(
               skill1Text,
               'ชุบชีวิตผู้เล่นที่ถูกฆ่าในคืนนั้น (ใช้ได้ 1 ครั้ง)',
             ),
-            imagePath: _imagePathForSkillName('สกิลชุบชีวิต'),
+            imagePath: _imagePathForSkillName(GameSkills.witchRevive),
           ),
           RoleSkillItem(
-            name: 'สกิลคุณไสยฆ่า',
+            name: GameSkills.witchPoison,
             description: descOrDefault(
               skill2Text,
               'ฆ่าผู้เล่น 1 คน (ใช้ได้ 1 ครั้ง)',
             ),
-            imagePath: _imagePathForSkillName('สกิลคุณไสยฆ่า'),
+            imagePath: _imagePathForSkillName(GameSkills.witchPoison),
           ),
         ];
       case 'V8':
         return [
           RoleSkillItem(
-            name: 'สกิลเปิดบทผู้ตาย',
+            name: GameSkills.undertakerReveal,
             description: descOrDefault(
               skill1Text,
               'ดูบทบาทของผู้ตายได้ 1 คนต่อคืน',
             ),
-            imagePath: _imagePathForSkillName('สกิลเปิดบทผู้ตาย'),
+            imagePath: _imagePathForSkillName(GameSkills.undertakerReveal),
           ),
         ];
       case 'V9':
         return [
           RoleSkillItem(
-            name: 'สกิลคนดวงซวย',
+            name: GameSkills.jinx,
             description:
                 'เริ่มเกมเป็นชาวบ้าน หากถูกผีโจมตีครั้งแรกจะไม่ตายและเปลี่ยนเป็นผีปอบทันที',
-            imagePath: _imagePathForSkillName('สกิลคนดวงซวย'),
+            imagePath: _imagePathForSkillName(GameSkills.jinx),
           ),
         ];
       case 'G12':
         return [
           RoleSkillItem(
-            name: 'สกิลตายโหง',
+            name: GameSkills.vengefulGhost,
             description: descOrDefault(
               skill1Text,
               'หากถูกโหวตตายตอนกลางวัน เลือกผู้เล่น 1 คนตายตามทันที',
             ),
-            imagePath: _imagePathForSkillName('สกิลตายโหง'),
+            imagePath: _imagePathForSkillName(GameSkills.vengefulGhost),
           ),
         ];
       case 'G10':
@@ -235,42 +299,42 @@ class RoleService {
       case 'G14':
         return [
           RoleSkillItem(
-            name: 'สกิลปกป้องผี',
+            name: GameSkills.darkProtect,
             description: descOrDefault(
               skill1Text,
               'ปกป้องผี 1 ตัวในคืนนี้',
             ),
-            imagePath: _imagePathForSkillName('สกิลปกป้องผี'),
+            imagePath: _imagePathForSkillName(GameSkills.darkProtect),
           ),
           RoleSkillItem(
-            name: 'สกิลสาปพูดไม่ได้',
+            name: GameSkills.darkCurse,
             description: descOrDefault(
               skill2Text,
               'สาปผู้เล่น 1 คนให้พูดไม่ได้ในช่วงกลางวัน',
             ),
-            imagePath: _imagePathForSkillName('สกิลสาปพูดไม่ได้'),
+            imagePath: _imagePathForSkillName(GameSkills.darkCurse),
           ),
         ];
       case 'S15':
         return [
           RoleSkillItem(
-            name: 'สกิลฆ่าเดี่ยว',
+            name: GameSkills.serialKill,
             description: descOrDefault(
               skill1Text,
               'ฆ่าผู้เล่น 1 คนในตอนกลางคืน',
             ),
-            imagePath: _imagePathForSkillName('สกิลฆ่าเดี่ยว'),
+            imagePath: _imagePathForSkillName(GameSkills.serialKill),
           ),
         ];
       case 'S16':
         return [
           RoleSkillItem(
-            name: 'สกิลเป้าหมายลับ',
+            name: GameSkills.karmaSecret,
             description: descOrDefault(
               skill1Text,
               'หากเป้าหมายลับตายด้วยวิธีใดก็ได้ จะชนะทันที',
             ),
-            imagePath: _imagePathForSkillName('สกิลเป้าหมายลับ'),
+            imagePath: _imagePathForSkillName(GameSkills.karmaSecret),
           ),
         ];
       default:
@@ -294,60 +358,62 @@ class RoleService {
   static String _canonicalSkillName(String text) {
     final raw = text.trim();
     final t = normalizeKey(text);
-    if (t.contains('คนดวงซวย') || t.contains('แปลงเป็นผีปอบ')) return 'สกิลคนดวงซวย';
-    if (t.contains('ตายโหง') || t.contains('ตายตาม')) return 'สกิลตายโหง';
-    if (t.contains('เป้าหมายลับ')) return 'สกิลเป้าหมายลับ';
-    if (t.contains('ตาวิเศษ')) return 'สกิลตาวิเศษ';
-    if (t.contains('สอบสวน')) return 'สกิลสอบสวน';
-    if (t.contains('ตรวจออร่า')) return 'สกิลตรวจออร่า';
-    if (t.contains('ชุบชีวิต')) return 'สกิลชุบชีวิต';
-    if (t.contains('คุณไสยฆ่า')) return 'สกิลคุณไสยฆ่า';
-    if (t.contains('เปิดบทผู้ตาย') || t.contains('ผู้ตาย')) return 'สกิลเปิดบทผู้ตาย';
-    if (t.contains('สาป') && t.contains('พูดไม่ได้')) return 'สกิลสาปพูดไม่ได้';
-    if (t.contains('ปกป้องผี')) return 'สกิลปกป้องผี';
-    if (t.contains('ฆ่าเดี่ยว')) return 'สกิลฆ่าเดี่ยว';
+    if (t.contains('คนดวงซวย') || t.contains('แปลงเป็นผีปอบ')) return GameSkills.jinx;
+    if (t.contains('ตายโหง') || t.contains('ตายตาม')) return GameSkills.vengefulGhost;
+    if (t.contains('เป้าหมายลับ')) return GameSkills.karmaSecret;
+    if (t.contains('ตาวิเศษ')) return GameSkills.seerCheck;
+    if (t.contains('สอบสวน')) return GameSkills.policeCheck;
+    if (t.contains('ตรวจออร่า')) return GameSkills.auraCheck;
+    if (t.contains('ชุบชีวิต')) return GameSkills.witchRevive;
+    if (t.contains('คุณไสยฆ่า')) return GameSkills.witchPoison;
+    if (t.contains('เปิดบทผู้ตาย') || t.contains('ผู้ตาย')) {
+      return GameSkills.undertakerReveal;
+    }
+    if (t.contains('สาป') && t.contains('พูดไม่ได้')) return GameSkills.darkCurse;
+    if (t.contains('ปกป้องผี')) return GameSkills.darkProtect;
+    if (t.contains('ฆ่าเดี่ยว')) return GameSkills.serialKill;
     if (t.contains('ร่วมกันฆ่า') || (t.contains('ฆ่า') && t.contains('ทุกคืน'))) {
-      return 'สกิลลอบสังหาร';
+      return GameSkills.ghostKill;
     }
     if (t.contains('ลอบสังหาร') || (t.contains('ฝ่ายผี') && t.contains('เป้าหมาย'))) {
-      return 'สกิลลอบสังหาร';
+      return GameSkills.ghostKill;
     }
-    if (t.contains('คุ้มครอง')) return 'สกิลคุ้มครอง';
-    if (t.contains('ปกป้อง')) return 'สกิลปกป้อง';
+    if (t.contains('คุ้มครอง')) return GameSkills.doctorGuard;
+    if (t.contains('ปกป้อง')) return GameSkills.doctorProtect;
     return _skillTitleFromText(raw);
   }
 
   static String _imagePathForSkillName(String skillName) {
     switch (skillName) {
-      case 'สกิลคนดวงซวย':
+      case GameSkills.jinx:
         return _storagePublicUrl('Skills', 'Ghost-Jinx-Skill.jpg');
-      case 'สกิลตายโหง':
+      case GameSkills.vengefulGhost:
         return _storagePublicUrl('Skills', 'Ghost-violent-death-skill.jpg');
-      case 'สกิลเป้าหมายลับ':
+      case GameSkills.karmaSecret:
         return _storagePublicUrl('Skills', 'Special-secret-target.jpg');
-      case 'สกิลตาวิเศษ':
+      case GameSkills.seerCheck:
         return _storagePublicUrl('Skills', 'Villager-Clairvoyance-Skill.jpg');
-      case 'สกิลสอบสวน':
+      case GameSkills.policeCheck:
         return _storagePublicUrl('Skills', 'Villager-Investigation-Skill.jpg');
-      case 'สกิลตรวจออร่า':
+      case GameSkills.auraCheck:
         return _storagePublicUrl('Skills', 'Villager-Aura-Skill.jpg');
-      case 'สกิลปกป้อง':
+      case GameSkills.doctorProtect:
         return _storagePublicUrl('Skills', 'Villager-Defense-Skill.jpg');
-      case 'สกิลคุ้มครอง':
+      case GameSkills.doctorGuard:
         return _storagePublicUrl('Skills', 'Villager-Protection-Skill.jpg');
-      case 'สกิลชุบชีวิต':
+      case GameSkills.witchRevive:
         return _storagePublicUrl('Skills', 'Villager-Resurrection-Skill.jpg');
-      case 'สกิลปกป้องผี':
+      case GameSkills.darkProtect:
         return _storagePublicUrl('Skills', 'Ghost-Protection-Skill.jpg');
-      case 'สกิลคุณไสยฆ่า':
+      case GameSkills.witchPoison:
         return _storagePublicUrl('Skills', 'Villager-Voodoo-Skill.jpg');
-      case 'สกิลฆ่าเดี่ยว':
+      case GameSkills.serialKill:
         return _storagePublicUrl('Skills', "Special-assassin-skill'.jpg");
-      case 'สกิลสาปพูดไม่ได้':
+      case GameSkills.darkCurse:
         return _storagePublicUrl('Skills', 'Ghost-curse-skill.jpg');
-      case 'สกิลลอบสังหาร':
+      case GameSkills.ghostKill:
         return _storagePublicUrl('Skills', "Special-assassin-skill'.jpg");
-      case 'สกิลเปิดบทผู้ตาย':
+      case GameSkills.undertakerReveal:
         return _storagePublicUrl('Skills', 'Villager-Undertaker-Skill.jpg');
       default:
         return _imagePathForSkillText(skillName);
@@ -439,9 +505,9 @@ class RoleService {
   static String _teamFromFaction(String faction) {
     switch (faction) {
       case 'VILLAGER':
-        return 'ชาวบ้าน';
+        return GameTeams.villagers;
       case 'GHOST':
-        return 'ผี';
+        return GameTeams.ghosts;
       case 'SPECIAL':
         return 'พิเศษ';
       default:

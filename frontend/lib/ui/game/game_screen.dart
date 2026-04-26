@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:areyoughost/models/mock_models.dart' hide RoleInfo;
+import 'package:areyoughost/game/game_catalog.dart';
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/services/role_service.dart';
 import 'package:areyoughost/services/ws_service.dart';
@@ -55,8 +56,6 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-  static const String _karmaSkillIconUrl =
-      'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Special-secret-target.jpg';
   late List<PlayerModel> players;
   late List<ChatMessage> chatMessages;
   late List<SkillOption> currentRoleSkills;
@@ -152,12 +151,14 @@ class _GameScreenState extends State<GameScreen> {
     merged.addAll(_ghostRoleIconByPlayerNumberForGhostView);
     merged.addAll(_skillIconByPlayerNumber);
     if (_myKarmaTargetNumber != null) {
-      merged[_myKarmaTargetNumber!] = _karmaSkillIconUrl;
+      merged[_myKarmaTargetNumber!] =
+          RoleService.skillImageUrl(GameSkills.karmaSecret);
     }
     if (_armedSkill == null) {
       return merged;
     }
-    if (_armedSkill!.name == 'สกิลสอบสวน' && _compareInvestigateFirst != null) {
+    if (_armedSkill!.name == GameSkills.policeCheck &&
+        _compareInvestigateFirst != null) {
       merged[_compareInvestigateFirst!] = _armedSkill!.image;
     }
     for (final n in _previewTargetNumbers) {
@@ -394,6 +395,14 @@ class _GameScreenState extends State<GameScreen> {
               }
             }
           }
+          final myRoleRaw = payload['myRole'];
+          if (myRoleRaw is String && myRoleRaw.trim().isNotEmpty) {
+            _roleByPlayerNumber[nextMyPlayerNumber] = myRoleRaw.trim();
+          }
+          final myAliveRaw = payload['myAlive'];
+          if (myAliveRaw is bool) {
+            _aliveByPlayerNumber[nextMyPlayerNumber] = myAliveRaw;
+          }
         });
       }
     }
@@ -431,8 +440,8 @@ class _GameScreenState extends State<GameScreen> {
                 winnerText: switch (winner) {
                   _WinnerKind.villagers => 'ฝ่ายชาวบ้านชนะ',
                   _WinnerKind.ghosts => 'ฝ่ายผีชนะ',
-                  _WinnerKind.serialKiller => 'ฆาตกรต่อเนื่องชนะ',
-                  _WinnerKind.spirit => 'เจ้ากรรมนายเวรชนะ',
+                  _WinnerKind.serialKiller => '${GameRoles.serialKiller}ชนะ',
+                  _WinnerKind.spirit => '${GameRoles.karma}ชนะ',
                 },
                 endAnnouncement: 'เกมจบ',
               );
@@ -447,6 +456,10 @@ class _GameScreenState extends State<GameScreen> {
         final senderName = (payload['username'] as String?) ?? 'ผู้เล่น';
         final text = (payload['text'] as String?) ?? '';
         if (text.trim().isEmpty) return;
+        final serverPhase = (payload['phaseType'] as String?)?.toLowerCase().trim();
+        final phaseTag = serverPhase == 'night' || serverPhase == 'day'
+            ? serverPhase!
+            : (isDay ? 'day' : 'night');
         final now = DateTime.now();
         setState(() {
           _showHistoryInMainChat = false;
@@ -457,7 +470,7 @@ class _GameScreenState extends State<GameScreen> {
               senderId: senderId,
               senderName: senderName,
               message: text,
-              phaseType: isDay ? 'day' : 'night',
+              phaseType: phaseTag,
               createdAt: now,
             ),
           ];
@@ -524,7 +537,7 @@ class _GameScreenState extends State<GameScreen> {
             source: _NightKillSource.ghost,
             reasonAnnouncement: '${_playerName(leaders.first.key)} เสียชีวิต เพราะโดนฝ่ายผีฆ่า',
             popupDetail:
-                'ผู้เล่นที่ตายจะดูเกมได้อย่างเดียวจนกว่าจะถูกชุบชีวิต (สกิลชุบชีวิตของสัปเหร่อ)',
+                'ผู้เล่นที่ตายจะดูเกมได้อย่างเดียวจนกว่าจะถูกชุบชีวิต (${GameSkills.witchRevive}ของสัปเหร่อ)',
           );
         } else {
           _queueAnnouncementForNextPhase('โหวตฝ่ายผีเสมอกัน ยังไม่มีผู้เล่นถูกกำจัดในคืนนี้');
@@ -572,11 +585,11 @@ class _GameScreenState extends State<GameScreen> {
 
       final role = _roleByPlayerNumber[targetNumber] ?? '';
       final hitByGhost = intents.any((i) => i.source == _NightKillSource.ghost);
-      if (role == 'คนดวงซวย' && hitByGhost) {
-        _roleByPlayerNumber[targetNumber] = 'ผีปอบ';
+      if (role == GameRoles.unlucky && hitByGhost) {
+        _roleByPlayerNumber[targetNumber] = GameRoles.ghoul;
         out.transformed.add(targetNumber);
         _queueAnnouncementForNextPhase(
-          '${_playerName(targetNumber)} ถูกโจมตี แต่พลังคำสาปเปลี่ยนเป็น “ผีปอบ”',
+          '${_playerName(targetNumber)} ถูกโจมตี แต่พลังคำสาปเปลี่ยนเป็น “${GameRoles.ghoul}”',
         );
         continue;
       }
@@ -636,7 +649,7 @@ class _GameScreenState extends State<GameScreen> {
     _lastDayExecutedTargetNumber = targetNumber;
     out.executedReason = '${target.name} ถูกโหวตออกจากที่ประชุมตอนกลางวัน';
     final executedRole = _roleByPlayerNumber[targetNumber] ?? '';
-    if (executedRole == 'ผีตายโหง') {
+    if (executedRole == GameRoles.violentGhost) {
       final voters = _dayVoteTargetByVoter.entries
           .where((e) => e.value == targetNumber)
           .map((e) => e.key)
@@ -661,12 +674,13 @@ class _GameScreenState extends State<GameScreen> {
         _markPlayerDead(
           targetNumber: revengeTarget,
           reasonAnnouncement:
-              '${_playerName(revengeTarget)} เสียชีวิตจากแรงอาฆาตของผีตายโหง',
-          popupDetail: 'ผีตายโหงทิ้งคำสาปก่อนตาย ทำให้มีผู้เสียชีวิตเพิ่ม',
+              '${_playerName(revengeTarget)} เสียชีวิตจากแรงอาฆาตของ${GameRoles.violentGhost}',
+          popupDetail:
+              '${GameRoles.violentGhost}ทิ้งคำสาปก่อนตาย ทำให้มีผู้เสียชีวิตเพิ่ม',
         );
         out.extraDeath = revengeTarget;
         out.extraDeathReason =
-            '${_playerName(revengeTarget)} เสียชีวิตจากแรงอาฆาตของผีตายโหง';
+            '${_playerName(revengeTarget)} เสียชีวิตจากแรงอาฆาตของ${GameRoles.violentGhost}';
       }
     }
     return out;
@@ -748,7 +762,7 @@ class _GameScreenState extends State<GameScreen> {
     for (final p in players) {
       if (!_isActivePlayerNumber(p.number)) continue;
       final role = _roleByPlayerNumber[p.number] ?? '';
-      if (role != 'เจ้ากรรมนายเวร') continue;
+      if (role != GameRoles.karma) continue;
       if (_karmaTargetByOwner.containsKey(p.number)) continue;
       final candidates = players
           .map((x) => x.number)
@@ -776,7 +790,7 @@ class _GameScreenState extends State<GameScreen> {
         final ownerName = _playerName(owner);
         _finishGame(
           winnerKind: _WinnerKind.spirit,
-          winnerText: 'เจ้ากรรมนายเวรชนะ',
+          winnerText: '${GameRoles.karma}ชนะ',
           endAnnouncement:
               'เกมจบ: $ownerName ทำเงื่อนไขสำเร็จ (เป้าหมายถูกโหวตออกตอนกลางวัน)',
         );
@@ -790,11 +804,11 @@ class _GameScreenState extends State<GameScreen> {
         .toList(growable: false);
     if (living.length == 1) {
       final role = _roleByPlayerNumber[living.first.number] ?? '';
-      if (role == 'ฆาตกรต่อเนื่อง') {
+      if (role == GameRoles.serialKiller) {
         _finishGame(
           winnerKind: _WinnerKind.serialKiller,
-          winnerText: 'ฆาตกรต่อเนื่องชนะ',
-          endAnnouncement: 'เกมจบ: ฆาตกรต่อเนื่องเหลือรอดคนสุดท้าย',
+          winnerText: '${GameRoles.serialKiller}ชนะ',
+          endAnnouncement: 'เกมจบ: ${GameRoles.serialKiller}เหลือรอดคนสุดท้าย',
         );
         return true;
       }
@@ -804,9 +818,9 @@ class _GameScreenState extends State<GameScreen> {
     var villagers = 0;
     for (final p in living) {
       final team = _teamOfRole(_roleByPlayerNumber[p.number] ?? '');
-      if (team == 'ผี') {
+      if (team == GameTeams.ghosts) {
         ghosts += 1;
-      } else if (team == 'ชาวบ้าน') {
+      } else if (team == GameTeams.villagers) {
         villagers += 1;
       }
     }
@@ -876,10 +890,10 @@ class _GameScreenState extends State<GameScreen> {
 
   _WinnerKind _mySidePerspective() {
     final myRole = (_roleByPlayerNumber[myPlayerNumber] ?? widget.role ?? '').trim();
-    if (myRole == 'เจ้ากรรมนายเวร') return _WinnerKind.spirit;
-    if (myRole == 'ฆาตกรต่อเนื่อง') return _WinnerKind.serialKiller;
+    if (myRole == GameRoles.karma) return _WinnerKind.spirit;
+    if (myRole == GameRoles.serialKiller) return _WinnerKind.serialKiller;
     final team = _teamOfRole(myRole);
-    if (team == 'ผี') return _WinnerKind.ghosts;
+    if (team == GameTeams.ghosts) return _WinnerKind.ghosts;
     return _WinnerKind.villagers;
   }
 
@@ -1039,16 +1053,7 @@ class _GameScreenState extends State<GameScreen> {
   bool _isGhostRole(String? role) {
     final r = (role ?? '').trim();
     if (r.isEmpty) return false;
-    final team = _teamByRoleName[RoleService.normalizeKey(r)];
-    if (team != null) return team == 'ผี';
-    const ghostRoles = <String>{
-      'ผีปอบ',
-      'ผีกระสือใหญ่',
-      'ผีตายโหง',
-      'ผีเปรต',
-      'หมอผีดำ',
-    };
-    return ghostRoles.contains(r);
+    return _teamOfRole(r) == GameTeams.ghosts;
   }
 
   List<PlayerModel> _buildPlayersWithJoinOrderNames(List<String>? names) {
@@ -1098,7 +1103,7 @@ class _GameScreenState extends State<GameScreen> {
     if (deck.length < playerCount) {
       deck = [
         ...deck,
-        ...List<String>.filled(playerCount - deck.length, 'ชาวบ้าน'),
+        ...List<String>.filled(playerCount - deck.length, GameRoles.villager),
       ];
     } else if (deck.length > playerCount) {
       deck = deck.sublist(0, playerCount);
@@ -1114,14 +1119,14 @@ class _GameScreenState extends State<GameScreen> {
   /// บทที่ไม่ใช่ชาวบ้านซ้ำ (เช่น หมอผีดำสองใบในสำรับผิดพลาด) → ใบที่สองเป็นชาวบ้าน
   List<String> _uniqueNonVillagerRolesPadVillagers(List<String> roles) {
     final seen = <String>{};
-    final villagerKey = RoleService.normalizeKey('ชาวบ้าน');
+    final villagerKey = RoleService.normalizeKey(GameRoles.villager);
     return roles
         .map((raw) {
           final name = raw.trim();
-          if (name.isEmpty) return 'ชาวบ้าน';
+          if (name.isEmpty) return GameRoles.villager;
           final key = RoleService.normalizeKey(name);
           if (key == villagerKey) return name;
-          if (seen.contains(key)) return 'ชาวบ้าน';
+          if (seen.contains(key)) return GameRoles.villager;
           seen.add(key);
           return name;
         })
@@ -1133,23 +1138,15 @@ class _GameScreenState extends State<GameScreen> {
     if (teamFromCatalog != null && teamFromCatalog.isNotEmpty) {
       return teamFromCatalog;
     }
-    const ghostTeam = <String>{
-      'ผีปอบ',
-      'ผีกระสือใหญ่',
-      'ผีตายโหง',
-      'ผีเปรต',
-      'หมอผีดำ',
-    };
-    const neutralTeam = <String>{'เจ้ากรรมนายเวร', 'ฆาตกรต่อเนื่อง'};
-    if (ghostTeam.contains(role)) return 'ผี';
-    if (neutralTeam.contains(role)) return 'อิสระ';
-    return 'ชาวบ้าน';
+    if (GameRoles.ghostTeamRoles.contains(role)) return GameTeams.ghosts;
+    if (GameRoles.independentTeamRoles.contains(role)) return GameTeams.independent;
+    return GameTeams.villagers;
   }
 
   String _auraOfRole(String role) {
     final team = _teamOfRole(role);
-    if (team == 'ผี') return 'ออร่าดำ';
-    if (team == 'อิสระ') return 'ออร่าหม่น';
+    if (team == GameTeams.ghosts) return 'ออร่าดำ';
+    if (team == GameTeams.independent) return 'ออร่าหม่น';
     return 'ออร่าขาว';
   }
 
@@ -1189,52 +1186,7 @@ class _GameScreenState extends State<GameScreen> {
     if (fromRoom != null && fromRoom.isNotEmpty) {
       return fromRoom.toSet();
     }
-
-    final count = playerCount.clamp(2, 16);
-    final evilCount = switch (count) {
-      <= 4 => 1,
-      <= 7 => 2,
-      <= 10 => 3,
-      <= 13 => 4,
-      _ => 5,
-    };
-    final neutralCount = count >= 11 ? 2 : (count >= 6 ? 1 : 0);
-    final goodCount = (count - evilCount - neutralCount).clamp(1, count);
-
-    const goodCycle = <String>[
-      'ชาวบ้าน',
-      'ร่างทรง',
-      'แพทย์',
-      'ทหาร',
-      'ตำรวจ',
-      'พระธุดงค์',
-      'หมอผีคุณไสย',
-      'สัปเหร่อ',
-    ];
-    const evilCycle = <String>[
-      'ผีปอบ',
-      'ผีกระสือใหญ่',
-      'ผีตายโหง',
-      'ผีเปรต',
-      'หมอผีดำ',
-      'ฆาตกรต่อเนื่อง',
-    ];
-    const neutralCycle = <String>[
-      'คนดวงซวย',
-      'เจ้ากรรมนายเวร',
-    ];
-
-    final allowed = <String>{};
-    for (var i = 0; i < goodCount; i++) {
-      allowed.add(goodCycle[i % goodCycle.length]);
-    }
-    for (var i = 0; i < evilCount; i++) {
-      allowed.add(evilCycle[i % evilCycle.length]);
-    }
-    for (var i = 0; i < neutralCount; i++) {
-      allowed.add(neutralCycle[i % neutralCycle.length]);
-    }
-    return allowed;
+    return balancedAllowedRoleNamesForCount(playerCount);
   }
 
 
@@ -1277,14 +1229,14 @@ class _GameScreenState extends State<GameScreen> {
   void openSkillDialog() {
     if (_gameEnded) return;
     if (!_isMyPlayerAlive) return;
-    if (_myCurrentRole == 'ผีกระสือใหญ่') {
+    if (_myCurrentRole == GameRoles.krasue) {
       _notify('บทนี้เป็นสกิลติดตัว (Passive) ไม่ต้องกดใช้');
       return;
     }
     bool isPassiveSkill(SkillOption s) {
       final name = s.name.trim();
       final desc = s.description.trim();
-      return name.contains('สกิลเป้าหมายลับ') ||
+      return name.contains(GameSkills.karmaSecret) ||
           name.contains('พรางออร่า') ||
           name.contains('หลอกผลตรวจ') ||
           desc.contains('หลอกผลตรวจ') ||
@@ -1299,7 +1251,7 @@ class _GameScreenState extends State<GameScreen> {
     currentRoleSkills = _skillsForRole(_myCurrentRole)
         .where(
           (s) =>
-              s.name != 'สกิลลอบสังหาร' &&
+              s.name != GameSkills.ghostKill &&
               !s.description.contains('ร่วมกันฆ่า') &&
               !isPassiveSkill(s),
         )
@@ -1368,129 +1320,20 @@ class _GameScreenState extends State<GameScreen> {
           )
           .toList(growable: false);
     }
-    switch (r) {
-      case 'ร่างทรง':
-        return [
-          SkillOption(
-            name: 'สกิลตาวิเศษ',
-            description: 'เลือกผู้เล่น 1 คน เพื่อทำการตรวจฝ่าย',
-            image:
-                'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Villager-Clairvoyance-Skill.jpg',
+    final defaults = RoleService.defaultSkillsForRoleName(r);
+    return defaults
+        .map(
+          (s) => SkillOption(
+            name: s.name,
+            description: s.description,
+            image: s.imagePath,
           ),
-        ];
-      case 'แพทย์':
-        return [
-          SkillOption(
-            name: 'สกิลปกป้อง',
-            description: 'ปกป้องผู้เล่น 1 คนในคืนนี้',
-            image:
-                'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Villager-Defense-Skill.jpg',
-          ),
-        ];
-      case 'ทหาร':
-        return [
-          SkillOption(
-            name: 'สกิลยืนแทน',
-            description: 'เลือกผู้เล่น 1 คน ถ้าคืนนั้นโดนฆ่า ทหารจะตายแทน',
-            image:
-                'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Villager-Defense-Skill.jpg',
-          ),
-        ];
-      case 'ตำรวจ':
-        return [
-          SkillOption(
-            name: 'สกิลสอบสวน',
-            description: 'เลือกผู้เล่น 2 คน เพื่อดูว่าอยู่ฝ่ายเดียวกันไหม',
-            image:
-                'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Villager-Investigation-Skill.jpg',
-          ),
-        ];
-      case 'พระธุดงค์':
-        return [
-          SkillOption(
-            name: 'สกิลตรวจออร่า',
-            description: 'ตรวจออร่าผู้เล่น 1 คน',
-            image:
-                'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Villager-Aura-Skill.jpg',
-          ),
-        ];
-      case 'หมอผีคุณไสย':
-        return [
-          SkillOption(
-            name: 'สกิลชุบชีวิต',
-            description: 'ชุบชีวิตผู้เล่นที่ถูกฆ่าในคืนนี้ (ใช้ได้ 1 ครั้ง)',
-            image:
-                'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Villager-Resurrection-Skill.jpg',
-          ),
-          SkillOption(
-            name: 'สกิลคุณไสยฆ่า',
-            description: 'ฆ่าผู้เล่น 1 คน (ใช้ได้ 1 ครั้ง)',
-            image:
-                'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Villager-Voodoo-Skill.jpg',
-          ),
-        ];
-      case 'สัปเหร่อ':
-        return [
-          SkillOption(
-            name: 'สกิลเปิดบทผู้ตาย',
-            description: 'ดูบทบาทผู้ตายได้ 1 คนต่อคืน',
-            image:
-                'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Villager-Undertaker-Skill.jpg',
-          ),
-        ];
-      case 'ผีปอบ':
-      case 'ผีกระสือใหญ่':
-      case 'ผีเปรต':
-        return const <SkillOption>[];
-      case 'ผีตายโหง':
-        return [
-          SkillOption(
-            name: 'สกิลตายโหง',
-            description: 'หากถูกโหวตตายตอนกลางวัน เลือกผู้เล่น 1 คนตายตามทันที',
-            image:
-                'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Ghost-violent-death-skill.jpg',
-          ),
-        ];
-      case 'หมอผีดำ':
-        return [
-          SkillOption(
-            name: 'สกิลปกป้องผี',
-            description: 'ปกป้องผี 1 ตัวในคืนนี้',
-            image:
-                'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Ghost-Protection-Skill.jpg',
-          ),
-          SkillOption(
-            name: 'สกิลสาปพูดไม่ได้',
-            description: 'สาปผู้เล่น 1 คนให้พูดไม่ได้ตอนกลางวัน',
-            image:
-                'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Ghost-curse-skill.jpg',
-          ),
-        ];
-      case 'คนดวงซวย':
-        return [
-          SkillOption(
-            name: 'สกิลคนดวงซวย',
-            description: 'หากถูกผีโจมตีครั้งแรก จะไม่ตายและเปลี่ยนเป็นผีปอบทันที',
-            image:
-                'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Ghost-Jinx-Skill.jpg',
-          ),
-        ];
-      case 'ฆาตกรต่อเนื่อง':
-        return [
-          SkillOption(
-            name: 'สกิลฆ่าเดี่ยว',
-            description: 'เลือกผู้เล่น 1 คน เพื่อกำจัดในคืนนี้',
-            image:
-                'https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public/Skills/Special-assassin-skill%27.jpg',
-          ),
-        ];
-      default:
-        return const <SkillOption>[];
-    }
+        )
+        .toList(growable: false);
   }
 
   void _armSkill(SkillOption skill) {
-    if (skill.name == 'สกิลลอบสังหาร' || skill.name == 'สกิลเป้าหมายลับ') {
+    if (skill.name == GameSkills.ghostKill || skill.name == GameSkills.karmaSecret) {
       // Ghost team kill + secret target are system-driven (no manual skill usage UI).
       return;
     }
@@ -1517,7 +1360,7 @@ class _GameScreenState extends State<GameScreen> {
       _notify('ไม่มีเป้าหมายที่ใช้สกิลได้ในตอนนี้');
       return;
     }
-    if (skill.name == 'สกิลสอบสวน' && validTargets.length < 2) {
+    if (skill.name == GameSkills.policeCheck && validTargets.length < 2) {
       _notify('ต้องมีผู้เล่นอย่างน้อย 2 คนเพื่อเปรียบเทียบฝ่าย');
       return;
     }
@@ -1550,7 +1393,7 @@ class _GameScreenState extends State<GameScreen> {
       return;
     }
 
-    if (skill.name == 'สกิลสอบสวน') {
+    if (skill.name == GameSkills.policeCheck) {
       if (_compareInvestigateFirst == null) {
         setState(() {
           _compareInvestigateFirst = targetNumber;
@@ -1659,35 +1502,10 @@ class _GameScreenState extends State<GameScreen> {
     required String skillName,
     required String? roleName,
   }) {
-    final role = (roleName ?? '').trim();
-    switch (skillName.trim()) {
-      case 'สกิลตาวิเศษ':
-        return 'seer_check';
-      case 'สกิลตรวจออร่า':
-        return 'aura_check';
-      case 'สกิลสอบสวน':
-        return 'police_check';
-      case 'สกิลยืนแทน':
-        return 'soldier_guard';
-      case 'สกิลปกป้องผี':
-        return 'dark_protect';
-      case 'สกิลสาปพูดไม่ได้':
-        return 'dark_curse';
-      case 'สกิลชุบชีวิต':
-        return 'witch_revive';
-      case 'สกิลคุณไสยฆ่า':
-        return 'witch_poison';
-      case 'สกิลฆ่าเดี่ยว':
-        return 'serial_kill';
-      case 'สกิลลอบสังหาร':
-        return 'ghost_kill';
-      case 'สกิลปกป้อง':
-      case 'สกิลคุ้มครอง':
-        if (role == 'ทหาร') return 'soldier_guard';
-        return 'doctor_protect';
-      default:
-        return null;
-    }
+    return RoleService.actionTypeForSkill(
+      skillName: skillName,
+      roleName: roleName,
+    );
   }
 
   String _buildSkillResultMessage({
@@ -1699,45 +1517,45 @@ class _GameScreenState extends State<GameScreen> {
     final targetAura = _auraOfRole(targetRole);
 
     switch (skillName) {
-      case 'สกิลตาวิเศษ':
+      case GameSkills.seerCheck:
         return '${target.number} ${target.name}\nอยู่ฝ่าย “$targetTeam”';
-      case 'สกิลตรวจออร่า':
+      case GameSkills.auraCheck:
         return '${target.number} ${target.name}\nตรวจพบ “$targetAura”';
-      case 'สกิลเปิดบทผู้ตาย':
+      case GameSkills.undertakerReveal:
         return '${target.number} ${target.name}\nบทบาทคือ “$targetRole”';
-      case 'สกิลปกป้อง':
-      case 'สกิลคุ้มครอง':
-      case 'สกิลปกป้องผี':
+      case GameSkills.doctorProtect:
+      case GameSkills.doctorGuard:
+      case GameSkills.darkProtect:
         _protectedPlayerNumbers.add(target.number);
-        if (skillName == 'สกิลปกป้อง' || skillName == 'สกิลคุ้มครอง') {
+        if (skillName == GameSkills.doctorProtect || skillName == GameSkills.doctorGuard) {
           _lastDoctorProtectedTarget = target.number;
         }
         return '${target.number} ${target.name}\nได้รับสถานะ “ป้องกัน” คืนนี้';
-      case 'สกิลยืนแทน':
+      case GameSkills.soldierStandIn:
         _bodyguardProtectTarget = target.number;
         return '${target.number} ${target.name}\nถูกเลือกให้ทหารคุ้มกันแทนคืนนี้';
-      case 'สกิลสาปพูดไม่ได้':
+      case GameSkills.darkCurse:
         _silencedPlayerNumbers.add(target.number);
         _queueAnnouncementForNextPhase(
           '${target.name} ถูกคำสาปให้พูดไม่ได้ในช่วงกลางวัน',
         );
         return '${target.number} ${target.name}\nได้รับสถานะ “พูดไม่ได้” ในกลางวันถัดไป';
-      case 'สกิลชุบชีวิต':
+      case GameSkills.witchRevive:
         _pendingNightReviveTarget = target.number;
         return '${target.number} ${target.name}\nถูกเลือกเป็นเป้าชุบชีวิตคืนนี้';
-      case 'สกิลลอบสังหาร':
-      case 'สกิลฆ่าเดี่ยว':
-      case 'สกิลคุณไสยฆ่า':
-        if (skillName == 'สกิลลอบสังหาร') {
+      case GameSkills.ghostKill:
+      case GameSkills.serialKill:
+      case GameSkills.witchPoison:
+        if (skillName == GameSkills.ghostKill) {
           return '${target.number} ${target.name}\nการฆ่าร่วมของฝ่ายผีใช้ผ่านระบบโหวตกลางคืน';
-        } else if (skillName == 'สกิลคุณไสยฆ่า') {
+        } else if (skillName == GameSkills.witchPoison) {
           _queueNightKillIntent(
             targetNumber: target.number,
             source: _NightKillSource.witchKill,
             reasonAnnouncement: '${target.name} เสียชีวิต เพราะโดนคุณไสยเล่นงาน',
             popupDetail: 'ผู้เล่นคนนี้เสียชีวิตจากพลังคุณไสย',
           );
-        } else if (skillName == 'สกิลฆ่าเดี่ยว') {
+        } else if (skillName == GameSkills.serialKill) {
           _queueNightKillIntent(
             targetNumber: target.number,
             source: _NightKillSource.serialKiller,
@@ -1760,34 +1578,34 @@ class _GameScreenState extends State<GameScreen> {
 
   _SkillRule? _ruleForSkill(String skillName) {
     switch (skillName) {
-      case 'สกิลตาวิเศษ':
-      case 'สกิลสอบสวน':
-      case 'สกิลตรวจออร่า':
-      case 'สกิลปกป้อง':
-      case 'สกิลคุ้มครอง':
-      case 'สกิลลอบสังหาร':
-      case 'สกิลฆ่าเดี่ยว':
-      case 'สกิลยืนแทน':
-      case 'สกิลปกป้องผี':
-      case 'สกิลสาปพูดไม่ได้':
+      case GameSkills.seerCheck:
+      case GameSkills.policeCheck:
+      case GameSkills.auraCheck:
+      case GameSkills.doctorProtect:
+      case GameSkills.doctorGuard:
+      case GameSkills.ghostKill:
+      case GameSkills.serialKill:
+      case GameSkills.soldierStandIn:
+      case GameSkills.darkProtect:
+      case GameSkills.darkCurse:
         return const _SkillRule(
           allowedPhase: 'night',
           targetMustBeAlive: true,
           oncePerPhase: true,
         );
-      case 'สกิลเปิดบทผู้ตาย':
+      case GameSkills.undertakerReveal:
         return const _SkillRule(
           allowedPhase: 'night',
           targetMustBeDead: true,
           oncePerPhase: true,
         );
-      case 'สกิลชุบชีวิต':
+      case GameSkills.witchRevive:
         return const _SkillRule(
           allowedPhase: 'night',
           targetMustBeDead: true,
           oncePerPhase: true,
         );
-      case 'สกิลคุณไสยฆ่า':
+      case GameSkills.witchPoison:
         return const _SkillRule(
           allowedPhase: 'night',
           targetMustBeAlive: true,
@@ -1800,10 +1618,10 @@ class _GameScreenState extends State<GameScreen> {
 
   int _maxUsesForSkill(String skillName) {
     switch (skillName) {
-      case 'สกิลชุบชีวิต':
-      case 'สกิลคุณไสยฆ่า':
+      case GameSkills.witchRevive:
+      case GameSkills.witchPoison:
         return 1; // ใช้ได้ครั้งเดียวตลอดเกม (V7)
-      case 'สกิลยืนแทน':
+      case GameSkills.soldierStandIn:
         return 999;
       default:
         return 999; // ใช้ได้ทุกคืน
@@ -1868,18 +1686,18 @@ class _GameScreenState extends State<GameScreen> {
       final alive = _aliveByPlayerNumber[p.number] ?? true;
       if (rule.targetMustBeAlive && !alive) continue;
       if (rule.targetMustBeDead && alive) continue;
-      if (skillName == 'สกิลปกป้องผี') {
+      if (skillName == GameSkills.darkProtect) {
         final role = _roleByPlayerNumber[p.number] ?? '';
-        if (_teamOfRole(role) != 'ผี') continue;
+        if (_teamOfRole(role) != GameTeams.ghosts) continue;
       }
       // Ghost offensive skills: do not mark / target fellow ghost-faction players.
       if (_skillExcludesGhostFactionTargets(skillName)) {
         final targetRole = _roleByPlayerNumber[p.number] ?? '';
-        if (_teamOfRole(targetRole) == 'ผี') continue;
+        if (_teamOfRole(targetRole) == GameTeams.ghosts) continue;
       }
       set.add(p.number);
     }
-    if ((skillName == 'สกิลปกป้อง' || skillName == 'สกิลคุ้มครอง') &&
+    if ((skillName == GameSkills.doctorProtect || skillName == GameSkills.doctorGuard) &&
         _lastDoctorProtectedTarget != null) {
       set.remove(_lastDoctorProtectedTarget);
     }
@@ -1889,8 +1707,8 @@ class _GameScreenState extends State<GameScreen> {
   /// Night skills that must not be aimed at the ghost team (teammates).
   bool _skillExcludesGhostFactionTargets(String skillName) {
     switch (skillName) {
-      case 'สกิลลอบสังหาร':
-      case 'สกิลสาปพูดไม่ได้':
+      case GameSkills.ghostKill:
+      case GameSkills.darkCurse:
         return true;
       default:
         return false;

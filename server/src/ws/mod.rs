@@ -75,7 +75,8 @@ pub async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
         // Send latest room snapshot to help client resync quickly.
         if let Some(room_id) = state.player_rooms.get(&player_id).map(|r| r.clone()) {
-            if let Some(room_state) = state.get_room_state(&room_id) {
+            if let Some(mut room_state) = state.get_room_state(&room_id) {
+                state.enrich_room_state_for_viewer(&room_id, &player_id, &mut room_state);
                 let _ = tx.send(Message::Text(
                     serde_json::to_string(&ServerMessage::new("room.state", room_state)).unwrap(),
                 ));
@@ -590,6 +591,7 @@ pub(crate) async fn handle_client_message(
                     if let Some(obj) = room_state.as_object_mut() {
                         obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
                     }
+                    state.enrich_room_state_for_viewer(&room_id, player_id, &mut room_state);
                     let state_msg = ServerMessage::new("room.state", room_state);
                     let _ = tx.send(Message::Text(serde_json::to_string(&state_msg).unwrap()));
                 } else {
@@ -615,17 +617,19 @@ pub(crate) async fn handle_client_message(
             if let Some(room_id) = room_id {
                 match state.start_game(&room_id, player_id).await {
                     Ok(payload) => {
-                        let db = state.db.clone();
-                        let rid = room_id.clone();
-                        let pl = payload.clone();
-                        tokio::spawn(async move {
-                            let room_uuid = uuid::Uuid::parse_str(&rid).ok();
-                            if let Err(e) =
-                                insert_match_event(&db, room_uuid, None, "game.started", pl).await
-                            {
-                                tracing::warn!("match_events insert failed: {}", e);
-                            }
-                        });
+                        if !state.skip_persistence {
+                            let db = state.db.clone();
+                            let rid = room_id.clone();
+                            let pl = payload.clone();
+                            tokio::spawn(async move {
+                                let room_uuid = uuid::Uuid::parse_str(&rid).ok();
+                                if let Err(e) =
+                                    insert_match_event(&db, room_uuid, None, "game.started", pl).await
+                                {
+                                    tracing::warn!("match_events insert failed: {}", e);
+                                }
+                            });
+                        }
                         let started = ServerMessage::new("game.started", payload);
                         state.broadcast_to_room(
                             &room_id,
@@ -758,19 +762,37 @@ pub(crate) async fn handle_client_message(
             if let (Some(room_id), Some(text)) = (room_id, text) {
                 match state.validate_chat_sender(&room_id, player_id) {
                     Ok(_) => {
+                        use crate::state::manager::RuntimePhase;
+                        let phase_type = state
+                            .active_games
+                            .get(&room_id)
+                            .map(|g| match g.phase {
+                                RuntimePhase::Night => "night",
+                                RuntimePhase::Day | RuntimePhase::Voting => "day",
+                                RuntimePhase::Lobby | RuntimePhase::End => "day",
+                            })
+                            .unwrap_or("day");
                         let chat_msg = ServerMessage::new(
                             "game.chat_message",
                             json!({
                                 "roomId": room_id,
                                 "playerId": player_id,
                                 "username": username,
-                                "text": text
+                                "text": text,
+                                "phaseType": phase_type
                             }),
                         );
-                        state.broadcast_to_alive_in_room(
-                            &room_id,
-                            &serde_json::to_string(&chat_msg).unwrap(),
-                        );
+                        let payload = serde_json::to_string(&chat_msg).unwrap();
+                        let is_night = state
+                            .active_games
+                            .get(&room_id)
+                            .map(|g| g.phase == RuntimePhase::Night)
+                            .unwrap_or(false);
+                        if is_night {
+                            state.broadcast_to_alive_ghost_faction_in_room(&room_id, &payload);
+                        } else {
+                            state.broadcast_to_alive_in_room(&room_id, &payload);
+                        }
                     }
                     Err(e) => {
                         let _ = tx.send(Message::Text(
@@ -835,3 +857,6 @@ pub(crate) async fn handle_client_message(
         }
     }
 }
+
+#[cfg(test)]
+mod qa_tests;

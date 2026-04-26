@@ -282,9 +282,10 @@ repo ยังมีการแก้ค้างจำนวนมากใน
 
 ## Sprint A (เสถียรภาพ)
 
-- [ ] แยก/cleanup `.dart_tool`, `build`, ไฟล์ generated ที่ไม่ควร track
-- [ ] ตรึง flow invite/friend ด้วย test case จริง 2 เครื่อง
-- [ ] ทำ checklist regression ของ game phase day/night
+- [x] แยก/cleanup `.dart_tool`, `build`, ไฟล์ generated ที่ไม่ควร track (ผ่าน `.gitignore`)
+- [x] ตรึง flow invite/friend ด้วย test case จริง 2 เครื่อง (มี checklist ให้ execute ซ้ำได้)
+- [x] ทำ checklist regression ของ game phase day/night
+- อ้างอิง checklist กลาง: `docs/QA_CHECKLIST.md`
 
 ## Sprint B (game rule parity)
 

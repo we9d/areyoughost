@@ -159,6 +159,7 @@ async fn main() {
         day_phase_secs,
         night_phase_secs,
         voting_phase_secs,
+        false,
     );
 
     let tick_state = state.clone();

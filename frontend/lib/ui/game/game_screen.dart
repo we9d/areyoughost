@@ -330,14 +330,15 @@ class _GameScreenState extends State<GameScreen> {
 
   void _applyRoomStateFromServer(Map<String, dynamic> payload) {
     final playersJson = payload['players'];
-    if (playersJson is List) {
+    if (playersJson is List && playersJson.isNotEmpty) {
+      final nextActive = playersJson.length.clamp(1, 16);
       final nextPlayers = List<PlayerModel>.generate(
         16,
         (i) => PlayerModel(number: i + 1, name: 'Player${i + 1}'),
         growable: false,
       );
       final nextPlayerIdByNumber = <int, String>{};
-      final myUserId = AuthService.currentUser.value?.userId ?? '';
+      final myUserIdNorm = _normPlayerId(AuthService.currentUser.value?.userId);
       bool nextAmHost = _amHost;
       for (var i = 0; i < playersJson.length; i++) {
         final p = playersJson[i];
@@ -345,66 +346,55 @@ class _GameScreenState extends State<GameScreen> {
         final number = i + 1;
         if (number > 16) continue;
         final username = (p['username'] as String?)?.trim();
-        final playerId = (p['playerId'] as String?) ?? '';
+        final rawPid = p['playerId'] ?? p['id'];
+        final playerId =
+            rawPid == null ? '' : rawPid.toString().trim();
         final isHost = p['isHost'] == true;
         nextPlayers[number - 1] = PlayerModel(
           number: number,
           name: (username == null || username.isEmpty) ? 'Player$number' : username,
+          playerId: playerId.isEmpty ? null : playerId,
         );
         if (playerId.isNotEmpty) {
           nextPlayerIdByNumber[number] = playerId;
-          if (myUserId.isNotEmpty && playerId == myUserId) {
+          if (myUserIdNorm.isNotEmpty &&
+              _normPlayerId(playerId) == myUserIdNorm) {
             nextAmHost = isHost;
           }
         }
       }
-      if (playersJson.isNotEmpty) {
-        final myUsername = (AuthService.currentUser.value?.username ?? '').trim();
-        int nextMyPlayerNumber = myPlayerNumber;
-        if (myUserId.isNotEmpty) {
+      final nextMyPlayerNumber = _resolveMySeatFromServerData(
+        fallback: myPlayerNumber,
+        roster: nextPlayers,
+        idByNumber: nextPlayerIdByNumber,
+        activeCount: nextActive,
+      );
+      setState(() {
+        players = nextPlayers;
+        _activePlayerCount = nextActive;
+        myPlayerNumber = nextMyPlayerNumber;
+        _amHost = nextAmHost;
+        _playerIdByNumber
+          ..clear()
+          ..addAll(nextPlayerIdByNumber);
+        final serverRoles = widget.serverRolesByPlayerId;
+        if (serverRoles != null && serverRoles.isNotEmpty) {
           for (final entry in nextPlayerIdByNumber.entries) {
-            if (entry.value == myUserId) {
-              nextMyPlayerNumber = entry.key;
-              break;
+            final role = serverRoles[entry.value];
+            if (role != null && role.trim().isNotEmpty) {
+              _roleByPlayerNumber[entry.key] = role;
             }
           }
         }
-        if (nextMyPlayerNumber == myPlayerNumber && myUsername.isNotEmpty) {
-          for (final p in nextPlayers) {
-            if (!_isActivePlayerNumber(p.number)) continue;
-            if (p.name.trim() == myUsername) {
-              nextMyPlayerNumber = p.number;
-              break;
-            }
-          }
+        final myRoleRaw = payload['myRole'];
+        if (myRoleRaw is String && myRoleRaw.trim().isNotEmpty) {
+          _roleByPlayerNumber[nextMyPlayerNumber] = myRoleRaw.trim();
         }
-        setState(() {
-          players = nextPlayers;
-          _activePlayerCount = playersJson.length.clamp(1, 16);
-          myPlayerNumber = nextMyPlayerNumber;
-          _amHost = nextAmHost;
-          _playerIdByNumber
-            ..clear()
-            ..addAll(nextPlayerIdByNumber);
-          final serverRoles = widget.serverRolesByPlayerId;
-          if (serverRoles != null && serverRoles.isNotEmpty) {
-            for (final entry in nextPlayerIdByNumber.entries) {
-              final role = serverRoles[entry.value];
-              if (role != null && role.trim().isNotEmpty) {
-                _roleByPlayerNumber[entry.key] = role;
-              }
-            }
-          }
-          final myRoleRaw = payload['myRole'];
-          if (myRoleRaw is String && myRoleRaw.trim().isNotEmpty) {
-            _roleByPlayerNumber[nextMyPlayerNumber] = myRoleRaw.trim();
-          }
-          final myAliveRaw = payload['myAlive'];
-          if (myAliveRaw is bool) {
-            _aliveByPlayerNumber[nextMyPlayerNumber] = myAliveRaw;
-          }
-        });
-      }
+        final myAliveRaw = payload['myAlive'];
+        if (myAliveRaw is bool) {
+          _aliveByPlayerNumber[nextMyPlayerNumber] = myAliveRaw;
+        }
+      });
     }
     final runtime = payload['runtime'];
     if (runtime is Map<String, dynamic>) {
@@ -1056,6 +1046,32 @@ class _GameScreenState extends State<GameScreen> {
     return _teamOfRole(r) == GameTeams.ghosts;
   }
 
+  String _normPlayerId(String? id) => (id ?? '').trim().toLowerCase();
+
+  int _resolveMySeatFromServerData({
+    required int fallback,
+    required List<PlayerModel> roster,
+    required Map<int, String> idByNumber,
+    required int activeCount,
+  }) {
+    final myUserId = _normPlayerId(AuthService.currentUser.value?.userId);
+    if (myUserId.isNotEmpty) {
+      for (final e in idByNumber.entries) {
+        if (e.key < 1 || e.key > activeCount) continue;
+        if (_normPlayerId(e.value) == myUserId) return e.key;
+      }
+    }
+    final myUsername =
+        (AuthService.currentUser.value?.username ?? '').trim().toLowerCase();
+    if (myUsername.isNotEmpty) {
+      for (final p in roster) {
+        if (p.number < 1 || p.number > activeCount) continue;
+        if (p.name.trim().toLowerCase() == myUsername) return p.number;
+      }
+    }
+    return fallback;
+  }
+
   List<PlayerModel> _buildPlayersWithJoinOrderNames(List<String>? names) {
     final ordered = names ?? const <String>[];
     return List.generate(16, (i) {
@@ -1068,10 +1084,16 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   int _resolveMyPlayerNumber(List<PlayerModel> roster) {
-    final me = (AuthService.currentUser.value?.username ?? '').trim();
+    final myUserId = _normPlayerId(AuthService.currentUser.value?.userId);
+    if (myUserId.isNotEmpty) {
+      for (final p in roster) {
+        if (_normPlayerId(p.playerId) == myUserId) return p.number;
+      }
+    }
+    final me = (AuthService.currentUser.value?.username ?? '').trim().toLowerCase();
     if (me.isNotEmpty) {
       for (final p in roster) {
-        if (p.name.trim() == me) return p.number;
+        if (p.name.trim().toLowerCase() == me) return p.number;
       }
     }
     // Fallback to first slot when username is unavailable in roster.
@@ -1165,8 +1187,10 @@ class _GameScreenState extends State<GameScreen> {
         return PlayersPopup(
           players: players
               .where((p) => _isActivePlayerNumber(p.number))
-              .map((p) => "ห้อง${p.number} ${p.name}")
               .toList(growable: false),
+          myPlayerNumber: myPlayerNumber,
+          myAuthUserId: AuthService.currentUser.value?.userId,
+          activePlayerCount: _activePlayerCount,
         );
       },
     );
@@ -1805,6 +1829,7 @@ class _GameScreenState extends State<GameScreen> {
                             ? PlayerGridDay(
                                 players: players,
                                 myPlayerNumber: myPlayerNumber,
+                                myAuthUserId: AuthService.currentUser.value?.userId,
                                 dayVoteTargetByVoter: _dayVoteTargetByVoter,
                                 dayVoteCountByTarget: _dayVoteCountByTarget,
                                 dayVoteEnabled: isDay &&
@@ -1818,6 +1843,7 @@ class _GameScreenState extends State<GameScreen> {
                             : PlayerGridNight(
                                 players: players,
                                 myPlayerNumber: myPlayerNumber,
+                                myAuthUserId: AuthService.currentUser.value?.userId,
                                 ghostVoteTargetByVoter: _ghostVoteTargetByVoter,
                                 ghostVoteCountByTarget: _ghostVoteCountByTarget,
                                 ghostNightKillVoteEnabled: !isDay &&

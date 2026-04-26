@@ -7,6 +7,8 @@ import 'package:areyoughost/ui/widgets/network_or_asset_image.dart';
 class PlayerGridDay extends StatelessWidget {
   final List<PlayerModel> players;
   final int myPlayerNumber;
+  /// Logged-in account id; matches [PlayerModel.playerId] from `room.state`.
+  final String? myAuthUserId;
   final Map<int, int> dayVoteTargetByVoter;
   final Map<int, int> dayVoteCountByTarget;
   final bool dayVoteEnabled;
@@ -18,6 +20,7 @@ class PlayerGridDay extends StatelessWidget {
     super.key,
     required this.players,
     required this.myPlayerNumber,
+    this.myAuthUserId,
     required this.dayVoteTargetByVoter,
     required this.dayVoteCountByTarget,
     required this.dayVoteEnabled,
@@ -85,7 +88,9 @@ class PlayerGridDay extends StatelessWidget {
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
                                         height: 1.1,
-                                        color: p.number == myPlayerNumber
+                                        color: p.isLocalPlayer(
+                                                myPlayerNumber: myPlayerNumber,
+                                                myAuthUserId: myAuthUserId)
                                             ? const Color(0xFFC2185B)
                                             : Colors.black,
                                       ),

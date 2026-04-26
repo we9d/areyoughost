@@ -48,11 +48,23 @@ class Role {
 class PlayerModel {
   final int number;
   final String name;
+  /// Server seat identity (UUID); optional for mock / empty seats.
+  final String? playerId;
 
   PlayerModel({
     required this.number,
     required this.name,
+    this.playerId,
   });
+
+  /// True if this seat is the local player (by seat index and/or server [playerId]).
+  bool isLocalPlayer({required int myPlayerNumber, String? myAuthUserId}) {
+    if (number == myPlayerNumber) return true;
+    final pid = playerId?.trim();
+    final me = myAuthUserId?.trim();
+    if (pid == null || pid.isEmpty || me == null || me.isEmpty) return false;
+    return pid.toLowerCase() == me.toLowerCase();
+  }
 }
 
 class GameParticipant {

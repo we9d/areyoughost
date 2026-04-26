@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:areyoughost/models/mock_models.dart';
 
 class PlayersPopup extends StatelessWidget {
-  final List<String> players;
+  final List<PlayerModel> players;
+  final int myPlayerNumber;
+  final String? myAuthUserId;
+  final int activePlayerCount;
 
   const PlayersPopup({
     super.key,
     required this.players,
+    required this.myPlayerNumber,
+    this.myAuthUserId,
+    required this.activePlayerCount,
   });
 
   @override
@@ -34,16 +41,16 @@ class PlayersPopup extends StatelessWidget {
                 const Spacer(),
 
                 /// TITLE
-                const Text(
-                  "ผู้เล่น (16)",
+                Text(
+                  'ผู้เล่น ($activePlayerCount)',
                   style: const TextStyle(
-  fontSize: 22,
-  color: Colors.black,
-  fontWeight: FontWeight.w600,
-  decoration: TextDecoration.underline,
-  decorationColor: Colors.black,
-  decorationThickness: 1,
-),
+                    fontSize: 22,
+                    color: Colors.black,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.underline,
+                    decorationColor: Colors.black,
+                    decorationThickness: 1,
+                  ),
                 ),
 
                 const Spacer(),
@@ -71,14 +78,20 @@ class PlayersPopup extends StatelessWidget {
                 padding: EdgeInsets.zero,
                 itemCount: players.length,
 
-                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                separatorBuilder: (_, _) => const SizedBox(height: 6),
 
                 itemBuilder: (context, index) {
+                  final p = players[index];
+                  final self = p.isLocalPlayer(
+                    myPlayerNumber: myPlayerNumber,
+                    myAuthUserId: myAuthUserId,
+                  );
                   return Text(
-                    "${index + 1}  ${players[index]}",
-                    style: const TextStyle(
+                    '${p.number}  ${p.name}',
+                    style: TextStyle(
                       fontSize: 18,
-                      color: Colors.black,
+                      color: self ? const Color(0xFFC2185B) : Colors.black,
+                      fontWeight: self ? FontWeight.w700 : FontWeight.w400,
                       height: 1.2,
                     ),
                   );

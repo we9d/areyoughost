@@ -8,6 +8,7 @@ import 'package:areyoughost/ui/widgets/network_or_asset_image.dart';
 class PlayerGridNight extends StatelessWidget {
   final List<PlayerModel> players;
   final int myPlayerNumber;
+  final String? myAuthUserId;
   /// ใครโหวตใคร: key=voterNumber, value=targetNumber
   final Map<int, int> ghostVoteTargetByVoter;
   /// จำนวนโหวตที่แต่ละเป้าหมายได้รับ: key=targetNumber, value=count
@@ -22,6 +23,7 @@ class PlayerGridNight extends StatelessWidget {
     super.key,
     required this.players,
     required this.myPlayerNumber,
+    this.myAuthUserId,
     required this.ghostVoteTargetByVoter,
     required this.ghostVoteCountByTarget,
     required this.ghostNightKillVoteEnabled,
@@ -86,7 +88,9 @@ class PlayerGridNight extends StatelessWidget {
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
                                         height: 1.1,
-                                        color: p.number == myPlayerNumber
+                                        color: p.isLocalPlayer(
+                                                myPlayerNumber: myPlayerNumber,
+                                                myAuthUserId: myAuthUserId)
                                             ? const Color(0xFFC2185B)
                                             : Colors.black,
                                       ),

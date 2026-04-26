@@ -246,16 +246,31 @@ class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
     final cap = _room.maxPlayers.clamp(1, 16);
     return List.generate(cap, (i) {
       if (i < _room.players.length) {
-        return PlayerModel(number: i + 1, name: _room.players[i].username);
+        final rp = _room.players[i];
+        return PlayerModel(
+          number: i + 1,
+          name: rp.username,
+          playerId: rp.playerId.isEmpty ? null : rp.playerId,
+        );
       }
       return PlayerModel(number: i + 1, name: 'ว่าง');
     });
   }
 
   int _mySeatNumber() {
-    final myId = AuthService.currentUser.value?.userId ?? '';
+    final myId = (AuthService.currentUser.value?.userId ?? '').trim().toLowerCase();
+    if (myId.isEmpty) return 1;
     for (var i = 0; i < _room.players.length; i++) {
-      if (_room.players[i].playerId == myId) return i + 1;
+      if (_room.players[i].playerId.trim().toLowerCase() == myId) return i + 1;
+    }
+    final myName =
+        (AuthService.currentUser.value?.username ?? '').trim().toLowerCase();
+    if (myName.isNotEmpty) {
+      for (var i = 0; i < _room.players.length; i++) {
+        if (_room.players[i].username.trim().toLowerCase() == myName) {
+          return i + 1;
+        }
+      }
     }
     return 1;
   }
@@ -405,6 +420,7 @@ class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
                     child: PlayerGridDay(
                       players: _seatModels(),
                       myPlayerNumber: _mySeatNumber(),
+                      myAuthUserId: AuthService.currentUser.value?.userId,
                       dayVoteTargetByVoter: const <int, int>{},
                       dayVoteCountByTarget: const <int, int>{},
                       dayVoteEnabled: false,

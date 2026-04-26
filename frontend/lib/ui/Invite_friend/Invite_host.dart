@@ -4,6 +4,7 @@ import 'package:areyoughost/models/room_model.dart';
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/services/ws_service.dart';
 import 'package:areyoughost/ui/Invite_friend/invite_friends_dialog.dart';
+import 'package:areyoughost/ui/game/game_started_roles.dart';
 import 'package:areyoughost/ui/game/random_role_screen.dart';
 import 'package:areyoughost/ui/widgets/buttons/Invite_chat.dart';
 import 'package:areyoughost/ui/widgets/buttons/Invite_button.dart';
@@ -69,7 +70,9 @@ class _HostRoomScreenState extends State<HostRoomScreen> {
         setState(() => _room = nextRoom);
         break;
       case 'game.started':
-        _navigateToRandomRole();
+        final startedPayload =
+            msg['payload'] as Map<String, dynamic>? ?? <String, dynamic>{};
+        _navigateToRandomRole(startPayload: startedPayload);
         break;
       case 'room.player_joined':
         final p = msg['payload'] as Map<String, dynamic>? ?? <String, dynamic>{};
@@ -114,18 +117,29 @@ class _HostRoomScreenState extends State<HostRoomScreen> {
     }
   }
 
-  void _navigateToRandomRole() {
+  void _navigateToRandomRole({Map<String, dynamic>? startPayload}) {
     if (!mounted || _navigatedToGame) return;
     _navigatedToGame = true;
     if (_startingGame) {
       setState(() => _startingGame = false);
     }
+    final payload = startPayload ?? const <String, dynamic>{};
+    final rolesByPlayerId = parseRolesByPlayerIdFromPayload(payload['rolesByPlayerId']);
+    final rolePool = parseRolePoolFromPayload(payload['rolePool']);
+    final myAssignedRole = assignedRoleForCurrentUser(rolesByPlayerId);
+    final initialPhase = payload['phase'] as String?;
+    final initialDeadline = payload['phaseDeadlineAt'] as int?;
     Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
         builder: (_) => RandomRoleScreen(
           roomId: _room.roomId,
           playerCount: _room.players.length,
+          forcedRole: myAssignedRole,
+          serverRolePool: rolePool,
+          serverRolesByPlayerId: rolesByPlayerId,
+          initialPhase: initialPhase,
+          initialPhaseDeadlineAt: initialDeadline,
           playerNamesInJoinOrder: _room.players
               .map((p) => p.username)
               .toList(growable: false),

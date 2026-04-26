@@ -17,6 +17,7 @@ import 'package:areyoughost/ui/game/widgets/chat_box.dart';
 import 'package:areyoughost/ui/game/widgets/chat_input_row.dart';
 import 'package:areyoughost/ui/game/widgets/exit_game_popup.dart';
 import 'package:areyoughost/ui/game/widgets/game_top_bar.dart';
+import 'package:areyoughost/ui/game/game_started_roles.dart';
 import 'package:areyoughost/ui/game/widgets/player_grid_day.dart';
 import 'package:areyoughost/ui/game/widgets/player_grid_night.dart';
 import 'package:areyoughost/ui/game/widgets/players_popup.dart';
@@ -328,6 +329,9 @@ class _GameScreenState extends State<GameScreen> {
     _startPhaseTimer();
   }
 
+  /// Merges authoritative `room.state` from the server (roster, optional per-seat
+  /// `alive`, `myRole` / `myAlive` for this client). Local animations may update
+  /// death UI between polls; the next `room.state` reconciles to server truth.
   void _applyRoomStateFromServer(Map<String, dynamic> payload) {
     final playersJson = payload['players'];
     if (playersJson is List && playersJson.isNotEmpty) {
@@ -338,6 +342,7 @@ class _GameScreenState extends State<GameScreen> {
         growable: false,
       );
       final nextPlayerIdByNumber = <int, String>{};
+      final nextAliveBySeat = <int, bool>{};
       final myUserIdNorm = _normPlayerId(AuthService.currentUser.value?.userId);
       bool nextAmHost = _amHost;
       for (var i = 0; i < playersJson.length; i++) {
@@ -350,6 +355,10 @@ class _GameScreenState extends State<GameScreen> {
         final playerId =
             rawPid == null ? '' : rawPid.toString().trim();
         final isHost = p['isHost'] == true;
+        final aliveRaw = p['alive'];
+        if (aliveRaw is bool) {
+          nextAliveBySeat[number] = aliveRaw;
+        }
         nextPlayers[number - 1] = PlayerModel(
           number: number,
           name: (username == null || username.isEmpty) ? 'Player$number' : username,
@@ -377,10 +386,13 @@ class _GameScreenState extends State<GameScreen> {
         _playerIdByNumber
           ..clear()
           ..addAll(nextPlayerIdByNumber);
+        for (final e in nextAliveBySeat.entries) {
+          _aliveByPlayerNumber[e.key] = e.value;
+        }
         final serverRoles = widget.serverRolesByPlayerId;
         if (serverRoles != null && serverRoles.isNotEmpty) {
           for (final entry in nextPlayerIdByNumber.entries) {
-            final role = serverRoles[entry.value];
+            final role = lookupRoleForPlayerId(serverRoles, entry.value);
             if (role != null && role.trim().isNotEmpty) {
               _roleByPlayerNumber[entry.key] = role;
             }

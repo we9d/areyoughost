@@ -5,6 +5,7 @@ import 'package:areyoughost/models/room_model.dart';
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/services/ws_service.dart';
 import 'package:areyoughost/ui/Invite_friend/invite_friends_dialog.dart';
+import 'package:areyoughost/ui/game/game_started_roles.dart';
 import 'package:areyoughost/ui/game/random_role_screen.dart';
 import 'package:areyoughost/ui/game/widgets/player_grid_day.dart';
 import 'package:areyoughost/ui/widgets/buttons/Invite_chat.dart';
@@ -303,25 +304,12 @@ class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
     if (_navigated || !mounted) return;
     _navigated = true;
     _countdownTimer?.cancel();
-    final myId = AuthService.currentUser.value?.userId ?? '';
     final payload = startPayload ?? const <String, dynamic>{};
-    final rolesByPlayerIdRaw = payload['rolesByPlayerId'];
-    final rolePoolRaw = payload['rolePool'];
     final initialPhase = payload['phase'] as String?;
     final initialDeadline = payload['phaseDeadlineAt'] as int?;
-    final rolesByPlayerId = <String, String>{};
-    if (rolesByPlayerIdRaw is Map) {
-      rolesByPlayerIdRaw.forEach((key, value) {
-        if (key is String && value is String && key.isNotEmpty && value.isNotEmpty) {
-          rolesByPlayerId[key] = value;
-        }
-      });
-    }
-    final rolePool = <String>[
-      if (rolePoolRaw is List)
-        ...rolePoolRaw.whereType<String>().where((e) => e.trim().isNotEmpty),
-    ];
-    final myAssignedRole = myId.isNotEmpty ? rolesByPlayerId[myId] : null;
+    final rolesByPlayerId = parseRolesByPlayerIdFromPayload(payload['rolesByPlayerId']);
+    final rolePool = parseRolePoolFromPayload(payload['rolePool']);
+    final myAssignedRole = assignedRoleForCurrentUser(rolesByPlayerId);
     Navigator.pushReplacement<void, void>(
       context,
       MaterialPageRoute<void>(

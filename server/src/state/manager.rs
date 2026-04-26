@@ -1027,15 +1027,25 @@ impl AppState {
     pub fn get_room_state(&self, room_id: &str) -> Option<serde_json::Value> {
         let room = self.rooms.get(room_id)?;
         let room_id_owned = room.room_id.clone();
+        let alive_by_player: Option<HashMap<String, bool>> = self
+            .active_games
+            .get(room_id)
+            .map(|g| g.players.iter().map(|(k, v)| (k.clone(), v.alive)).collect());
         let players: Vec<serde_json::Value> = room
             .players
             .iter()
             .map(|p| {
+                let alive = alive_by_player
+                    .as_ref()
+                    .and_then(|m| m.get(&p.player_id))
+                    .copied()
+                    .unwrap_or(true);
                 serde_json::json!({
                     "playerId": p.player_id,
                     "username": p.username,
                     "isReady": p.is_ready,
                     "isHost": p.is_host,
+                    "alive": alive,
                 })
             })
             .collect();
@@ -1067,6 +1077,48 @@ impl AppState {
             "runtime": runtime,
             "quickplayDeadlineUnix": quickplay_deadline_unix,
         }))
+    }
+
+    /// Public rooms in memory for HTTP lobby list (browser / Flutter).
+    pub fn list_public_rooms(&self) -> serde_json::Value {
+        let mut items: Vec<serde_json::Value> = self
+            .rooms
+            .iter()
+            .filter(|r| r.value().is_public)
+            .map(|r| {
+                let room = r.value();
+                let room_id = room.room_id.clone();
+                let title = room
+                    .players
+                    .first()
+                    .map(|p| format!("{} · ห้องเปิด", p.username))
+                    .unwrap_or_else(|| {
+                        let short = room_id.chars().take(8).collect::<String>();
+                        format!("ห้อง {short}")
+                    });
+                serde_json::json!({
+                    "roomId": room_id,
+                    "roomName": title,
+                    "maxPlayers": room.max_players,
+                    "currentPlayers": room.players.len(),
+                    "isPublic": true,
+                    "status": room.status,
+                })
+            })
+            .collect();
+        items.sort_by(|a, b| {
+            let ta = a["status"].as_str().unwrap_or("");
+            let tb = b["status"].as_str().unwrap_or("");
+            let oa = if ta == "waiting" { 0 } else { 1 };
+            let ob = if tb == "waiting" { 0 } else { 1 };
+            oa.cmp(&ob).then_with(|| {
+                a["roomId"]
+                    .as_str()
+                    .unwrap_or("")
+                    .cmp(b["roomId"].as_str().unwrap_or(""))
+            })
+        });
+        serde_json::json!({ "rooms": items })
     }
 
     /// Adds authoritative `myRole` / `myAlive` for one viewer (WebSocket owner) when a runtime game exists.

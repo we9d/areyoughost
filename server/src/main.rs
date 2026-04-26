@@ -29,6 +29,7 @@ use routes::auth::{login, register, update_username};
 use routes::friends::{overview as friends_overview, respond_request, send_request};
 use routes::players::search_players;
 use routes::roles::list_roles;
+use routes::rooms::list_public_rooms;
 use state::manager::AppState;
 
 async fn connect_db_with_retry(database_url: &str) -> sqlx::PgPool {
@@ -185,6 +186,7 @@ async fn main() {
         .route("/friends/request", post(send_request))
         .route("/friends/respond", post(respond_request))
         .route("/roles", get(list_roles))
+        .route("/rooms/public", get(list_public_rooms))
         // WebSocket
         .route("/ws", get(ws::ws_handler))
         .layer(CorsLayer::permissive())
@@ -195,6 +197,7 @@ async fn main() {
     tracing::info!("Server listening on {addr}");
     tracing::info!("POST /auth/register  — create account");
     tracing::info!("POST /auth/login     — get JWT");
+    tracing::info!("GET  /rooms/public   — list public in-memory rooms");
     tracing::info!("WS   /ws             — WebSocket (auth.hello required)");
     tracing::info!("Raw TCP Protocol     — 3001");
     tracing::info!("Framed TCP (WS wire) — STD_GAME_TCP_BIND (default 3010, or 'off')");

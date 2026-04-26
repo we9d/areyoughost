@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:areyoughost/services/role_service.dart';
+import 'package:areyoughost/ui/game/game_started_roles.dart';
 import 'role_result_card.dart';
 import 'package:areyoughost/ui/game/game_screen.dart';
 import 'package:areyoughost/ui/game/role_deck.dart';
@@ -91,8 +92,13 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
   }
 
   void _startRandom() {
-    final forced = widget.forcedRole;
-    if (forced != null && forced.trim().isNotEmpty) {
+    var forced = widget.forcedRole?.trim();
+    if ((forced == null || forced.isEmpty) &&
+        widget.serverRolesByPlayerId != null &&
+        widget.serverRolesByPlayerId!.isNotEmpty) {
+      forced = assignedRoleForCurrentUser(widget.serverRolesByPlayerId!);
+    }
+    if (forced != null && forced.isNotEmpty) {
       final idx = _roles.indexOf(forced);
       if (idx >= 0) {
         _finalIndex = idx;

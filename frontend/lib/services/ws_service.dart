@@ -248,6 +248,8 @@ class WsService {
   void leaveRoom() => send('room.leave', {});
   void leaveQueue() => send('mm.leave_queue', {});
 
+  void joinRoom(String roomId) => send('room.join', {'roomId': roomId});
+
   void syncRoom() => send('room.sync', {});
 }
 

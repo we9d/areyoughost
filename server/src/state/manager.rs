@@ -1,6 +1,10 @@
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use areyoughost_core::game_logic::role_engine::{
+    check_win as engine_check_win, resolve_night, EngineNightAction, EnginePlayerState,
+    NightActionType, SkillUsageState,
+};
 use areyoughost_core::game_logic::vote_resolver::{VoteOutcome, VoteResolver};
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
@@ -43,6 +47,8 @@ pub struct RuntimeGame {
     pub players: HashMap<PlayerId, RuntimePlayerState>,
     pub actions: HashMap<PlayerId, RuntimeAction>,
     pub votes: HashMap<PlayerId, PlayerId>,
+    pub skill_usage: HashMap<PlayerId, SkillUsageState>,
+    pub karma_targets: HashMap<PlayerId, PlayerId>,
     pub seen_request_ids: HashSet<String>,
     pub phase_started_at: i64,
     pub phase_deadline_at: i64,
@@ -169,6 +175,103 @@ impl AppState {
             .duration_since(UNIX_EPOCH)
             .unwrap_or(Duration::from_secs(0))
             .as_secs() as i64
+    }
+
+    fn canonical_night_action_for_role(role: &str, raw_action: &str) -> Option<String> {
+        let normalized = raw_action.trim().to_lowercase();
+        let role = role.trim();
+        let mapped = match normalized.as_str() {
+            // Canonical engine action ids (must echo as-is for night resolver)
+            "ghost_kill"
+            | "serial_kill"
+            | "seer_check"
+            | "police_check"
+            | "aura_check"
+            | "doctor_protect"
+            | "soldier_guard"
+            | "dark_protect"
+            | "dark_curse"
+            | "witch_revive"
+            | "witch_poison" => Some(normalized.clone()),
+            "pass" | "skip" => Some("pass".to_string()),
+            // Legacy generic kill
+            "kill" => {
+                if role == "ฆาตกรต่อเนื่อง" {
+                    Some("serial_kill".to_string())
+                } else {
+                    Some("ghost_kill".to_string())
+                }
+            }
+            _ => None,
+        };
+        if mapped.is_some() {
+            return mapped;
+        }
+
+        // Thai skill labels from UI
+        let thai = raw_action.trim();
+        match thai {
+            "ข้าม" => Some("pass".to_string()),
+            "สกิลตาวิเศษ" => Some("seer_check".to_string()),
+            // Current mobile client resolves police compare locally and does not submit action.
+            // Keep mapping for forward compatibility, but police should not block phase progression.
+            "สกิลสอบสวน" => Some("police_check".to_string()),
+            "สกิลตรวจออร่า" => Some("aura_check".to_string()),
+            "สกิลปกป้อง" | "สกิลคุ้มครอง" => {
+                if role == "ทหาร" {
+                    Some("soldier_guard".to_string())
+                } else {
+                    Some("doctor_protect".to_string())
+                }
+            }
+            "สกิลยืนแทน" => Some("soldier_guard".to_string()),
+            "สกิลปกป้องผี" => Some("dark_protect".to_string()),
+            "สกิลสาปพูดไม่ได้" => Some("dark_curse".to_string()),
+            "สกิลชุบชีวิต" => Some("witch_revive".to_string()),
+            "สกิลคุณไสยฆ่า" => Some("witch_poison".to_string()),
+            "สกิลฆ่าเดี่ยว" => Some("serial_kill".to_string()),
+            "สกิลลอบสังหาร" => Some("ghost_kill".to_string()),
+            _ => None,
+        }
+    }
+
+    fn role_has_night_action(role: &str) -> bool {
+        matches!(
+            role,
+            "ร่างทรง"
+                | "แพทย์"
+                | "ทหาร"
+                | "พระธุดงค์"
+                | "หมอผีคุณไสย"
+                | "ผีปอบ"
+                | "ผีกระสือใหญ่"
+                | "ผีตายโหง"
+                | "ผีเปรต"
+                | "หมอผีดำ"
+                | "ฆาตกรต่อเนื่อง"
+        )
+    }
+
+    fn winner_kind_for_phase_end(game: &RuntimeGame) -> Option<&'static str> {
+        for (karma_id, target_id) in game.karma_targets.iter() {
+            let karma_alive = game.players.get(karma_id).map(|p| p.alive).unwrap_or(false);
+            let target_dead = game.players.get(target_id).map(|p| !p.alive).unwrap_or(false);
+            if karma_alive && target_dead {
+                return Some("karma");
+            }
+        }
+        let mut players = HashMap::<String, EnginePlayerState>::new();
+        for (id, p) in game.players.iter() {
+            players.insert(
+                id.clone(),
+                EnginePlayerState {
+                    alive: p.alive,
+                    role: p.role.clone().unwrap_or_else(|| "ชาวบ้าน".to_string()),
+                    cursed_silenced_today: false,
+                },
+            );
+        }
+        engine_check_win(&players)
     }
 
     /// Mark user as disconnected and start grace countdown.
@@ -834,6 +937,7 @@ impl AppState {
                     "dayNo": g.day_no,
                     "nightNo": g.night_no,
                     "aliveCount": g.players.values().filter(|p| p.alive).count(),
+                    "phaseDeadlineAt": g.phase_deadline_at,
                 })
             });
             let quickplay_deadline_unix = self
@@ -978,6 +1082,19 @@ impl AppState {
         }
 
         let now = Self::now_unix_secs();
+        let mut karma_targets = HashMap::<PlayerId, PlayerId>::new();
+        for p in &players {
+            let role = roles_by_player
+                .get(&p.player_id)
+                .map(|s| s.as_str())
+                .unwrap_or("");
+            if role != "เจ้ากรรมนายเวร" {
+                continue;
+            }
+            if let Some(target) = players.iter().find(|candidate| candidate.player_id != p.player_id) {
+                karma_targets.insert(p.player_id.clone(), target.player_id.clone());
+            }
+        }
         let game = RuntimeGame {
             room_id: room_id.to_string(),
             phase: RuntimePhase::Night,
@@ -986,6 +1103,8 @@ impl AppState {
             players: runtime_players,
             actions: HashMap::new(),
             votes: HashMap::new(),
+            skill_usage: HashMap::new(),
+            karma_targets,
             seen_request_ids: HashSet::new(),
             phase_started_at: now,
             phase_deadline_at: now + self.night_phase_secs as i64,
@@ -1014,7 +1133,7 @@ impl AppState {
         request_id: &str,
         action_type: &str,
         target_id: Option<String>,
-    ) -> Result<(), String> {
+    ) -> Result<Option<serde_json::Value>, String> {
         let mut game = self
             .active_games
             .get_mut(room_id)
@@ -1026,6 +1145,11 @@ impl AppState {
 
         if !game.players.contains_key(actor_id) {
             return Err("Player is not part of this game".to_string());
+        }
+
+        if game.phase_deadline_at <= Self::now_unix_secs() {
+            let (payload, _) = self.advance_phase_internal(&mut game, "deadline_elapsed_inline")?;
+            return Ok(Some(payload));
         }
 
         if game.seen_request_ids.contains(request_id) {
@@ -1046,6 +1170,17 @@ impl AppState {
             return Err("Player already submitted action this night".to_string());
         }
 
+        let actor_role = game
+            .players
+            .get(actor_id)
+            .and_then(|p| p.role.as_deref())
+            .unwrap_or("");
+        if !Self::role_has_night_action(actor_role) {
+            return Err("This role has no active night action".to_string());
+        }
+        let canonical_action = Self::canonical_night_action_for_role(actor_role, action_type)
+            .ok_or_else(|| format!("Unsupported actionType '{}' for role '{}'", action_type, actor_role))?;
+
         if let Some(ref target) = target_id {
             if !game.players.contains_key(target) {
                 return Err("Invalid target player".to_string());
@@ -1055,12 +1190,29 @@ impl AppState {
         game.actions.insert(
             actor_id.to_string(),
             RuntimeAction {
-                action_type: action_type.to_string(),
+                action_type: canonical_action,
                 target_id,
             },
         );
 
-        Ok(())
+        let expected_actors = game
+            .players
+            .iter()
+            .filter(|(_, p)| p.alive)
+            .filter(|(_, p)| {
+                p.role
+                    .as_deref()
+                    .map(Self::role_has_night_action)
+                    .unwrap_or(false)
+            })
+            .count();
+        if expected_actors > 0 && game.actions.len() >= expected_actors {
+            let (payload, _) =
+                self.advance_phase_internal(&mut game, "all_actions_submitted")?;
+            return Ok(Some(payload));
+        }
+
+        Ok(None)
     }
 
     pub fn submit_vote(
@@ -1069,7 +1221,7 @@ impl AppState {
         voter_id: &str,
         request_id: &str,
         target_id: &str,
-    ) -> Result<(), String> {
+    ) -> Result<Option<serde_json::Value>, String> {
         let mut game = self
             .active_games
             .get_mut(room_id)
@@ -1077,6 +1229,11 @@ impl AppState {
 
         if game.phase != RuntimePhase::Voting {
             return Err("vote allowed only during voting phase".to_string());
+        }
+
+        if game.phase_deadline_at <= Self::now_unix_secs() {
+            let (payload, _) = self.advance_phase_internal(&mut game, "deadline_elapsed_inline")?;
+            return Ok(Some(payload));
         }
 
         if game.seen_request_ids.contains(request_id) {
@@ -1108,7 +1265,14 @@ impl AppState {
 
         game.votes
             .insert(voter_id.to_string(), target_id.to_string());
-        Ok(())
+
+        let alive_count = game.players.values().filter(|p| p.alive).count();
+        if alive_count > 0 && game.votes.len() >= alive_count {
+            let (payload, _) = self.advance_phase_internal(&mut game, "all_votes_submitted")?;
+            return Ok(Some(payload));
+        }
+
+        Ok(None)
     }
 
     pub fn validate_chat_sender(&self, room_id: &str, sender_id: &str) -> Result<(), String> {
@@ -1160,42 +1324,109 @@ impl AppState {
             .rooms
             .get(room_id)
             .ok_or_else(|| "Room not found".to_string())?;
-
-        let host_ok = room
-            .players
-            .iter()
-            .find(|p| p.player_id == host_id)
-            .map(|p| p.is_host)
-            .unwrap_or(false);
-        if !host_ok {
-            return Err("Only host can advance phase".to_string());
+        if !room.players.iter().any(|p| p.player_id == host_id) {
+            return Err("Player is not part of this room".to_string());
         }
 
-        let (payload, _) = self.advance_phase_internal(&mut game)?;
+        let (payload, _) = self.advance_phase_internal(&mut game, "host_advanced")?;
         Ok(payload)
     }
 
     fn advance_phase_internal(
         &self,
         game: &mut RuntimeGame,
+        transition_trigger: &str,
     ) -> Result<(serde_json::Value, Option<String>), String> {
         let mut eliminated: Option<String> = None;
+        let mut extra_eliminated: Option<String> = None;
+        let previous_phase = game.phase.clone();
+        let mut night_action_summary = serde_json::json!({
+            "totalActions": 0,
+            "actionsByType": {},
+            "killTargets": [],
+            "protected": [],
+            "revived": [],
+            "transformed": [],
+            "cursed": [],
+        });
 
         match game.phase {
             RuntimePhase::Night => {
-                for action in game.actions.values() {
-                    if action.action_type.eq_ignore_ascii_case("kill") {
-                        if let Some(target) = &action.target_id {
-                            if let Some(target_state) = game.players.get_mut(target) {
-                                target_state.alive = false;
-                                eliminated = Some(target.clone());
-                                break;
+                let mut engine_players: HashMap<String, EnginePlayerState> = HashMap::new();
+                for (pid, state) in game.players.iter() {
+                    engine_players.insert(
+                        pid.clone(),
+                        EnginePlayerState {
+                            alive: state.alive,
+                            role: state.role.clone().unwrap_or_else(|| "ชาวบ้าน".to_string()),
+                            cursed_silenced_today: false,
+                        },
+                    );
+                }
+
+                let mut engine_actions: Vec<EngineNightAction> = Vec::new();
+                for (actor_id, action) in game.actions.iter() {
+                    let mapped = match action.action_type.to_lowercase().as_str() {
+                        "ghost_kill" => Some(NightActionType::GhostKill),
+                        "serial_kill" => Some(NightActionType::SerialKill),
+                        "seer_check" => Some(NightActionType::SeerCheck),
+                        "police_check" => Some(NightActionType::PoliceCheck),
+                        "aura_check" => Some(NightActionType::MonkAura),
+                        "doctor_protect" | "protect" => Some(NightActionType::DoctorProtect),
+                        "soldier_guard" | "guard" => Some(NightActionType::SoldierGuard),
+                        "dark_protect" => Some(NightActionType::DarkProtect),
+                        "dark_curse" => Some(NightActionType::DarkCurse),
+                        "witch_revive" => Some(NightActionType::WitchRevive),
+                        "witch_poison" => Some(NightActionType::WitchPoison),
+                        "kill" => {
+                            let role = game
+                                .players
+                                .get(actor_id)
+                                .and_then(|p| p.role.as_deref())
+                                .unwrap_or("");
+                            if role == "ฆาตกรต่อเนื่อง" {
+                                Some(NightActionType::SerialKill)
+                            } else {
+                                Some(NightActionType::GhostKill)
                             }
                         }
+                        _ => None,
+                    };
+                    if let Some(action_type) = mapped {
+                        engine_actions.push(EngineNightAction {
+                            actor_id: actor_id.clone(),
+                            action: action_type,
+                            target_id: action.target_id.clone(),
+                        });
                     }
                 }
+
+                let resolution = resolve_night(
+                    &mut engine_players,
+                    &engine_actions,
+                    &mut game.skill_usage,
+                );
+
+                for (pid, ep) in engine_players {
+                    if let Some(rp) = game.players.get_mut(&pid) {
+                        rp.alive = ep.alive;
+                        rp.role = Some(ep.role);
+                    }
+                }
+                eliminated = resolution.deaths.first().cloned();
+                let total_actions = game.actions.len();
                 game.actions.clear();
                 game.phase = RuntimePhase::Day;
+                game.day_no += 1;
+                night_action_summary = serde_json::json!({
+                    "totalActions": total_actions,
+                    "actionsByType": resolution.actions_by_type,
+                    "killTargets": resolution.deaths,
+                    "protected": resolution.protected,
+                    "revived": resolution.revived,
+                    "transformed": resolution.transformed,
+                    "cursed": resolution.cursed,
+                });
             }
             RuntimePhase::Day => {
                 game.phase = RuntimePhase::Voting;
@@ -1211,6 +1442,26 @@ impl AppState {
                     }
                     VoteOutcome::NoExecution => {}
                 }
+                if let Some(executed_id) = eliminated.clone() {
+                    let executed_role = game
+                        .players
+                        .get(&executed_id)
+                        .and_then(|p| p.role.clone())
+                        .unwrap_or_default();
+                    if executed_role == "ผีตายโหง" {
+                        let extra_target = game
+                            .players
+                            .iter()
+                            .find(|(pid, p)| **pid != executed_id && p.alive)
+                            .map(|(pid, _)| pid.clone());
+                        if let Some(target_id) = extra_target {
+                            if let Some(extra) = game.players.get_mut(&target_id) {
+                                extra.alive = false;
+                                extra_eliminated = Some(target_id.clone());
+                            }
+                        }
+                    }
+                }
                 game.votes.clear();
                 game.night_no += 1;
                 game.phase = RuntimePhase::Night;
@@ -1220,8 +1471,23 @@ impl AppState {
             }
         }
 
-        let alive_count = game.players.values().filter(|p| p.alive).count();
-        if alive_count <= 1 {
+        let mut engine_players: HashMap<String, EnginePlayerState> = HashMap::new();
+        for (pid, state) in game.players.iter() {
+            engine_players.insert(
+                pid.clone(),
+                EnginePlayerState {
+                    alive: state.alive,
+                    role: state.role.clone().unwrap_or_else(|| "ชาวบ้าน".to_string()),
+                    cursed_silenced_today: false,
+                },
+            );
+        }
+        let karma_win = game.karma_targets.iter().any(|(karma_id, target_id)| {
+            let karma_alive = game.players.get(karma_id).map(|p| p.alive).unwrap_or(false);
+            let target_dead = game.players.get(target_id).map(|p| !p.alive).unwrap_or(false);
+            karma_alive && target_dead
+        });
+        if karma_win || engine_check_win(&engine_players).is_some() {
             game.phase = RuntimePhase::End;
         }
 
@@ -1234,14 +1500,25 @@ impl AppState {
             RuntimePhase::End | RuntimePhase::Lobby => now,
         };
 
+        let winner_kind = if game.phase == RuntimePhase::End {
+            Self::winner_kind_for_phase_end(game)
+        } else {
+            None
+        };
+
         Ok((
             serde_json::json!({
                 "roomId": game.room_id,
                 "phase": game.phase,
+                "previousPhase": previous_phase,
+                "transitionTrigger": transition_trigger,
                 "dayNo": game.day_no,
                 "nightNo": game.night_no,
                 "eliminatedPlayerId": eliminated,
+                "extraEliminatedPlayerId": extra_eliminated,
+                "nightActionSummary": night_action_summary,
                 "phaseDeadlineAt": game.phase_deadline_at,
+                "winnerKind": winner_kind,
             }),
             eliminated,
         ))
@@ -1251,32 +1528,39 @@ impl AppState {
         let now = Self::now_unix_secs();
         let mut to_broadcast: Vec<(String, String)> = Vec::new();
         let mut ended_rooms: Vec<String> = Vec::new();
+        let mut progressed_rooms: Vec<String> = Vec::new();
 
         for mut entry in self.active_games.iter_mut() {
             if entry.phase == RuntimePhase::End || entry.phase_deadline_at > now {
                 continue;
             }
 
-            if let Ok((phase_payload, _)) = self.advance_phase_internal(&mut entry) {
+            if let Ok((phase_payload, _)) = self.advance_phase_internal(&mut entry, "deadline_elapsed") {
                 let phase_msg = serde_json::json!({
                     "type": "game.phase_changed",
                     "payload": phase_payload,
                     "req_id": serde_json::Value::Null
                 });
                 to_broadcast.push((entry.room_id.clone(), phase_msg.to_string()));
-
-                if let Some(room_state) = self.get_room_state(&entry.room_id) {
-                    let state_msg = serde_json::json!({
-                        "type": "room.state",
-                        "payload": room_state,
-                        "req_id": serde_json::Value::Null
-                    });
-                    to_broadcast.push((entry.room_id.clone(), state_msg.to_string()));
-                }
+                progressed_rooms.push(entry.room_id.clone());
 
                 if entry.phase == RuntimePhase::End {
                     ended_rooms.push(entry.room_id.clone());
                 }
+            }
+        }
+
+        // Important: call get_room_state only after iter_mut loop ends.
+        // Doing it inside the loop can re-enter active_games while a mutable
+        // shard ref is held, causing intermittent deadlocks and frozen phases.
+        for room_id in progressed_rooms {
+            if let Some(room_state) = self.get_room_state(&room_id) {
+                let state_msg = serde_json::json!({
+                    "type": "room.state",
+                    "payload": room_state,
+                    "req_id": serde_json::Value::Null
+                });
+                to_broadcast.push((room_id, state_msg.to_string()));
             }
         }
 
@@ -1289,6 +1573,23 @@ impl AppState {
                 room.status = "ended".to_string();
             }
         }
+    }
+
+    pub fn tick_room(&self, room_id: &str) -> Option<serde_json::Value> {
+        let now = Self::now_unix_secs();
+        let mut game = self.active_games.get_mut(room_id)?;
+        if game.phase == RuntimePhase::End || game.phase_deadline_at > now {
+            return None;
+        }
+        let (phase_payload, _) = self
+            .advance_phase_internal(&mut game, "deadline_elapsed")
+            .ok()?;
+        if game.phase == RuntimePhase::End {
+            if let Some(mut room) = self.rooms.get_mut(room_id) {
+                room.status = "ended".to_string();
+            }
+        }
+        Some(phase_payload)
     }
 }
 
@@ -1380,5 +1681,80 @@ mod tests {
 
         let room = state.rooms.get(room_id).expect("room exists");
         assert_eq!(room.status, "playing");
+    }
+
+    #[test]
+    fn canonical_night_action_preserves_engine_ids() {
+        assert_eq!(
+            AppState::canonical_night_action_for_role("ผีปอบ", "ghost_kill"),
+            Some("ghost_kill".to_string())
+        );
+        assert_eq!(
+            AppState::canonical_night_action_for_role("ร่างทรง", "seer_check"),
+            Some("seer_check".to_string())
+        );
+        assert_eq!(
+            AppState::canonical_night_action_for_role("ผีปอบ", "pass"),
+            Some("pass".to_string())
+        );
+    }
+
+    /// Smoke: one ghost night kill → Night ends → Day; victim dead (2-player forced villager+ghost).
+    #[tokio::test]
+    async fn night_submit_ghost_kill_advances_to_day() {
+        let state = test_state();
+        let room_id = "room-night-smoke";
+        let host_id = "host-1";
+        seed_room(&state, room_id, host_id, "host");
+        if let Some(mut room) = state.rooms.get_mut(room_id) {
+            room.players.push(PlayerInfo {
+                player_id: "player-2".to_string(),
+                username: "guest".to_string(),
+                is_ready: false,
+                is_host: false,
+            });
+        }
+
+        state.start_game(room_id, host_id).await.expect("start");
+
+        // Deterministic roles (DB shuffle is not guaranteed in tests).
+        let ghost_id = host_id.to_string();
+        let villager_id = "player-2".to_string();
+        {
+            let mut game = state.active_games.get_mut(room_id).expect("runtime game");
+            if let Some(p) = game.players.get_mut(&ghost_id) {
+                p.role = Some("ผีปอบ".to_string());
+                p.alive = true;
+            }
+            if let Some(p) = game.players.get_mut(&villager_id) {
+                p.role = Some("ชาวบ้าน".to_string());
+                p.alive = true;
+            }
+            game.karma_targets.clear();
+        }
+
+        let phase = state
+            .submit_action(
+                room_id,
+                &ghost_id,
+                "smoke-req-1",
+                "ghost_kill",
+                Some(villager_id.clone()),
+            )
+            .expect("submit")
+            .expect("night should resolve when required actors submit");
+
+        let phase_str = phase["phase"].as_str().expect("phase as string");
+        // After kill, only ghost may remain → win check can jump straight to End.
+        assert!(
+            matches!(phase_str, "Day" | "End"),
+            "unexpected phase after night: {phase_str}"
+        );
+        let g2 = state.active_games.get(room_id).expect("game still there");
+        assert!(!g2.players[&villager_id].alive);
+        assert!(g2.players[&ghost_id].alive);
+        if phase_str == "End" {
+            assert_eq!(phase["winnerKind"].as_str(), Some("ghosts"));
+        }
     }
 }

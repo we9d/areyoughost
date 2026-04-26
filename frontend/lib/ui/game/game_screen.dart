@@ -470,8 +470,11 @@ class _GameScreenState extends State<GameScreen> {
       case 'error':
         final payload = msg['payload'];
         final code = payload is Map ? payload['code'] as String? : null;
-        if (code == 'ACTION_REJECTED' || code == 'VOTE_REJECTED' || code == 'CHAT_REJECTED') {
-          // Keep no-op notify behavior as requested.
+        final message = payload is Map ? payload['message'] as String? : null;
+        if (code == 'ACTION_REJECTED' ||
+            code == 'VOTE_REJECTED' ||
+            code == 'CHAT_REJECTED') {
+          _notify(message ?? code ?? 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์');
         }
         break;
     }
@@ -1610,8 +1613,18 @@ class _GameScreenState extends State<GameScreen> {
       WsService.instance.syncRoom();
       return;
     }
+    final actionType = _toServerActionType(
+      skillName: skill.name,
+      roleName: _myCurrentRole,
+    );
+    if (actionType == null) {
+      _notify('สกิลนี้ยังไม่ได้เชื่อมกับ backend (${
+          skill.name
+      })');
+      return;
+    }
     WsService.instance.send('game.submit_action', {
-      'actionType': skill.name,
+      'actionType': actionType,
       'targetId': targetId,
     });
     final left = ((_skillUsesLeft[skill.name] ?? 1) - 1).clamp(0, 999);
@@ -1640,6 +1653,41 @@ class _GameScreenState extends State<GameScreen> {
         resultMessage: resultMessage,
       ),
     );
+  }
+
+  String? _toServerActionType({
+    required String skillName,
+    required String? roleName,
+  }) {
+    final role = (roleName ?? '').trim();
+    switch (skillName.trim()) {
+      case 'สกิลตาวิเศษ':
+        return 'seer_check';
+      case 'สกิลตรวจออร่า':
+        return 'aura_check';
+      case 'สกิลสอบสวน':
+        return 'police_check';
+      case 'สกิลยืนแทน':
+        return 'soldier_guard';
+      case 'สกิลปกป้องผี':
+        return 'dark_protect';
+      case 'สกิลสาปพูดไม่ได้':
+        return 'dark_curse';
+      case 'สกิลชุบชีวิต':
+        return 'witch_revive';
+      case 'สกิลคุณไสยฆ่า':
+        return 'witch_poison';
+      case 'สกิลฆ่าเดี่ยว':
+        return 'serial_kill';
+      case 'สกิลลอบสังหาร':
+        return 'ghost_kill';
+      case 'สกิลปกป้อง':
+      case 'สกิลคุ้มครอง':
+        if (role == 'ทหาร') return 'soldier_guard';
+        return 'doctor_protect';
+      default:
+        return null;
+    }
   }
 
   String _buildSkillResultMessage({

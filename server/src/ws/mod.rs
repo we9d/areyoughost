@@ -532,7 +532,59 @@ pub(crate) async fn handle_client_message(
         }
 
         "room.sync" => {
+            // Safety net: if phase deadline already elapsed but periodic ticker lagged,
+            // progress phases before returning current room.state.
+            state.tick_games();
             if let Some(room_id) = state.player_rooms.get(player_id).map(|r| r.clone()) {
+                if let Some(phase_payload) = state.tick_room(&room_id) {
+                    let phase_msg = ServerMessage::new("game.phase_changed", phase_payload);
+                    state.broadcast_to_room(
+                        &room_id,
+                        &serde_json::to_string(&phase_msg).unwrap(),
+                    );
+                }
+                let now = chrono::Utc::now().timestamp();
+                let maybe_start_payload = if !state.active_games.contains_key(&room_id) {
+                    if let Some(room) = state.rooms.get(&room_id) {
+                        if room.status == "waiting" && room.players.len() >= 2 {
+                            if let Some(deadline_ref) = state.quickplay_countdown_deadlines.get(&room_id) {
+                                if *deadline_ref <= now {
+                                    let host_id = room
+                                        .players
+                                        .iter()
+                                        .find(|p| p.is_host)
+                                        .map(|p| p.player_id.clone())
+                                        .or_else(|| room.players.first().map(|p| p.player_id.clone()));
+                                    if let Some(host_id) = host_id {
+                                        match state.start_game(&room_id, &host_id).await {
+                                            Ok(payload) => Some(payload),
+                                            Err(_) => None,
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                state.schedule_quickplay_start(&room_id);
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                if let Some(payload) = maybe_start_payload {
+                    let started = ServerMessage::new("game.started", payload);
+                    state.broadcast_to_room(&room_id, &serde_json::to_string(&started).unwrap());
+                }
+
                 let members = state.load_room_members(&room_id).await;
                 if let Some(mut room_state) = state.get_room_state(&room_id) {
                     if let Some(obj) = room_state.as_object_mut() {
@@ -614,12 +666,27 @@ pub(crate) async fn handle_client_message(
 
             if let (Some(room_id), Some(action_type)) = (room_id, action_type) {
                 match state.submit_action(&room_id, player_id, &request_id, action_type, target_id) {
-                    Ok(_) => {
+                    Ok(phase_payload) => {
                         let ack = ServerMessage::new(
                             "game.action_accepted",
                             json!({ "requestId": request_id }),
                         );
                         let _ = tx.send(Message::Text(serde_json::to_string(&ack).unwrap()));
+
+                        if let Some(payload) = phase_payload {
+                            let phase_msg = ServerMessage::new("game.phase_changed", payload);
+                            state.broadcast_to_room(
+                                &room_id,
+                                &serde_json::to_string(&phase_msg).unwrap(),
+                            );
+                            if let Some(room_state) = state.get_room_state(&room_id) {
+                                let state_msg = ServerMessage::new("room.state", room_state);
+                                state.broadcast_to_room(
+                                    &room_id,
+                                    &serde_json::to_string(&state_msg).unwrap(),
+                                );
+                            }
+                        }
                     }
                     Err(e) => {
                         let _ = tx.send(Message::Text(
@@ -645,12 +712,27 @@ pub(crate) async fn handle_client_message(
 
             if let (Some(room_id), Some(target_id)) = (room_id, target_id) {
                 match state.submit_vote(&room_id, player_id, &request_id, target_id) {
-                    Ok(_) => {
+                    Ok(phase_payload) => {
                         let ack = ServerMessage::new(
                             "game.vote_accepted",
                             json!({ "requestId": request_id, "targetId": target_id }),
                         );
                         let _ = tx.send(Message::Text(serde_json::to_string(&ack).unwrap()));
+
+                        if let Some(payload) = phase_payload {
+                            let phase_msg = ServerMessage::new("game.phase_changed", payload);
+                            state.broadcast_to_room(
+                                &room_id,
+                                &serde_json::to_string(&phase_msg).unwrap(),
+                            );
+                            if let Some(room_state) = state.get_room_state(&room_id) {
+                                let state_msg = ServerMessage::new("room.state", room_state);
+                                state.broadcast_to_room(
+                                    &room_id,
+                                    &serde_json::to_string(&state_msg).unwrap(),
+                                );
+                            }
+                        }
                     }
                     Err(e) => {
                         let _ = tx.send(Message::Text(

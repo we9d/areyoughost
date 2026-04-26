@@ -3,6 +3,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use areyoughost_core::game_logic::vote_resolver::{VoteOutcome, VoteResolver};
 use dashmap::DashMap;
+use rand::seq::SliceRandom;
 use sqlx::PgPool;
 use std::collections::{HashMap, HashSet, VecDeque};
 use tokio::sync::{mpsc, Mutex};
@@ -110,9 +111,31 @@ pub struct AppState {
 
     // Grace period for reconnect before removing player from room
     pub reconnect_grace_secs: u64,
+
+    // Quick play countdown deadline per room (unix seconds)
+    pub quickplay_countdown_deadlines: DashMap<RoomId, i64>,
 }
 
 impl AppState {
+    const DEFAULT_ROLE_POOL_16: [&'static str; 16] = [
+        "ชาวบ้าน",
+        "ร่างทรง",
+        "แพทย์",
+        "ทหาร",
+        "ตำรวจ",
+        "พระธุดงค์",
+        "หมอผีคุณไสย",
+        "สัปเหร่อ",
+        "ผีปอบ",
+        "ผีกระสือใหญ่",
+        "ผีตายโหง",
+        "ผีเปรต",
+        "หมอผีดำ",
+        "ฆาตกรต่อเนื่อง",
+        "คนดวงซวย",
+        "เจ้ากรรมนายเวร",
+    ];
+
     pub fn new(
         db: PgPool,
         jwt_secret: String,
@@ -137,6 +160,7 @@ impl AppState {
             player_resume_tokens: DashMap::new(),
             pending_disconnects: DashMap::new(),
             reconnect_grace_secs,
+            quickplay_countdown_deadlines: DashMap::new(),
         })
     }
 
@@ -242,10 +266,161 @@ impl AppState {
             return Ok(room_id);
         }
 
-        // No available room — create a new public one
-        let room_id = self.create_room(player_id, username, 16).await
-            .map_err(|e| format!("Failed to create room: {}", e))?;
+        // No available room — create a new public/matchmaking one.
+        // Some DB snapshots still have older room_type constraints; retry with
+        // MATCHMAKING when PUBLIC is rejected by rooms_room_type_check.
+        let room_id = match self
+            .create_room(player_id.clone(), username.clone(), 16, "PUBLIC")
+            .await
+        {
+            Ok(room_id) => room_id,
+            Err(e) if e.contains("rooms_room_type_check") => {
+                match self
+                    .create_room(player_id.clone(), username.clone(), 16, "MATCHMAKING")
+                    .await
+                {
+                    Ok(room_id) => room_id,
+                    Err(retry_err) if retry_err.contains("rooms_room_type_check") => self
+                        .create_room(player_id, username, 16, "PRIVATE")
+                        .await
+                        .map_err(|last_err| {
+                            format!(
+                                "Failed to create room after PUBLIC->MATCHMAKING->PRIVATE retry: {} (previous: {}, initial: {})",
+                                last_err, retry_err, e
+                            )
+                        })?,
+                    Err(retry_err) => {
+                        return Err(format!(
+                            "Failed to create room after PUBLIC retry: {} (initial: {})",
+                            retry_err, e
+                        ))
+                    }
+                }
+            }
+            Err(e) => return Err(format!("Failed to create room: {}", e)),
+        };
         Ok(room_id)
+    }
+
+    pub fn schedule_quickplay_start(self: &Arc<Self>, room_id: &str) {
+        let room_id = room_id.to_string();
+        let (eligible, players_len) = match self.rooms.get(&room_id) {
+            Some(room) => (
+                room.status == "waiting",
+                room.players.len(),
+            ),
+            None => (false, 0),
+        };
+        if !eligible {
+            return;
+        }
+        if players_len < 2 {
+            self.quickplay_countdown_deadlines.remove(&room_id);
+            let cancel_msg = serde_json::json!({
+                "type": "mm.countdown_cancelled",
+                "payload": { "roomId": room_id }
+            });
+            self.broadcast_to_room(&room_id, &cancel_msg.to_string());
+            return;
+        }
+
+        let now = Self::now_unix_secs();
+        if let Some(deadline_ref) = self.quickplay_countdown_deadlines.get(&room_id) {
+            if *deadline_ref > now {
+                let remaining = (*deadline_ref - now).max(0);
+                let countdown_msg = serde_json::json!({
+                    "type": "mm.countdown",
+                    "payload": {
+                        "roomId": room_id,
+                        "seconds": remaining,
+                        "deadlineUnix": *deadline_ref
+                    }
+                });
+                self.broadcast_to_room(&room_id, &countdown_msg.to_string());
+                return;
+            }
+        }
+
+        let deadline = now + 30;
+        self.quickplay_countdown_deadlines
+            .insert(room_id.clone(), deadline);
+        let countdown_msg = serde_json::json!({
+            "type": "mm.countdown",
+            "payload": {
+                "roomId": room_id,
+                "seconds": 30,
+                "deadlineUnix": deadline
+            }
+        });
+        self.broadcast_to_room(&room_id, &countdown_msg.to_string());
+
+        let state = Arc::clone(self);
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+
+            let still_same_deadline = state
+                .quickplay_countdown_deadlines
+                .get(&room_id)
+                .map(|d| *d == deadline)
+                .unwrap_or(false);
+            if !still_same_deadline {
+                return;
+            }
+
+            let (host_id, players_len, waiting) = match state.rooms.get(&room_id) {
+                Some(room) => {
+                    let host = room
+                        .players
+                        .iter()
+                        .find(|p| p.is_host)
+                        .map(|p| p.player_id.clone())
+                        .or_else(|| room.players.first().map(|p| p.player_id.clone()));
+                    (host, room.players.len(), room.status == "waiting")
+                }
+                None => (None, 0, false),
+            };
+
+            if !waiting || players_len < 2 {
+                state.quickplay_countdown_deadlines.remove(&room_id);
+                let cancel_msg = serde_json::json!({
+                    "type": "mm.countdown_cancelled",
+                    "payload": { "roomId": room_id }
+                });
+                state.broadcast_to_room(&room_id, &cancel_msg.to_string());
+                return;
+            }
+
+            if let Some(host_id) = host_id {
+                match state.start_game(&room_id, &host_id).await {
+                    Ok(payload) => {
+                        state.quickplay_countdown_deadlines.remove(&room_id);
+                        let started = serde_json::json!({
+                            "type": "game.started",
+                            "payload": payload
+                        });
+                        state.broadcast_to_room(&room_id, &started.to_string());
+                        if let Some(room_state) = state.get_room_state(&room_id) {
+                            let state_msg = serde_json::json!({
+                                "type": "room.state",
+                                "payload": room_state
+                            });
+                            state.broadcast_to_room(&room_id, &state_msg.to_string());
+                        }
+                    }
+                    Err(e) => {
+                        state.quickplay_countdown_deadlines.remove(&room_id);
+                        let fail_msg = serde_json::json!({
+                            "type": "error",
+                            "payload": {
+                                "code": "GAME_START_FAILED",
+                                "message": e
+                            }
+                        });
+                        state.broadcast_to_room(&room_id, &fail_msg.to_string());
+                    }
+                }
+            }
+        });
     }
 
     // ─── Private Room ─────────────────────────────────────────────
@@ -351,86 +526,95 @@ impl AppState {
             return None;
         }
 
-        let room_id_uuid = uuid::Uuid::new_v4();
-        let room_id = room_id_uuid.to_string();
-        let mut players = Vec::new();
-        
-        // Peek/pop the matched players
-        let mut matched_uuids = Vec::new();
-        for i in 0..min_players.min(queue.len()) {
+        let mut matched_player_ids = Vec::new();
+        for _ in 0..min_players.min(queue.len()) {
             if let Some(player_id_str) = queue.pop_front() {
-                if let Ok(p_uuid) = uuid::Uuid::parse_str(&player_id_str) {
-                    matched_uuids.push((p_uuid, player_id_str.clone(), format!("Player{}", i + 1), i == 0));
+                matched_player_ids.push(player_id_str);
+            }
+        }
+        drop(queue);
+
+        if matched_player_ids.is_empty() {
+            return None;
+        }
+
+        let host_id = matched_player_ids[0].clone();
+        let host_username = self
+            .get_username(&host_id)
+            .await
+            .unwrap_or_else(|| "Player1".to_string());
+
+        let room_id = match self
+            .create_room(host_id.clone(), host_username, 16, "PUBLIC")
+            .await
+        {
+            Ok(room_id) => room_id,
+            Err(e) if e.contains("rooms_room_type_check") => {
+                match self
+                    .create_room(host_id.clone(), "Matchmaking Host".to_string(), 16, "MATCHMAKING")
+                    .await
+                {
+                    Ok(room_id) => room_id,
+                    Err(retry_err) if retry_err.contains("rooms_room_type_check") => {
+                        match self
+                            .create_room(host_id.clone(), "Matchmaking Host".to_string(), 16, "PRIVATE")
+                            .await
+                        {
+                            Ok(room_id) => room_id,
+                            Err(last_err) => {
+                                tracing::error!(
+                                    "matchmaking create_room failed after PUBLIC->MATCHMAKING->PRIVATE retry: {} (previous: {}, initial: {})",
+                                    last_err,
+                                    retry_err,
+                                    e
+                                );
+                                return None;
+                            }
+                        }
+                    }
+                    Err(retry_err) => {
+                        tracing::error!(
+                            "matchmaking create_room failed after PUBLIC retry: {} (initial: {})",
+                            retry_err,
+                            e
+                        );
+                        return None;
+                    }
                 }
             }
-        }
-
-        if matched_uuids.is_empty() {
-            return None;
-        }
-
-        let host_uuid = matched_uuids[0].0;
-
-        // 1. Insert into rooms table
-        if let Err(e) = sqlx::query(
-            "INSERT INTO rooms (room_id, owner_id, room_name, max_players, is_public, room_type, room_status) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7)"
-        )
-        .bind(room_id_uuid)
-        .bind(host_uuid)
-        .bind(format!("Matchmaking Room"))
-        .bind(16) // default max
-        .bind(true)
-        .bind("MATCHMAKING")
-        .bind("WAITING")
-        .execute(&self.db)
-        .await
-        {
-            tracing::error!("matchmaking room insert failed: {}", e);
-            return None;
-        }
-
-        // 2. Insert all matched players into room_members
-        for (p_uuid, p_id_str, username, is_host) in matched_uuids {
-            if let Err(e) = sqlx::query(
-                "INSERT INTO room_members (room_id, player_id, member_status) 
-                 VALUES ($1, $2, $3)"
-            )
-            .bind(room_id_uuid)
-            .bind(p_uuid)
-            .bind("JOINED")
-            .execute(&self.db)
-            .await
-            {
-                tracing::error!("matchmaking member insert failed: {}", e);
-                continue;
+            Err(e) => {
+                tracing::error!("matchmaking create_room failed: {}", e);
+                return None;
             }
-
-            players.push(PlayerInfo {
-                player_id: p_id_str.clone(),
-                username,
-                is_ready: false,
-                is_host,
-            });
-            self.player_rooms.insert(p_id_str, room_id.clone());
-        }
-
-        let room = Room {
-            room_id: room_id.clone(),
-            players,
-            max_players: 16,
-            is_public: true,
-            status: "waiting".to_string(),
         };
 
-        self.rooms.insert(room_id.clone(), room);
-        tracing::info!("Created matchmaking room {} with {} players", room_id, min_players);
+        for player_id in matched_player_ids.into_iter().skip(1) {
+            let username = self
+                .get_username(&player_id)
+                .await
+                .unwrap_or_else(|| "Player".to_string());
+            if let Err(e) = self.join_room(&room_id, &player_id, username).await {
+                tracing::error!("matchmaking join_room failed for {}: {}", player_id, e);
+            }
+        }
+
+        tracing::info!(
+            "Created matchmaking room {} with minimum {} players",
+            room_id,
+            min_players
+        );
         Some(room_id)
     }
 
     // ─── Room helpers ─────────────────────────────────────────────
 
-    pub async fn create_room(&self, host_id_str: String, username: String, max_players: usize) -> Result<RoomId, String> {
+    pub async fn create_room(
+        &self,
+        host_id_str: String,
+        username: String,
+        max_players: usize,
+        room_type: &str,
+    ) -> Result<RoomId, String> {
         let room_id_uuid = uuid::Uuid::new_v4();
         let room_id = room_id_uuid.to_string();
         let host_uuid = uuid::Uuid::parse_str(&host_id_str)
@@ -450,7 +634,7 @@ impl AppState {
         .bind(format!("{}'s Room", username))
         .bind(max_players as i32)
         .bind(true)
-        .bind("PUBLIC")
+        .bind(room_type)
         .bind("WAITING")
         .bind(now)
         .bind(now)
@@ -652,6 +836,10 @@ impl AppState {
                     "aliveCount": g.players.values().filter(|p| p.alive).count(),
                 })
             });
+            let quickplay_deadline_unix = self
+                .quickplay_countdown_deadlines
+                .get(room_id)
+                .map(|d| *d);
 
             serde_json::json!({
                 "roomId": room.room_id,
@@ -665,21 +853,98 @@ impl AppState {
                 "isPublic": room.is_public,
                 "status": room.status,
                 "runtime": runtime,
+                "quickplayDeadlineUnix": quickplay_deadline_unix,
             })
         })
     }
 
-    pub fn start_game(&self, room_id: &str, host_id: &str) -> Result<serde_json::Value, String> {
-        let mut room = self
+    async fn assign_roles_for_players(
+        &self,
+        players: &[PlayerInfo],
+    ) -> Result<(HashMap<PlayerId, String>, Vec<String>), String> {
+        let player_count = players.len();
+        if player_count == 0 {
+            return Err("Cannot assign roles for empty room".to_string());
+        }
+
+        #[derive(sqlx::FromRow)]
+        struct RoleRow {
+            role_name: String,
+        }
+
+        let db_roles = sqlx::query_as::<_, RoleRow>(
+            "SELECT role_name FROM roles ORDER BY role_id ASC"
+        )
+        .fetch_all(&self.db)
+        .await
+        .unwrap_or_default();
+
+        let mut unique_pool = Vec::<String>::new();
+        let mut seen = HashSet::<String>::new();
+        for r in db_roles {
+            let role = r.role_name.trim().to_string();
+            if role.is_empty() {
+                continue;
+            }
+            if seen.insert(role.clone()) {
+                unique_pool.push(role);
+            }
+        }
+        if unique_pool.is_empty() {
+            unique_pool = Self::DEFAULT_ROLE_POOL_16
+                .iter()
+                .map(|r| (*r).to_string())
+                .collect();
+        }
+        if unique_pool.len() < player_count {
+            return Err(format!(
+                "Not enough unique roles in pool: need {}, have {}",
+                player_count,
+                unique_pool.len()
+            ));
+        }
+
+        let mut rng = rand::thread_rng();
+        unique_pool.shuffle(&mut rng);
+        let mut selected = unique_pool.into_iter().take(player_count).collect::<Vec<_>>();
+
+        // For 2-player test games, force opposite factions to avoid immediate parity end.
+        if player_count == 2 {
+            let ghost_idx = selected.iter().position(|r| {
+                matches!(
+                    r.as_str(),
+                    "ผีปอบ" | "ผีกระสือใหญ่" | "ผีตายโหง" | "ผีเปรต" | "หมอผีดำ"
+                )
+            });
+            let villager_idx = selected.iter().position(|r| {
+                !matches!(
+                    r.as_str(),
+                    "ผีปอบ" | "ผีกระสือใหญ่" | "ผีตายโหง" | "ผีเปรต" | "หมอผีดำ"
+                )
+            });
+            if ghost_idx.is_none() || villager_idx.is_none() {
+                selected = vec!["ชาวบ้าน".to_string(), "ผีปอบ".to_string()];
+            }
+        }
+
+        let mut by_player = HashMap::<PlayerId, String>::new();
+        for (idx, p) in players.iter().enumerate() {
+            by_player.insert(p.player_id.clone(), selected[idx].clone());
+        }
+        Ok((by_player, selected))
+    }
+
+    pub async fn start_game(&self, room_id: &str, host_id: &str) -> Result<serde_json::Value, String> {
+        let room_snapshot = self
             .rooms
-            .get_mut(room_id)
+            .get(room_id)
             .ok_or_else(|| "Room not found".to_string())?;
 
-        if room.status != "waiting" {
+        if room_snapshot.status != "waiting" {
             return Err("Room is not in waiting state".to_string());
         }
 
-        let host_ok = room
+        let host_ok = room_snapshot
             .players
             .iter()
             .find(|p| p.player_id == host_id)
@@ -689,27 +954,32 @@ impl AppState {
             return Err("Only host can start game".to_string());
         }
 
-        if room.players.len() < 2 {
+        if room_snapshot.players.len() < 2 {
             return Err("Need at least 2 players to start".to_string());
         }
-        if room.players.len() > 16 {
+        if room_snapshot.players.len() > 16 {
             return Err("Max 16 players".to_string());
         }
 
+        let players = room_snapshot.players.clone();
+        drop(room_snapshot);
+
+        let (roles_by_player, selected_role_pool) = self.assign_roles_for_players(&players).await?;
+
         let mut runtime_players = HashMap::new();
-        for p in &room.players {
+        for p in &players {
             runtime_players.insert(
                 p.player_id.clone(),
                 RuntimePlayerState {
                     alive: true,
-                    role: None,
+                    role: roles_by_player.get(&p.player_id).cloned(),
                 },
             );
         }
 
         let now = Self::now_unix_secs();
         let game = RuntimeGame {
-            room_id: room.room_id.clone(),
+            room_id: room_id.to_string(),
             phase: RuntimePhase::Night,
             day_no: 1,
             night_no: 1,
@@ -721,14 +991,19 @@ impl AppState {
             phase_deadline_at: now + self.night_phase_secs as i64,
         };
 
-        room.status = "playing".to_string();
+        if let Some(mut room) = self.rooms.get_mut(room_id) {
+            room.status = "playing".to_string();
+        }
         self.active_games.insert(room_id.to_string(), game);
 
         Ok(serde_json::json!({
             "roomId": room_id,
             "phase": RuntimePhase::Night,
             "dayNo": 1,
-            "nightNo": 1
+            "nightNo": 1,
+            "phaseDeadlineAt": now + self.night_phase_secs as i64,
+            "rolePool": selected_role_pool,
+            "rolesByPlayerId": roles_by_player
         }))
     }
 
@@ -1014,5 +1289,96 @@ impl AppState {
                 room.status = "ended".to_string();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::postgres::PgPoolOptions;
+
+    fn test_state() -> Arc<AppState> {
+        let db = PgPoolOptions::new()
+            .connect_lazy("postgres://postgres:postgres@localhost/postgres")
+            .expect("lazy pool");
+        AppState::new(db, "test-secret".to_string(), 90, 180, 120, 90)
+    }
+
+    fn seed_room(state: &Arc<AppState>, room_id: &str, host_id: &str, host_name: &str) {
+        state.rooms.insert(
+            room_id.to_string(),
+            Room {
+                room_id: room_id.to_string(),
+                players: vec![PlayerInfo {
+                    player_id: host_id.to_string(),
+                    username: host_name.to_string(),
+                    is_ready: false,
+                    is_host: true,
+                }],
+                max_players: 16,
+                is_public: true,
+                status: "waiting".to_string(),
+            },
+        );
+    }
+
+    #[tokio::test]
+    async fn start_game_requires_min_two_players() {
+        let state = test_state();
+        let room_id = "room-min-players";
+        let host_id = "host-1";
+        seed_room(&state, room_id, host_id, "host");
+
+        let err = state
+            .start_game(room_id, host_id)
+            .await
+            .expect_err("should reject single player start");
+        assert!(err.contains("Need at least 2 players"));
+    }
+
+    #[tokio::test]
+    async fn start_game_requires_host() {
+        let state = test_state();
+        let room_id = "room-host-check";
+        let host_id = "host-1";
+        seed_room(&state, room_id, host_id, "host");
+        if let Some(mut room) = state.rooms.get_mut(room_id) {
+            room.players.push(PlayerInfo {
+                player_id: "player-2".to_string(),
+                username: "guest".to_string(),
+                is_ready: false,
+                is_host: false,
+            });
+        }
+
+        let err = state
+            .start_game(room_id, "player-2")
+            .await
+            .expect_err("non-host should fail");
+        assert!(err.contains("Only host can start game"));
+    }
+
+    #[tokio::test]
+    async fn start_game_sets_room_playing_and_runtime_created() {
+        let state = test_state();
+        let room_id = "room-start-success";
+        let host_id = "host-1";
+        seed_room(&state, room_id, host_id, "host");
+        if let Some(mut room) = state.rooms.get_mut(room_id) {
+            room.players.push(PlayerInfo {
+                player_id: "player-2".to_string(),
+                username: "guest".to_string(),
+                is_ready: false,
+                is_host: false,
+            });
+        }
+
+        let payload = state.start_game(room_id, host_id).await.expect("start game success");
+        assert_eq!(payload["roomId"], room_id);
+        assert_eq!(payload["nightNo"], 1);
+        assert!(state.active_games.contains_key(room_id));
+
+        let room = state.rooms.get(room_id).expect("room exists");
+        assert_eq!(room.status, "playing");
     }
 }

@@ -15,6 +15,7 @@ use axum::extract::ws::Message;
 use serde_json::json;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
+use tokio::sync::watch;
 
 use crate::session_auth::authenticate_first_message;
 use crate::state::manager::AppState;
@@ -35,7 +36,11 @@ fn parse_timeout_ms(var: &str, default_ms: u64) -> u64 {
         .unwrap_or(default_ms)
 }
 
-pub async fn run_tcp_listener(bind: String, state: Arc<AppState>) -> io::Result<()> {
+pub async fn run_tcp_listener(
+    bind: String,
+    state: Arc<AppState>,
+    mut shutdown_rx: watch::Receiver<bool>,
+) -> io::Result<()> {
     let read_timeout_ms = parse_timeout_ms("STD_GAME_TCP_READ_TIMEOUT_MS", DEFAULT_READ_TIMEOUT_MS);
     let write_timeout_ms =
         parse_timeout_ms("STD_GAME_TCP_WRITE_TIMEOUT_MS", DEFAULT_WRITE_TIMEOUT_MS);
@@ -47,16 +52,27 @@ pub async fn run_tcp_listener(bind: String, state: Arc<AppState>) -> io::Result<
         write_timeout_ms
     );
     loop {
-        let (stream, addr) = listener.accept().await?;
-        tracing::debug!("Framed TCP peer {}", addr);
-        let st = state.clone();
-        tokio::spawn(async move {
-            if let Err(e) = handle_tcp_session(stream, st, read_timeout_ms, write_timeout_ms).await
-            {
-                tracing::debug!("Framed TCP session I/O error: {}", e);
+        tokio::select! {
+            _ = shutdown_rx.changed() => {
+                if *shutdown_rx.borrow() {
+                    tracing::info!("Framed TCP shutdown signal received");
+                    break;
+                }
             }
-        });
+            accepted = listener.accept() => {
+                let (stream, addr) = accepted?;
+                tracing::debug!("Framed TCP peer {}", addr);
+                let st = state.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = handle_tcp_session(stream, st, read_timeout_ms, write_timeout_ms).await
+                    {
+                        tracing::debug!("Framed TCP session I/O error: {}", e);
+                    }
+                });
+            }
+        }
     }
+    Ok(())
 }
 
 async fn handle_tcp_session(

@@ -8,7 +8,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 /// 
 /// Usage:
 ///   await WsService.instance.connect(token);
-///   WsService.instance.send('mm.quick_play', {});
+///   WsService.instance.send('mm.join_queue', {});
 ///   WsService.instance.stream.listen((msg) { ... });
 class WsService {
   WsService._();
@@ -32,12 +32,25 @@ class WsService {
   final List<Map<String, dynamic>> _pendingMessages = <Map<String, dynamic>>[];
   static const int _maxPendingMessages = 200;
 
+  void _log(String message) {
+    if (!kDebugMode) return;
+    debugPrint('[WsService] $message');
+  }
+
   // ── Connect ──────────────────────────────────────────────────
 
   Future<void> connect(String token) async {
+    // Switching account/session token must drop stale resume token; otherwise
+    // the server may resume the previous player identity.
+    if (_authToken != null && _authToken != token) {
+      _resumeToken = null;
+      _pendingMessages.clear();
+      _reconnectAttempt = 0;
+    }
     _authToken = token;
     _manuallyDisconnected = false;
     _reconnectTimer?.cancel();
+    _log('connect requested');
     connectionStatus.value = WsConnectionStatus.connecting;
     await _openSocket();
   }
@@ -47,12 +60,14 @@ class WsService {
     try {
       _channel = WebSocketChannel.connect(Uri.parse(AppConfig.wsUrl));
       _connected = true;
+      _log('socket opened');
       connectionStatus.value = _reconnectAttempt > 0
           ? WsConnectionStatus.reconnecting
           : WsConnectionStatus.connecting;
 
       // Try resume first if server previously issued a token.
       if (_resumeToken != null && _resumeToken!.isNotEmpty) {
+        _log('trying session.resume');
         _rawSend({
           'type': 'session.resume',
           'payload': {'resumeToken': _resumeToken},
@@ -62,6 +77,7 @@ class WsService {
         if (token == null || token.isEmpty) {
           throw StateError('Missing auth token for websocket connect');
         }
+        _log('sending auth.hello');
         _rawSend({
           'type': 'auth.hello',
           'payload': {'token': token},
@@ -81,10 +97,12 @@ class WsService {
                   _resumeToken = rt;
                 }
                 connectionStatus.value = WsConnectionStatus.connected;
+                _log('auth.ok received');
                 _flushPendingMessages();
               }
               if (msgType == 'session.resumed') {
                 connectionStatus.value = WsConnectionStatus.connected;
+                _log('session.resumed received');
                 _flushPendingMessages();
               }
               _controller.add(decoded);
@@ -102,6 +120,7 @@ class WsService {
   }
 
   void _handleSocketClosed() {
+    _log('socket closed');
     _connected = false;
     _channel = null;
     if (connectionStatus.value != WsConnectionStatus.reconnecting) {
@@ -116,6 +135,7 @@ class WsService {
     if (_reconnectTimer?.isActive == true) return;
     connectionStatus.value = WsConnectionStatus.reconnecting;
     final delayMs = (1000 * (1 << _reconnectAttempt)).clamp(1000, 10000);
+    _log('schedule reconnect in ${delayMs}ms');
     _reconnectTimer = Timer(Duration(milliseconds: delayMs), () async {
       if (_manuallyDisconnected) return;
       _reconnectAttempt = (_reconnectAttempt + 1).clamp(0, 10);
@@ -132,6 +152,7 @@ class WsService {
   void send(String type, Map<String, dynamic> payload) {
     final msg = {'type': type, 'payload': payload};
     if (!_connected) {
+      _log('queue message while disconnected: $type');
       _enqueuePending(msg);
       _scheduleReconnect();
       return;
@@ -152,6 +173,7 @@ class WsService {
 
   void _flushPendingMessages() {
     if (!_connected || _pendingMessages.isEmpty) return;
+    _log('flush ${_pendingMessages.length} queued messages');
     final snapshot = List<Map<String, dynamic>>.from(_pendingMessages);
     _pendingMessages.clear();
     for (final msg in snapshot) {
@@ -184,18 +206,25 @@ class WsService {
 
   // ── Disconnect ───────────────────────────────────────────────
 
-  Future<void> disconnect() async {
+  Future<void> disconnect({bool clearSession = false}) async {
+    _log('disconnect requested (clearSession=$clearSession)');
     _manuallyDisconnected = true;
     _reconnectTimer?.cancel();
     await _channel?.sink.close();
     _connected = false;
     _channel = null;
+    if (clearSession) {
+      _authToken = null;
+      _resumeToken = null;
+      _pendingMessages.clear();
+      _reconnectAttempt = 0;
+    }
     connectionStatus.value = WsConnectionStatus.disconnected;
   }
 
   // ── Game Actions ─────────────────────────────────────────────
 
-  void quickPlay() => send('mm.quick_play', {});
+  void quickPlay() => send('mm.join_queue', {});
 
   void createPrivateRoom() => send('room.create_private', {});
 
@@ -217,6 +246,9 @@ class WsService {
       send('invite.accept', {'inviteCode': inviteCode});
 
   void leaveRoom() => send('room.leave', {});
+  void leaveQueue() => send('mm.leave_queue', {});
+
+  void syncRoom() => send('room.sync', {});
 }
 
 enum WsConnectionStatus {

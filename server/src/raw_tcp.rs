@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use serde::{Deserialize, Serialize};
+use tokio::sync::watch;
 
 use crate::state::manager::AppState;
 use crate::auth::{hash_password, sign_jwt, verify_password};
@@ -32,12 +33,19 @@ pub enum ServerResponse {
     }
 }
 
-pub async fn start_raw_tcp_server(state: Arc<AppState>) {
-    let listener = TcpListener::bind("0.0.0.0:3001").await.expect("Failed to bind raw TCP port 3001");
+pub async fn start_raw_tcp_server(state: Arc<AppState>, mut shutdown_rx: watch::Receiver<bool>) -> std::io::Result<()> {
+    let listener = TcpListener::bind("0.0.0.0:3001").await?;
     tracing::info!("Raw TCP server listening on 0.0.0.0:3001");
 
     loop {
-        match listener.accept().await {
+        tokio::select! {
+            _ = shutdown_rx.changed() => {
+                if *shutdown_rx.borrow() {
+                    tracing::info!("Raw TCP shutdown signal received");
+                    break;
+                }
+            }
+            accepted = listener.accept() => match accepted {
             Ok((socket, addr)) => {
                 tracing::info!("New TCP connection from {}", addr);
                 let state_clone = state.clone();
@@ -46,8 +54,10 @@ pub async fn start_raw_tcp_server(state: Arc<AppState>) {
                 });
             }
             Err(e) => tracing::error!("Error accepting connection: {}", e),
+            }
         }
     }
+    Ok(())
 }
 
 async fn handle_connection(mut socket: TcpStream, state: Arc<AppState>) {

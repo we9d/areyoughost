@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:areyoughost/ui/game/dialogs/player_dead_popup.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_choice.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_result.dart';
-
-
-import 'package:areyoughost/ui/game/dialogs/player_dead_popup.dart';
-import 'package:areyoughost/ui/game/dialogs/skill_popup_single.dart';
 
 class ChatInputRowFull extends StatefulWidget {
   final VoidCallback onRoleInfoTap;

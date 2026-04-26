@@ -108,14 +108,20 @@ class _GameInviteDialogState extends State<_GameInviteDialog> {
   Future<void> _accept() async {
     setState(() => _accepting = true);
 
-    WsService.instance.acceptInvite(widget.invite.inviteCode);
-    InviteStore.instance.remove(widget.invite.inviteCode);
-
     try {
-      final msg = await WsService.instance.waitFor(
-        'room.joined',
+      // Subscribe before sending accept to avoid missing a fast server reply.
+      final replyFuture = WsService.instance.waitForAny(
+        {'room.joined', 'error'},
         timeout: const Duration(seconds: 10),
       );
+      WsService.instance.acceptInvite(widget.invite.inviteCode);
+      InviteStore.instance.remove(widget.invite.inviteCode);
+      final msg = await replyFuture;
+
+      if (msg['type'] == 'error') {
+        throw StateError('invite.accept failed');
+      }
+
       final roomData = (msg['payload']?['room'] as Map<String, dynamic>?) ??
           (msg['payload'] as Map<String, dynamic>? ?? {});
       final room = RoomModel.fromJson(roomData);

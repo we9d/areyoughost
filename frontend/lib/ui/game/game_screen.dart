@@ -35,6 +35,9 @@ class GameScreen extends StatefulWidget {
   final String? role;
   final List<String>? roomRolePool;
   final List<String>? playerNamesInJoinOrder;
+  final Map<String, String>? serverRolesByPlayerId;
+  final String? initialPhase;
+  final int? initialPhaseDeadlineAt;
 
   const GameScreen({
     super.key,
@@ -42,6 +45,9 @@ class GameScreen extends StatefulWidget {
     this.role,
     this.roomRolePool,
     this.playerNamesInJoinOrder,
+    this.serverRolesByPlayerId,
+    this.initialPhase,
+    this.initialPhaseDeadlineAt,
   });
 
   @override
@@ -81,6 +87,7 @@ class _GameScreenState extends State<GameScreen> {
   bool _showNightStartPrompt = false;
   Timer? _nightStartPromptTimer;
   final ScrollController _chatScrollController = ScrollController();
+  StreamSubscription<Map<String, dynamic>>? _wsSub;
   bool _showHistoryInMainChat = false;
   final Set<int> _deadPopupShownNumbers = <int>{};
   SkillOption? _armedSkill;
@@ -90,12 +97,16 @@ class _GameScreenState extends State<GameScreen> {
   int myPlayerNumber = 1;
   int? selectedTarget;
   int _activePlayerCount = 16;
+  final Map<int, String> _playerIdByNumber = <int, String>{};
+  int? _phaseDeadlineAtUnix;
+  int _lastPhaseSyncUnix = 0;
+  int _lastPhaseAdvanceRequestUnix = 0;
+  bool _amHost = false;
 
   /// 🌞 Day / 🌙 Night
   bool isDay = false;
   bool _lastIsDay = false;
   bool _isDayVoting = false;
-  bool _isNightVoting = false;
   int _phaseSecondsLeft = 20;
   Timer? _phaseTimer;
 
@@ -217,16 +228,7 @@ class _GameScreenState extends State<GameScreen> {
           ? 'ช่วงเวลาโหวต $_phaseSecondsLeft วินาที'
           : 'ประชุมตอนกลางวัน $_phaseSecondsLeft วินาที';
     }
-    if (_isMyPlayerGhost) {
-      if (_isNightVoting) {
-        return 'ช่วงเวลาโหวต $_phaseSecondsLeft วินาที';
-      }
-      return 'เวลากลางคืน $_phaseSecondsLeft วินาที';
-    }
-    // Non-ghost players see one continuous night timer (35 -> 1)
-    // while internally the phase is split into 20s + 15s voting.
-    final visibleNightLeft = _isNightVoting ? _phaseSecondsLeft : _phaseSecondsLeft + 15;
-    return 'เวลากลางคืน $visibleNightLeft วินาที';
+    return 'เวลากลางคืน $_phaseSecondsLeft วินาที';
   }
 
   void _notify(String message) {
@@ -266,52 +268,213 @@ class _GameScreenState extends State<GameScreen> {
         timer.cancel();
         return;
       }
-      if (_phaseSecondsLeft <= 1) {
-        timer.cancel();
-        _advancePhase();
+      final deadline = _phaseDeadlineAtUnix;
+      if (deadline == null) {
+        final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        if (now - _lastPhaseSyncUnix >= 2) {
+          _lastPhaseSyncUnix = now;
+          WsService.instance.syncRoom();
+        }
         return;
       }
-      setState(() {
-        _phaseSecondsLeft -= 1;
-      });
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final next = (deadline - now).clamp(0, 9999);
+      setState(() => _phaseSecondsLeft = next);
+      if (next == 0 && now - _lastPhaseSyncUnix >= 1) {
+        _lastPhaseSyncUnix = now;
+        WsService.instance.syncRoom();
+        if (now - _lastPhaseAdvanceRequestUnix >= 2) {
+          _lastPhaseAdvanceRequestUnix = now;
+          WsService.instance.send('game.advance_phase', {});
+        }
+      }
     });
   }
 
-  void _advancePhase() {
-    if (!mounted) return;
-    if (_gameEnded) return;
-    if (isDay) {
-      if (!_isDayVoting) {
-        setState(() {
+  void _applyServerPhase({
+    required String phase,
+    int? phaseDeadlineAt,
+  }) {
+    final normalized = phase.toLowerCase();
+    final wasDay = isDay;
+    setState(() {
+      switch (normalized) {
+        case 'day':
+          isDay = true;
+          _isDayVoting = false;
+          break;
+        case 'voting':
+          isDay = true;
           _isDayVoting = true;
-          _phaseSecondsLeft = 15;
-        });
-      } else {
-        setState(() {
+          break;
+        case 'night':
           isDay = false;
           _isDayVoting = false;
-          _isNightVoting = false;
-          _phaseSecondsLeft = 20;
-        });
-        _syncPhaseSensitiveState();
+          break;
+        case 'end':
+          _gameEnded = true;
+          break;
       }
-    } else {
-      if (!_isNightVoting) {
-        setState(() {
-          _isNightVoting = true;
-          _phaseSecondsLeft = 15;
-        });
-      } else {
-        setState(() {
-          isDay = true;
-          _isNightVoting = false;
-          _isDayVoting = false;
-          _phaseSecondsLeft = 60;
-        });
-        _syncPhaseSensitiveState();
+      if (phaseDeadlineAt != null) {
+        _phaseDeadlineAtUnix = phaseDeadlineAt;
+        final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        _phaseSecondsLeft = (phaseDeadlineAt - now).clamp(0, 9999);
       }
+    });
+    if (wasDay != isDay) {
+      _syncPhaseSensitiveState();
     }
     _startPhaseTimer();
+  }
+
+  void _applyRoomStateFromServer(Map<String, dynamic> payload) {
+    final playersJson = payload['players'];
+    if (playersJson is List) {
+      final nextPlayers = List<PlayerModel>.generate(
+        16,
+        (i) => PlayerModel(number: i + 1, name: 'Player${i + 1}'),
+        growable: false,
+      );
+      final nextPlayerIdByNumber = <int, String>{};
+      final myUserId = AuthService.currentUser.value?.userId ?? '';
+      bool nextAmHost = _amHost;
+      for (var i = 0; i < playersJson.length; i++) {
+        final p = playersJson[i];
+        if (p is! Map) continue;
+        final number = i + 1;
+        if (number > 16) continue;
+        final username = (p['username'] as String?)?.trim();
+        final playerId = (p['playerId'] as String?) ?? '';
+        final isHost = p['isHost'] == true;
+        nextPlayers[number - 1] = PlayerModel(
+          number: number,
+          name: (username == null || username.isEmpty) ? 'Player$number' : username,
+        );
+        if (playerId.isNotEmpty) {
+          nextPlayerIdByNumber[number] = playerId;
+          if (myUserId.isNotEmpty && playerId == myUserId) {
+            nextAmHost = isHost;
+          }
+        }
+      }
+      if (playersJson.isNotEmpty) {
+        final myUsername = (AuthService.currentUser.value?.username ?? '').trim();
+        int nextMyPlayerNumber = myPlayerNumber;
+        if (myUserId.isNotEmpty) {
+          for (final entry in nextPlayerIdByNumber.entries) {
+            if (entry.value == myUserId) {
+              nextMyPlayerNumber = entry.key;
+              break;
+            }
+          }
+        }
+        if (nextMyPlayerNumber == myPlayerNumber && myUsername.isNotEmpty) {
+          for (final p in nextPlayers) {
+            if (!_isActivePlayerNumber(p.number)) continue;
+            if (p.name.trim() == myUsername) {
+              nextMyPlayerNumber = p.number;
+              break;
+            }
+          }
+        }
+        setState(() {
+          players = nextPlayers;
+          _activePlayerCount = playersJson.length.clamp(1, 16);
+          myPlayerNumber = nextMyPlayerNumber;
+          _amHost = nextAmHost;
+          _playerIdByNumber
+            ..clear()
+            ..addAll(nextPlayerIdByNumber);
+          final serverRoles = widget.serverRolesByPlayerId;
+          if (serverRoles != null && serverRoles.isNotEmpty) {
+            for (final entry in nextPlayerIdByNumber.entries) {
+              final role = serverRoles[entry.value];
+              if (role != null && role.trim().isNotEmpty) {
+                _roleByPlayerNumber[entry.key] = role;
+              }
+            }
+          }
+        });
+      }
+    }
+    final runtime = payload['runtime'];
+    if (runtime is Map<String, dynamic>) {
+      final phase = runtime['phase'] as String?;
+      final deadline = runtime['phaseDeadlineAt'] as int?;
+      if (phase != null) {
+        _applyServerPhase(phase: phase, phaseDeadlineAt: deadline);
+      }
+    }
+  }
+
+  void _onServerMessage(Map<String, dynamic> msg) {
+    final type = msg['type'] as String?;
+    if (type == null || !mounted) return;
+    switch (type) {
+      case 'room.state':
+        final payload = msg['payload'] as Map<String, dynamic>?;
+        if (payload != null) _applyRoomStateFromServer(payload);
+        break;
+      case 'game.phase_changed':
+        final payload = msg['payload'] as Map<String, dynamic>?;
+        if (payload != null) {
+          final winnerRaw = payload['winnerKind'] as String?;
+          _applyServerPhase(
+            phase: (payload['phase'] as String?) ?? 'Night',
+            phaseDeadlineAt: payload['phaseDeadlineAt'] as int?,
+          );
+          if (winnerRaw != null && winnerRaw.isNotEmpty) {
+            final winner = _winnerKindFromServer(winnerRaw);
+            if (winner != null) {
+              _finishGame(
+                winnerKind: winner,
+                winnerText: switch (winner) {
+                  _WinnerKind.villagers => 'ฝ่ายชาวบ้านชนะ',
+                  _WinnerKind.ghosts => 'ฝ่ายผีชนะ',
+                  _WinnerKind.serialKiller => 'ฆาตกรต่อเนื่องชนะ',
+                  _WinnerKind.spirit => 'เจ้ากรรมนายเวรชนะ',
+                },
+                endAnnouncement: 'เกมจบ',
+              );
+            }
+          }
+        }
+        break;
+      case 'game.chat_message':
+        final payload = msg['payload'] as Map<String, dynamic>?;
+        if (payload == null) return;
+        final senderId = (payload['playerId'] as String?) ?? '';
+        final senderName = (payload['username'] as String?) ?? 'ผู้เล่น';
+        final text = (payload['text'] as String?) ?? '';
+        if (text.trim().isEmpty) return;
+        final now = DateTime.now();
+        setState(() {
+          _showHistoryInMainChat = false;
+          chatMessages = [
+            ...chatMessages,
+            ChatMessage(
+              messageId: '${now.microsecondsSinceEpoch}_${chatMessages.length}',
+              senderId: senderId,
+              senderName: senderName,
+              message: text,
+              phaseType: isDay ? 'day' : 'night',
+              createdAt: now,
+            ),
+          ];
+        });
+        _scrollChatToLatest();
+        break;
+      case 'game.action_accepted':
+      case 'game.vote_accepted':
+        break;
+      case 'error':
+        final payload = msg['payload'];
+        final code = payload is Map ? payload['code'] as String? : null;
+        if (code == 'ACTION_REJECTED' || code == 'VOTE_REJECTED' || code == 'CHAT_REJECTED') {
+          // Keep no-op notify behavior as requested.
+        }
+        break;
+    }
   }
 
   void _queueAnnouncementForNextPhase(String message) {
@@ -652,7 +815,15 @@ class _GameScreenState extends State<GameScreen> {
       );
       return true;
     }
-    if (ghosts >= villagers) {
+    if (villagers == 0) {
+      _finishGame(
+        winnerKind: _WinnerKind.ghosts,
+        winnerText: 'ฝ่ายผีชนะ',
+        endAnnouncement: 'เกมจบ: ฝ่ายผีเหลือรอดเหนือฝ่ายชาวบ้าน',
+      );
+      return true;
+    }
+    if (living.length >= 3 && ghosts >= villagers) {
       _finishGame(
         winnerKind: _WinnerKind.ghosts,
         winnerText: 'ฝ่ายผีชนะ',
@@ -707,6 +878,21 @@ class _GameScreenState extends State<GameScreen> {
     final team = _teamOfRole(myRole);
     if (team == 'ผี') return _WinnerKind.ghosts;
     return _WinnerKind.villagers;
+  }
+
+  _WinnerKind? _winnerKindFromServer(String value) {
+    switch (value) {
+      case 'villagers':
+        return _WinnerKind.villagers;
+      case 'ghosts':
+        return _WinnerKind.ghosts;
+      case 'serial_killer':
+        return _WinnerKind.serialKiller;
+      case 'spirit':
+        return _WinnerKind.spirit;
+      default:
+        return null;
+    }
   }
 
   void _markPlayerDead({
@@ -789,9 +975,16 @@ class _GameScreenState extends State<GameScreen> {
     _loadRoleCatalog();
     _lastIsDay = isDay;
     _isDayVoting = false;
-    _isNightVoting = false;
-    _phaseSecondsLeft = 20;
-    _startPhaseTimer();
+    _phaseSecondsLeft = 0;
+    _wsSub = WsService.instance.stream.listen(_onServerMessage);
+    WsService.instance.syncRoom();
+    final initialPhase = widget.initialPhase;
+    if (initialPhase != null && initialPhase.isNotEmpty) {
+      _applyServerPhase(
+        phase: initialPhase,
+        phaseDeadlineAt: widget.initialPhaseDeadlineAt,
+      );
+    }
     // Initial screen starts in night by default.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -833,6 +1026,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    _wsSub?.cancel();
     _nightStartPromptTimer?.cancel();
     _phaseTimer?.cancel();
     _chatScrollController.dispose();
@@ -1059,9 +1253,20 @@ class _GameScreenState extends State<GameScreen> {
       if (isDay) {
         if (!_isDayVoting || !_isMyPlayerAlive) return;
         _dayVoteTargetByVoter[myPlayerNumber] = number;
+        final targetId = _playerIdByNumber[number];
+        if (targetId != null && targetId.isNotEmpty) {
+          WsService.instance.send('game.vote', {'targetId': targetId});
+        }
       } else {
-        if (!_isNightVoting || !_isMyPlayerGhost || !_isMyPlayerAlive) return;
+        if (!_isMyPlayerGhost || !_isMyPlayerAlive) return;
         _ghostVoteTargetByVoter[myPlayerNumber] = number;
+        final targetId = _playerIdByNumber[number];
+        if (targetId != null && targetId.isNotEmpty) {
+          WsService.instance.send('game.submit_action', {
+            'actionType': 'kill',
+            'targetId': targetId,
+          });
+        }
       }
     });
   }
@@ -1400,6 +1605,15 @@ class _GameScreenState extends State<GameScreen> {
       (p) => p.number == targetNumber,
       orElse: () => PlayerModel(number: targetNumber, name: 'Player$targetNumber'),
     );
+    final targetId = _playerIdByNumber[targetNumber];
+    if (targetId == null || targetId.isEmpty) {
+      WsService.instance.syncRoom();
+      return;
+    }
+    WsService.instance.send('game.submit_action', {
+      'actionType': skill.name,
+      'targetId': targetId,
+    });
     final left = ((_skillUsesLeft[skill.name] ?? 1) - 1).clamp(0, 999);
     late String resultMessage;
     setState(() {
@@ -1741,7 +1955,6 @@ class _GameScreenState extends State<GameScreen> {
                                 ghostVoteTargetByVoter: _ghostVoteTargetByVoter,
                                 ghostVoteCountByTarget: _ghostVoteCountByTarget,
                                 ghostNightKillVoteEnabled: !isDay &&
-                                    _isNightVoting &&
                                     _isMyPlayerGhost &&
                                     _isMyPlayerAlive &&
                                     _armedSkill == null,
@@ -1786,31 +1999,7 @@ class _GameScreenState extends State<GameScreen> {
                           _notify(_chatDisabledReason);
                           return;
                         }
-                        final now = DateTime.now();
-                        setState(() {
-                          _showHistoryInMainChat = false;
-                          chatMessages = [
-                            ...chatMessages,
-                            ChatMessage(
-                              messageId: now.microsecondsSinceEpoch.toString(),
-                              // senderId is fixed join-order number in room.
-                              senderId: myPlayerNumber.toString(),
-                              senderName: players
-                                  .firstWhere(
-                                    (p) => p.number == myPlayerNumber,
-                                    orElse: () => PlayerModel(
-                                      number: myPlayerNumber,
-                                      name: 'Player$myPlayerNumber',
-                                    ),
-                                  )
-                                  .name,
-                              message: message,
-                              phaseType: isDay ? 'day' : 'night',
-                              createdAt: now,
-                            ),
-                          ];
-                        });
-                        _scrollChatToLatest();
+                        WsService.instance.send('game.chat', {'text': message});
                       },
                     ),
 

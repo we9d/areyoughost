@@ -10,12 +10,22 @@ class RandomRoleScreen extends StatefulWidget {
   final String? roomId;
   final int playerCount;
   final List<String>? playerNamesInJoinOrder;
+  final String? forcedRole;
+  final List<String>? serverRolePool;
+  final Map<String, String>? serverRolesByPlayerId;
+  final String? initialPhase;
+  final int? initialPhaseDeadlineAt;
 
   const RandomRoleScreen({
     super.key,
     this.roomId,
     this.playerCount = 8,
     this.playerNamesInJoinOrder,
+    this.forcedRole,
+    this.serverRolePool,
+    this.serverRolesByPlayerId,
+    this.initialPhase,
+    this.initialPhaseDeadlineAt,
   });
 
   @override
@@ -34,7 +44,12 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-    _roles = buildBalancedRoleDeck(widget.playerCount);
+    final serverPool = widget.serverRolePool;
+    if (serverPool != null && serverPool.isNotEmpty) {
+      _roles = List<String>.from(serverPool);
+    } else {
+      _roles = buildBalancedRoleDeck(widget.playerCount);
+    }
 
     _controller = AnimationController(
       vsync: this,
@@ -76,8 +91,19 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
   }
 
   void _startRandom() {
-    final random = Random();
-    _finalIndex = random.nextInt(_roles.length);
+    final forced = widget.forcedRole;
+    if (forced != null && forced.trim().isNotEmpty) {
+      final idx = _roles.indexOf(forced);
+      if (idx >= 0) {
+        _finalIndex = idx;
+      } else {
+        _roles.add(forced);
+        _finalIndex = _roles.length - 1;
+      }
+    } else {
+      final random = Random();
+      _finalIndex = random.nextInt(_roles.length);
+    }
     _controller.forward(from: 0);
   }
 
@@ -134,6 +160,9 @@ class _RandomRoleScreenState extends State<RandomRoleScreen>
                   roomId: widget.roomId ?? 'quick-room',
                   role: role,
                   roomRolePool: _roles,
+                  serverRolesByPlayerId: widget.serverRolesByPlayerId,
+                  initialPhase: widget.initialPhase,
+                  initialPhaseDeadlineAt: widget.initialPhaseDeadlineAt,
                   playerNamesInJoinOrder: widget.playerNamesInJoinOrder,
                 ),
               ),

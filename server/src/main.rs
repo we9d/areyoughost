@@ -8,6 +8,8 @@ use std::{net::SocketAddr, sync::Arc};
 use axum::{routing::{get, post}, Router};
 use sqlx::postgres::PgPoolOptions;
 use tower_http::cors::CorsLayer;
+use tokio::signal;
+use tokio::sync::watch;
 use tokio::net::TcpListener;
 
 mod auth;
@@ -104,7 +106,6 @@ async fn main() {
 
     // Initialize tracing
     tracing_subscriber::fmt::init();
-
     // ── Read required env vars ────────────────────────────────────
     let database_url = std::env::var("DATABASE_URL")
         .expect("DATABASE_URL must be set in .env or environment");
@@ -123,18 +124,19 @@ async fn main() {
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
         .unwrap_or(90);
+    let default_phase_secs = 30u64;
     let day_phase_secs = std::env::var("DAY_PHASE_SECS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(60);
+        .unwrap_or(default_phase_secs);
     let night_phase_secs = std::env::var("NIGHT_PHASE_SECS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(20);
+        .unwrap_or(default_phase_secs);
     let voting_phase_secs = std::env::var("VOTING_PHASE_SECS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(15);
+        .unwrap_or(default_phase_secs);
 
     // ── Connect to Postgres (Supabase) ────────────────────────────
     let db = connect_db_with_retry(&database_url).await;
@@ -160,6 +162,7 @@ async fn main() {
     );
 
     let tick_state = state.clone();
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
         loop {
@@ -196,27 +199,46 @@ async fn main() {
     tracing::info!("Framed TCP (WS wire) — STD_GAME_TCP_BIND (default 3010, or 'off')");
 
     let tcp_state = state.clone();
-    tokio::spawn(async move {
-        raw_tcp::start_raw_tcp_server(tcp_state).await;
+    let raw_shutdown_rx = shutdown_rx.clone();
+    let raw_tcp_task = tokio::spawn(async move {
+        if let Err(e) = raw_tcp::start_raw_tcp_server(tcp_state, raw_shutdown_rx).await {
+            tracing::error!("Raw TCP listener exited: {}", e);
+        }
     });
 
     let std_tcp_bind =
         std::env::var("STD_GAME_TCP_BIND").unwrap_or_else(|_| "0.0.0.0:3010".to_string());
+    let mut std_tcp_task = None;
     if std_tcp_bind != "off" && !std_tcp_bind.is_empty() {
         let bind = std_tcp_bind.clone();
         let st = state.clone();
-        tokio::spawn(async move {
-            if let Err(e) = game_tcp_std::run_tcp_listener(bind, st).await {
+        let std_shutdown_rx = shutdown_rx.clone();
+        std_tcp_task = Some(tokio::spawn(async move {
+            if let Err(e) = game_tcp_std::run_tcp_listener(bind, st, std_shutdown_rx).await {
                 tracing::error!("Framed TCP listener exited: {}", e);
             }
-        });
+        }));
     }
 
     let listener = TcpListener::bind(addr)
         .await
         .expect("Failed to bind to 0.0.0.0:3000");
 
+    let graceful = async move {
+        if signal::ctrl_c().await.is_ok() {
+            tracing::info!("Ctrl+C received, starting graceful shutdown");
+            let _ = shutdown_tx.send(true);
+        }
+    };
+
     axum::serve(listener, app)
+        .with_graceful_shutdown(graceful)
         .await
         .expect("Failed to start server");
+
+    let _ = raw_tcp_task.await;
+    if let Some(task) = std_tcp_task {
+        let _ = task.await;
+    }
+
 }

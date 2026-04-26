@@ -16,13 +16,13 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 class GamePreLobbyScreen extends StatefulWidget {
   final RoomModel initialRoom;
   final bool isHost;
-  final int? expectedPlayers;
+  final int? initialQuickplayDeadlineUnix;
 
   const GamePreLobbyScreen({
     super.key,
     required this.initialRoom,
     required this.isHost,
-    this.expectedPlayers,
+    this.initialQuickplayDeadlineUnix,
   });
 
   @override
@@ -30,37 +30,18 @@ class GamePreLobbyScreen extends StatefulWidget {
 }
 
 class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
-  static const int _waitSeconds = 120;
-
   late RoomModel _room;
   StreamSubscription<Map<String, dynamic>>? _sub;
   Timer? _countdownTimer;
-  Timer? _readyCountdownTimer;
   final ScrollController _feedScrollController = ScrollController();
   final TextEditingController _chatController = TextEditingController();
   final List<_RoomFeedEntry> _messages = <_RoomFeedEntry>[];
-  int _remainingSeconds = _waitSeconds;
+  int? _quickplayCountdown;
   bool _navigated = false;
   final Set<String> _knownPlayerIds = <String>{};
   final Map<String, int> _joinOrderByPlayerId = <String, int>{};
   final Map<String, int> _joinOrderByUsername = <String, int>{};
   int _nextJoinOrder = 1;
-  bool _readyCountdownStarted = false;
-
-  int get _targetPlayers {
-    final fromWidget = widget.expectedPlayers;
-    if (fromWidget != null && fromWidget >= 2) {
-      return fromWidget.clamp(2, _room.maxPlayers);
-    }
-    // Fallback: รออย่างน้อย 2 คน ถ้า host ไม่ได้กำหนดจำนวนที่คาดหวังมา
-    return 2;
-  }
-
-  String get _countdownText {
-    final m = (_remainingSeconds ~/ 60).toString().padLeft(2, '0');
-    final s = (_remainingSeconds % 60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
 
   @override
   void initState() {
@@ -69,65 +50,44 @@ class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
     _knownPlayerIds.addAll(_room.players.map((p) => p.playerId));
     _seedInitialJoinFeed();
     _sub = WsService.instance.stream.listen(_onServerMessage);
-    _startCountdown();
-    _maybeStartReadyCountdown();
+    WsService.instance.syncRoom();
+    final initialDeadline = widget.initialQuickplayDeadlineUnix;
+    if (initialDeadline != null) {
+      _startCountdownFromDeadline(initialDeadline);
+    }
   }
 
   @override
   void dispose() {
     _sub?.cancel();
     _countdownTimer?.cancel();
-    _readyCountdownTimer?.cancel();
     _feedScrollController.dispose();
     _chatController.dispose();
     super.dispose();
   }
 
-  void _startCountdown() {
+  void _startCountdownFromDeadline(int deadlineUnix) {
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final remaining = (deadlineUnix - now).clamp(0, 30).toInt();
+    _startCountdown(remaining);
+  }
+
+  void _startCountdown(int seconds) {
     _countdownTimer?.cancel();
+    setState(() => _quickplayCountdown = seconds);
+    if (seconds <= 0) return;
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted || _navigated) {
         timer.cancel();
         return;
       }
-      if (_remainingSeconds <= 0) {
+      final current = _quickplayCountdown ?? 0;
+      if (current <= 1) {
         timer.cancel();
-        _goRandomRole(trigger: 'timeout');
-        return;
+        setState(() => _quickplayCountdown = 0);
+      } else {
+        setState(() => _quickplayCountdown = current - 1);
       }
-      setState(() => _remainingSeconds -= 1);
-    });
-  }
-
-  void _maybeStartReadyCountdown() {
-    if (_readyCountdownStarted || _navigated) return;
-    if (_room.players.length < _targetPlayers) return;
-    _readyCountdownStarted = true;
-    _countdownTimer?.cancel();
-    int current = 3;
-    _appendChatMessage(
-      playerId: '_system_',
-      senderName: 'ระบบ',
-      content: '$current',
-      kind: _FeedKind.system,
-    );
-    _readyCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted || _navigated) {
-        timer.cancel();
-        return;
-      }
-      current -= 1;
-      if (current <= 0) {
-        timer.cancel();
-        _goRandomRole(trigger: 'ready_countdown');
-        return;
-      }
-      _appendChatMessage(
-        playerId: '_system_',
-        senderName: 'ระบบ',
-        content: '$current',
-        kind: _FeedKind.system,
-      );
     });
   }
 
@@ -139,9 +99,12 @@ class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
         final payload = msg['payload'] as Map<String, dynamic>?;
         if (payload != null && mounted) {
           final nextRoom = RoomModel.fromJson(payload);
+          final deadlineUnix = payload['quickplayDeadlineUnix'];
+          if (deadlineUnix is int) {
+            _startCountdownFromDeadline(deadlineUnix);
+          }
           _syncMembershipFeedFromState(nextRoom);
           setState(() => _room = nextRoom);
-          _maybeStartReadyCountdown();
         }
         break;
       case 'room.player_joined':
@@ -167,6 +130,24 @@ class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
           kind: _FeedKind.left,
         );
         if (playerId.isNotEmpty) _knownPlayerIds.remove(playerId);
+        break;
+      case 'mm.countdown':
+        final payload = msg['payload'] as Map<String, dynamic>? ?? <String, dynamic>{};
+        final seconds = payload['seconds'];
+        final deadlineUnix = payload['deadlineUnix'];
+        if (deadlineUnix is int) {
+          _startCountdownFromDeadline(deadlineUnix);
+        } else if (seconds is int) {
+          _startCountdown(seconds);
+        }
+        break;
+      case 'mm.countdown_cancelled':
+        _countdownTimer?.cancel();
+        if (mounted) setState(() => _quickplayCountdown = null);
+        break;
+      case 'game.started':
+        final payload = msg['payload'] as Map<String, dynamic>? ?? <String, dynamic>{};
+        _goRandomRole(startPayload: payload);
         break;
     }
   }
@@ -303,20 +284,49 @@ class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
     );
   }
 
-  void _goRandomRole({required String trigger}) {
+  void _goRandomRole({Map<String, dynamic>? startPayload}) {
     if (_navigated || !mounted) return;
     _navigated = true;
     _countdownTimer?.cancel();
-    Navigator.push<void>(
+    final myId = AuthService.currentUser.value?.userId ?? '';
+    final payload = startPayload ?? const <String, dynamic>{};
+    final rolesByPlayerIdRaw = payload['rolesByPlayerId'];
+    final rolePoolRaw = payload['rolePool'];
+    final initialPhase = payload['phase'] as String?;
+    final initialDeadline = payload['phaseDeadlineAt'] as int?;
+    final rolesByPlayerId = <String, String>{};
+    if (rolesByPlayerIdRaw is Map) {
+      rolesByPlayerIdRaw.forEach((key, value) {
+        if (key is String && value is String && key.isNotEmpty && value.isNotEmpty) {
+          rolesByPlayerId[key] = value;
+        }
+      });
+    }
+    final rolePool = <String>[
+      if (rolePoolRaw is List)
+        ...rolePoolRaw.whereType<String>().where((e) => e.trim().isNotEmpty),
+    ];
+    final myAssignedRole = myId.isNotEmpty ? rolesByPlayerId[myId] : null;
+    Navigator.pushReplacement<void, void>(
       context,
       MaterialPageRoute<void>(
         builder: (_) => RandomRoleScreen(
           roomId: _room.roomId,
           playerCount: _room.players.length,
+          forcedRole: myAssignedRole,
+          serverRolePool: rolePool,
+          serverRolesByPlayerId: rolesByPlayerId,
+          initialPhase: initialPhase,
+          initialPhaseDeadlineAt: initialDeadline,
           playerNamesInJoinOrder: _room.players.map((p) => p.username).toList(growable: false),
         ),
       ),
     );
+  }
+
+  void _handleLeave() {
+    WsService.instance.leaveRoom();
+    if (mounted) Navigator.pop(context);
   }
 
   @override
@@ -350,14 +360,18 @@ class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
                     children: [
                       IconButton(
                         icon: Icon(PhosphorIcons.caretLeft(), color: Colors.white, size: 30),
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: _handleLeave,
                       ),
                       Expanded(
                         child: Column(
                           children: [
                             const SizedBox(height: 33),
                             Text(
-                              'เริ่มอัตโนมัติใน $_countdownText',
+                              _quickplayCountdown == null
+                                  ? 'รอผู้เล่น...'
+                                  : _quickplayCountdown! > 0
+                                      ? 'เริ่มเกมใน $_quickplayCountdown วินาที'
+                                      : 'กำลังเริ่มเกม...',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: Colors.white,

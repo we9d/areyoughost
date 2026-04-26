@@ -4,7 +4,7 @@ import 'package:areyoughost/models/room_model.dart';
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/services/ws_service.dart';
 import 'package:areyoughost/ui/Invite_friend/invite_friends_dialog.dart';
-import 'package:areyoughost/ui/game/game_pre_lobby_screen.dart';
+import 'package:areyoughost/ui/game/random_role_screen.dart';
 import 'package:areyoughost/ui/widgets/buttons/Invite_chat.dart';
 import 'package:areyoughost/ui/widgets/buttons/Invite_button.dart';
 import 'package:areyoughost/ui/widgets/buttons/start_game_buttons.dart';
@@ -37,6 +37,8 @@ class _HostRoomScreenState extends State<HostRoomScreen> {
   final Map<String, int> _joinOrderByUsername = <String, int>{};
   int _nextJoinOrder = 1;
   int _debugBotSeq = 1;
+  bool _startingGame = false;
+  bool _navigatedToGame = false;
 
   @override
   void initState() {
@@ -66,6 +68,9 @@ class _HostRoomScreenState extends State<HostRoomScreen> {
         _syncMembershipFeedFromState(nextRoom);
         setState(() => _room = nextRoom);
         break;
+      case 'game.started':
+        _navigateToRandomRole();
+        break;
       case 'room.player_joined':
         final p = msg['payload'] as Map<String, dynamic>? ?? <String, dynamic>{};
         final playerId = (p['playerId'] as String?) ?? '';
@@ -90,7 +95,57 @@ class _HostRoomScreenState extends State<HostRoomScreen> {
           kind: _FeedKind.left,
         );
         break;
+      case 'error':
+        final payload = msg['payload'] as Map<String, dynamic>? ?? <String, dynamic>{};
+        final code = payload['code'] as String?;
+        if (code == 'GAME_START_FAILED') {
+          if (mounted) {
+            setState(() => _startingGame = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  (payload['message'] as String?) ?? 'เริ่มเกมไม่สำเร็จ',
+                ),
+              ),
+            );
+          }
+        }
+        break;
     }
+  }
+
+  void _navigateToRandomRole() {
+    if (!mounted || _navigatedToGame) return;
+    _navigatedToGame = true;
+    if (_startingGame) {
+      setState(() => _startingGame = false);
+    }
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => RandomRoleScreen(
+          roomId: _room.roomId,
+          playerCount: _room.players.length,
+          playerNamesInJoinOrder: _room.players
+              .map((p) => p.username)
+              .toList(growable: false),
+        ),
+      ),
+    );
+  }
+
+  void _requestStartGame() {
+    if (_startingGame) return;
+    if (_room.players.length < 2) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ต้องมีผู้เล่นอย่างน้อย 2 คนก่อนเริ่มเกม')),
+        );
+      }
+      return;
+    }
+    setState(() => _startingGame = true);
+    WsService.instance.send('game.start', {});
   }
 
   int _resolveJoinOrder({required String playerId, required String username}) {
@@ -413,17 +468,7 @@ class _HostRoomScreenState extends State<HostRoomScreen> {
                   right: 0,
                   child: Center(
                     child: StartGameButton(
-                      onPressed: () {
-                        Navigator.push<void>(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => GamePreLobbyScreen(
-                              initialRoom: _room,
-                              isHost: true,
-                            ),
-                          ),
-                        );
-                      },
+                      onPressed: _requestStartGame,
                     ),
                   ),
                 ),

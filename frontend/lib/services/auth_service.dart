@@ -143,7 +143,7 @@ class AuthService {
         final token = data['accessToken'];
 
         // ปิด WS เก่า (และล้าง resume token) ก่อนเปลี่ยน session — ไม่งั้น room.create_private ยังใช้ตัวตนผู้ใช้เก่า
-        await WsService.instance.disconnect();
+        await WsService.instance.disconnect(clearSession: true);
 
         // Save session
         await SessionManager.saveSession(userId: userId, username: uname, token: token);
@@ -221,7 +221,7 @@ class AuthService {
         final userId = data['player']['id'];
         final uname = data['player']['username'];
 
-        await WsService.instance.disconnect();
+        await WsService.instance.disconnect(clearSession: true);
 
         // Save session
         await SessionManager.saveSession(userId: userId, username: uname);
@@ -246,7 +246,7 @@ class AuthService {
 
   // Logout function
   static Future<void> logout() async {
-    await WsService.instance.disconnect();
+    await WsService.instance.disconnect(clearSession: true);
     await SessionManager.clearSession();
     currentUser.value = null;
   }

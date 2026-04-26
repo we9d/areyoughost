@@ -13,6 +13,8 @@ class AppConfig {
   static final _runtimeConfig = _loadRuntimeConfig();
 
   static String get apiBaseUrl {
+    final fromEnv = Platform.environment['API_BASE_URL']?.trim() ?? '';
+    if (fromEnv.isNotEmpty) return fromEnv;
     const fromDefine = String.fromEnvironment('API_BASE_URL', defaultValue: '');
     if (fromDefine.isNotEmpty) return fromDefine;
     if (_runtimeConfig.apiBaseUrl.isNotEmpty) return _runtimeConfig.apiBaseUrl;
@@ -20,6 +22,8 @@ class AppConfig {
   }
 
   static String get wsUrl {
+    final fromEnv = Platform.environment['WS_URL']?.trim() ?? '';
+    if (fromEnv.isNotEmpty) return fromEnv;
     const fromDefine = String.fromEnvironment('WS_URL', defaultValue: '');
     if (fromDefine.isNotEmpty) return fromDefine;
     if (_runtimeConfig.wsUrl.isNotEmpty) return _runtimeConfig.wsUrl;

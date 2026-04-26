@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' as m;
+import 'package:areyoughost/services/ws_service.dart';
 import 'package:areyoughost/ui/game/mode_select_screen.dart';
 
 class ExitGamePopup extends m.StatelessWidget {
@@ -62,6 +63,9 @@ class ExitGamePopup extends m.StatelessWidget {
               cursor: m.SystemMouseCursors.click,
               child: m.GestureDetector(
                 onTap: () {
+                    // Ensure user is removed from room/queue before re-entering quick play.
+                    WsService.instance.leaveRoom();
+                    WsService.instance.leaveQueue();
                   m.Navigator.of(context).pushAndRemoveUntil(
                     m.MaterialPageRoute(
                       builder: (_) => const ModeSelectScreen(),

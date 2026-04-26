@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'skill_popup_result.dart';
 import 'package:areyoughost/ui/widgets/network_or_asset_image.dart';
 
 class SkillPopupChoice extends StatelessWidget {

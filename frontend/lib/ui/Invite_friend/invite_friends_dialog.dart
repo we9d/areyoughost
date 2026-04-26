@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/services/friend_service.dart';
 import 'package:areyoughost/services/ws_service.dart';
@@ -22,17 +24,51 @@ class _InviteFriendsDialogState extends State<InviteFriendsDialog> {
   bool _loading = false;
   String? _error;
   final Set<String> _pending = <String>{};
+  Timer? _refreshTimer;
+  StreamSubscription<Map<String, dynamic>>? _wsSub;
 
   @override
   void initState() {
     super.initState();
     _loadFriends();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
+      _loadFriends();
+    });
+    _wsSub = WsService.instance.stream.listen((msg) {
+      final type = msg['type'] as String?;
+      if (type == null) return;
+      if (type == 'friend.request.received' ||
+          type == 'friend.request.responded' ||
+          type == 'invite.sent' ||
+          type == 'room.joined') {
+        _loadFriends();
+      }
+      if (type == 'error') {
+        final payload = msg['payload'] as Map<String, dynamic>? ?? {};
+        final code = payload['code'] as String?;
+        if (code == 'FRIEND_NOT_ONLINE') {
+          _loadFriends();
+        }
+      }
+    });
+    WsService.instance.connectionStatus.addListener(_handleConnectionStatusChanged);
   }
 
   @override
   void dispose() {
+    WsService.instance.connectionStatus.removeListener(_handleConnectionStatusChanged);
+    _wsSub?.cancel();
+    _refreshTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _handleConnectionStatusChanged() {
+    if (!mounted) return;
+    if (WsService.instance.connectionStatus.value == WsConnectionStatus.connected) {
+      _loadFriends();
+    }
   }
 
   Future<void> _loadFriends() async {

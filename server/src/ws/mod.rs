@@ -184,6 +184,7 @@ pub(crate) async fn handle_client_message(
                             json!({ "playerId": player_id, "username": username }),
                         );
                         state.broadcast_to_room(&room_id, &serde_json::to_string(&joined_notify).unwrap());
+                        state.schedule_quickplay_start(&room_id);
                     } else {
                         tracing::error!(
                             "quick_play ok but get_room_state missing room_id={} (in-memory rooms out of sync)",
@@ -310,6 +311,7 @@ pub(crate) async fn handle_client_message(
                                         json!({ "playerId": player_id, "username": username }),
                                     );
                                     state.broadcast_to_room(&room_id, &serde_json::to_string(&joined_notify).unwrap());
+                                    state.schedule_quickplay_start(&room_id);
                                 }
                             }
                             Err(e) => {
@@ -348,7 +350,10 @@ pub(crate) async fn handle_client_message(
                         &room_id,
                         &serde_json::to_string(&matched_msg).unwrap(),
                     );
-                    
+                    // Ensure countdown state is established before publishing room.state,
+                    // so late subscribers can recover remaining time from room payload.
+                    state.schedule_quickplay_start(&room_id);
+
                     let members = state.load_room_members(&room_id).await;
                     if let Some(room_state) = state.get_room_state(&room_id) {
                         let mut state_json = room_state.clone();
@@ -394,7 +399,15 @@ pub(crate) async fn handle_client_message(
                 .and_then(|v| v.as_u64())
                 .unwrap_or(16) as usize;
 
-            match state.create_room(player_id.to_string(), username.to_string(), max_players).await {
+            match state
+                .create_room(
+                    player_id.to_string(),
+                    username.to_string(),
+                    max_players,
+                    "PUBLIC",
+                )
+                .await
+            {
                 Ok(room_id) => {
                     let members = state.load_room_members(&room_id).await;
                     if let Some(room_state) = state.get_room_state(&room_id) {
@@ -487,12 +500,20 @@ pub(crate) async fn handle_client_message(
                     if let Some(obj) = state_json.as_object_mut() {
                         obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
                     }
+                    let player_count = state_json
+                        .get("players")
+                        .and_then(|v| v.as_array())
+                        .map(|a| a.len())
+                        .unwrap_or(0);
 
                     let state_msg = ServerMessage::new("room.state", state_json);
                     state.broadcast_to_room(
                         &room_id,
                         &serde_json::to_string(&state_msg).unwrap(),
                     );
+                    if player_count < 2 {
+                        state.schedule_quickplay_start(&room_id);
+                    }
                 }
 
                 let _ = tx.send(Message::Text(
@@ -510,11 +531,37 @@ pub(crate) async fn handle_client_message(
             }
         }
 
+        "room.sync" => {
+            if let Some(room_id) = state.player_rooms.get(player_id).map(|r| r.clone()) {
+                let members = state.load_room_members(&room_id).await;
+                if let Some(mut room_state) = state.get_room_state(&room_id) {
+                    if let Some(obj) = room_state.as_object_mut() {
+                        obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                    }
+                    let state_msg = ServerMessage::new("room.state", room_state);
+                    let _ = tx.send(Message::Text(serde_json::to_string(&state_msg).unwrap()));
+                } else {
+                    let _ = tx.send(Message::Text(
+                        serde_json::to_string(&ServerMessage::error(
+                            "ROOM_STATE_MISSING",
+                            "Room state not found",
+                        ))
+                        .unwrap(),
+                    ));
+                }
+            } else {
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::error("NOT_IN_ROOM", "You are not in a room"))
+                        .unwrap(),
+                ));
+            }
+        }
+
         // ── Game Runtime (server authoritative) ───────────────────
         "game.start" => {
             let room_id = state.player_rooms.get(player_id).map(|r| r.clone());
             if let Some(room_id) = room_id {
-                match state.start_game(&room_id, player_id) {
+                match state.start_game(&room_id, player_id).await {
                     Ok(payload) => {
                         let db = state.db.clone();
                         let rid = room_id.clone();

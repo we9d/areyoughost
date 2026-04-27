@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:areyoughost/ui/widgets/network_or_asset_image.dart';
 
 class SkillPopupResult extends StatelessWidget {
   final String skillName;
@@ -34,7 +35,7 @@ class SkillPopupResult extends StatelessWidget {
             BoxShadow(
               blurRadius: 24,
               offset: const Offset(0, 10),
-              color: Colors.black.withOpacity(0.25),
+              color: Colors.black.withValues(alpha: 0.25),
             )
           ],
         ),
@@ -70,27 +71,27 @@ class SkillPopupResult extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   Container(
-                    width: 130,
-                    height: 130,
+                    width: 110,
+                    height: 110,
                     decoration: BoxDecoration(
                       color: const Color(0xFFD9D9D9),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       boxShadow: [
                         BoxShadow(
                           blurRadius: 10,
                           offset: const Offset(0, 6),
-                          color: Colors.black.withOpacity(0.25),
+                          color: Colors.black.withValues(alpha: 0.25),
                         )
                       ],
                     ),
 
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
 
                       child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Image.asset(
-                          skillImage,
+                        padding: const EdgeInsets.all(0),
+                        child: NetworkOrAssetImage(
+                          path: skillImage,
                           fit: BoxFit.contain,
                         ),
                       ),
@@ -99,28 +100,14 @@ class SkillPopupResult extends StatelessWidget {
 
                   const SizedBox(height: 35),
 
-                  Text.rich(
-                    TextSpan(
-                      style: const TextStyle(
-                        fontFamily: "Charmonman",
-                        fontSize: 20,
-                        color: Colors.black,
-                      ),
-                      children: [
-                        const TextSpan(text: "1 "),
-                        const TextSpan(
-                          text: "น้องข้าว",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const TextSpan(text: " หมายเลขฝ่าย\n“"),
-                        const TextSpan(
-                          text: "ผี",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const TextSpan(text: "”"),
-                      ],
-                    ),
+                  Text(
+                    resultMessage,
                     textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: "Charmonman",
+                      fontSize: 20,
+                      color: Colors.black,
+                    ),
                   ),
                 ],
               ),

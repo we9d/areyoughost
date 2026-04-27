@@ -1,4 +1,3 @@
-import 'package:areyoughost/ui/widgets/buttons/roles_buttons.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -21,14 +20,23 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 class ChatInputRow extends StatefulWidget {
   final VoidCallback onRoleInfoTap;
+  final VoidCallback onChatTap;
   final VoidCallback onSkillTap;
   final ValueChanged<String> onSend;
+  final bool canSend;
+  /// When false (e.g. player is dead), skill icon is dimmed and taps are ignored.
+  final bool canUseSkills;
+  final String? disabledHint;
 
   const ChatInputRow({
     super.key,
     required this.onRoleInfoTap,
+    required this.onChatTap,
     required this.onSkillTap,
     required this.onSend,
+    this.canSend = true,
+    this.canUseSkills = true,
+    this.disabledHint,
   });
 
   @override
@@ -88,12 +96,7 @@ class _ChatInputRowState extends State<ChatInputRow> {
                     PhosphorIcons.maskHappy(),
                     color: Colors.white,
                   ),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => RolesDialog(),
-                    );
-                  },
+                  onPressed: widget.onRoleInfoTap,
                 ),
 
                 const SizedBox(width: 6),
@@ -108,24 +111,27 @@ class _ChatInputRowState extends State<ChatInputRow> {
                     color: Colors.white,
                   ),
 
-                  onPressed: () {},
+                  onPressed: widget.onChatTap,
                 ),
 
                 const SizedBox(width: 6),
 
                 /// ปุ่มสกิล
-                GestureDetector(
-                  onTap: widget.onSkillTap,
-
-                  child: SvgPicture.asset(
-                    'assets/icons/skill-icon.svg',
-
-                    width: 25,
-                    height: 25,
-
-                    colorFilter: const ColorFilter.mode(
-                      Colors.white,
-                      BlendMode.srcIn,
+                Opacity(
+                  opacity: widget.canUseSkills ? 1 : 0.35,
+                  child: IgnorePointer(
+                    ignoring: !widget.canUseSkills,
+                    child: GestureDetector(
+                      onTap: widget.onSkillTap,
+                      child: SvgPicture.asset(
+                        'assets/icons/skill-icon.svg',
+                        width: 25,
+                        height: 25,
+                        colorFilter: const ColorFilter.mode(
+                          Colors.white,
+                          BlendMode.srcIn,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -156,22 +162,41 @@ class _ChatInputRowState extends State<ChatInputRow> {
 
                 child: TextField(
                   controller: _controller,
+                  enabled: widget.canSend,
+                  textAlignVertical: TextAlignVertical.center,
 
                   textInputAction: TextInputAction.send,
 
                   /// ส่งข้อความเมื่อกด enter
-                  onSubmitted: (_) => _handleSend(),
+                  onSubmitted: (_) {
+                    if (widget.canSend) _handleSend();
+                  },
 
-                  decoration: const InputDecoration(
-                    hintText: "ส่งข้อความ",
+                  decoration: InputDecoration(
+                    hintText: widget.canSend
+                        ? "ส่งข้อความ"
+                        : (widget.disabledHint ?? "ยังไม่สามารถพิมพ์ได้ในเฟสนี้"),
 
-                    hintStyle: TextStyle(
+                    hintStyle: const TextStyle(
                       fontSize: 13,
                       color: Colors.black38,
                     ),
-
+                    suffixIcon: IconButton(
+                      tooltip: 'ส่งข้อความ',
+                      onPressed: widget.canSend ? _handleSend : null,
+                      icon: Icon(
+                        PhosphorIcons.paperPlaneRight(),
+                        size: 18,
+                        color: widget.canSend ? Colors.black54 : Colors.black26,
+                      ),
+                    ),
+                    suffixIconConstraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
                     border: InputBorder.none,
-                    isCollapsed: true,
                   ),
 
                   style: const TextStyle(

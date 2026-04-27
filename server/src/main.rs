@@ -8,16 +8,96 @@ use std::{net::SocketAddr, sync::Arc};
 use axum::{routing::{get, post}, Router};
 use sqlx::postgres::PgPoolOptions;
 use tower_http::cors::CorsLayer;
+use tokio::signal;
+use tokio::sync::watch;
 use tokio::net::TcpListener;
 
 mod auth;
+mod game_tcp_std;
+mod session_auth;
+mod tcp_framing_async;
+mod tcp_framing_std;
+mod persistence;
+mod protocol;
 mod routes;
 mod state;
 mod ws;
+mod raw_tcp;
 
 use routes::health::health_check;
-use routes::auth::{login, register};
+use routes::auth::{login, register, update_username};
+use routes::friends::{overview as friends_overview, respond_request, send_request};
+use routes::players::search_players;
+use routes::roles::list_roles;
+use routes::rooms::list_public_rooms;
 use state::manager::AppState;
+
+async fn connect_db_with_retry(database_url: &str) -> sqlx::PgPool {
+    let max_attempts = std::env::var("DB_CONNECT_MAX_ATTEMPTS")
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(8);
+    let connect_timeout_secs = std::env::var("DB_CONNECT_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(10);
+    let base_delay_ms = std::env::var("DB_CONNECT_RETRY_BASE_MS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(1000);
+    let max_delay_ms = std::env::var("DB_CONNECT_RETRY_MAX_MS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(30_000);
+
+    let mut attempt: u32 = 0;
+    let mut delay_ms = base_delay_ms.max(100);
+    loop {
+        attempt += 1;
+        tracing::info!(
+            "Connecting to database… attempt {}/{} (connect_timeout={}s)",
+            attempt,
+            max_attempts,
+            connect_timeout_secs
+        );
+        let result = PgPoolOptions::new()
+            .max_connections(10)
+            .acquire_timeout(std::time::Duration::from_secs(connect_timeout_secs))
+            .connect(database_url)
+            .await;
+
+        match result {
+            Ok(pool) => return pool,
+            Err(e) => {
+                if attempt >= max_attempts {
+                    panic!(
+                        "Failed to connect to database after {} attempts: {}",
+                        max_attempts, e
+                    );
+                }
+                tracing::warn!(
+                    "Database connection attempt {}/{} failed: {}. Retrying in {} ms",
+                    attempt,
+                    max_attempts,
+                    e,
+                    delay_ms
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                delay_ms = (delay_ms.saturating_mul(2)).min(max_delay_ms);
+            }
+        }
+    }
+}
+
+fn require_supabase_database_url(database_url: &str) {
+    if !database_url.contains("sslmode=require") {
+        panic!("DATABASE_URL must include sslmode=require for Supabase-only mode");
+    }
+
+    if !database_url.contains("supabase.co") {
+        panic!("DATABASE_URL must point to a Supabase host (supabase.co)");
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -27,10 +107,10 @@ async fn main() {
 
     // Initialize tracing
     tracing_subscriber::fmt::init();
-
     // ── Read required env vars ────────────────────────────────────
     let database_url = std::env::var("DATABASE_URL")
         .expect("DATABASE_URL must be set in .env or environment");
+    require_supabase_database_url(&database_url);
 
     // DEBUG (safe): show which DB user/host we are actually using (no password printed)
     let db_user = database_url.split("://").nth(1).unwrap_or("")
@@ -41,14 +121,26 @@ async fn main() {
 
     let jwt_secret = std::env::var("JWT_SECRET")
         .expect("JWT_SECRET must be set in .env or environment");
+    let reconnect_grace_secs = std::env::var("RECONNECT_GRACE_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(90);
+    let default_phase_secs = 30u64;
+    let day_phase_secs = std::env::var("DAY_PHASE_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(default_phase_secs);
+    let night_phase_secs = std::env::var("NIGHT_PHASE_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(default_phase_secs);
+    let voting_phase_secs = std::env::var("VOTING_PHASE_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(default_phase_secs);
 
     // ── Connect to Postgres (Supabase) ────────────────────────────
-    tracing::info!("Connecting to database…");
-    let db = PgPoolOptions::new()
-        .max_connections(10)
-        .connect(&database_url)
-        .await
-        .expect("Failed to connect to database — check DATABASE_URL");
+    let db = connect_db_with_retry(&database_url).await;
 
     // Quick sanity check
     sqlx::query("SELECT 1")
@@ -58,23 +150,28 @@ async fn main() {
 
     tracing::info!("Database connection established ✅");
 
-    // DEBUG SCHEMA
-    let rows = sqlx::query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'rooms'")
-        .fetch_all(&db)
-        .await
-        .unwrap();
-    tracing::info!("--- rooms table schema ---");
-    use sqlx::Row;
-    for r in rows {
-        let col: String = r.get("column_name");
-        let ty: String = r.get("data_type");
-        tracing::info!("Col: {:<15} Type: {}", col, ty);
-    }
-    tracing::info!("--------------------------");
-
     // ── Build shared state ────────────────────────────────────────
     tracing::info!("JWT_SECRET loaded: {} chars", jwt_secret.len());
-    let state: Arc<AppState> = AppState::new(db, jwt_secret);
+    tracing::info!("Reconnect grace period: {}s", reconnect_grace_secs);
+    let state: Arc<AppState> = AppState::new(
+        db,
+        jwt_secret,
+        reconnect_grace_secs,
+        day_phase_secs,
+        night_phase_secs,
+        voting_phase_secs,
+        false,
+    );
+
+    let tick_state = state.clone();
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
+        loop {
+            interval.tick().await;
+            tick_state.tick_games();
+        }
+    });
 
     // ── Build router ──────────────────────────────────────────────
     let app = Router::new()
@@ -83,23 +180,69 @@ async fn main() {
         // Auth
         .route("/auth/register", post(register))
         .route("/auth/login", post(login))
+        .route("/auth/update-username", post(update_username))
+        .route("/players/search", get(search_players))
+        .route("/friends/overview", get(friends_overview))
+        .route("/friends/request", post(send_request))
+        .route("/friends/respond", post(respond_request))
+        .route("/roles", get(list_roles))
+        .route("/rooms/public", get(list_public_rooms))
         // WebSocket
         .route("/ws", get(ws::ws_handler))
         .layer(CorsLayer::permissive())
-        .with_state(state);
+        .with_state(state.clone());
 
     // ── Bind and serve ────────────────────────────────────────────
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::info!("Server listening on {addr}");
     tracing::info!("POST /auth/register  — create account");
     tracing::info!("POST /auth/login     — get JWT");
+    tracing::info!("GET  /rooms/public   — list public in-memory rooms");
     tracing::info!("WS   /ws             — WebSocket (auth.hello required)");
+    tracing::info!("Raw TCP Protocol     — 3001");
+    tracing::info!("Framed TCP (WS wire) — STD_GAME_TCP_BIND (default 3010, or 'off')");
+
+    let tcp_state = state.clone();
+    let raw_shutdown_rx = shutdown_rx.clone();
+    let raw_tcp_task = tokio::spawn(async move {
+        if let Err(e) = raw_tcp::start_raw_tcp_server(tcp_state, raw_shutdown_rx).await {
+            tracing::error!("Raw TCP listener exited: {}", e);
+        }
+    });
+
+    let std_tcp_bind =
+        std::env::var("STD_GAME_TCP_BIND").unwrap_or_else(|_| "0.0.0.0:3010".to_string());
+    let mut std_tcp_task = None;
+    if std_tcp_bind != "off" && !std_tcp_bind.is_empty() {
+        let bind = std_tcp_bind.clone();
+        let st = state.clone();
+        let std_shutdown_rx = shutdown_rx.clone();
+        std_tcp_task = Some(tokio::spawn(async move {
+            if let Err(e) = game_tcp_std::run_tcp_listener(bind, st, std_shutdown_rx).await {
+                tracing::error!("Framed TCP listener exited: {}", e);
+            }
+        }));
+    }
 
     let listener = TcpListener::bind(addr)
         .await
         .expect("Failed to bind to 0.0.0.0:3000");
 
+    let graceful = async move {
+        if signal::ctrl_c().await.is_ok() {
+            tracing::info!("Ctrl+C received, starting graceful shutdown");
+            let _ = shutdown_tx.send(true);
+        }
+    };
+
     axum::serve(listener, app)
+        .with_graceful_shutdown(graceful)
         .await
         .expect("Failed to start server");
+
+    let _ = raw_tcp_task.await;
+    if let Some(task) = std_tcp_task {
+        let _ = task.await;
+    }
+
 }

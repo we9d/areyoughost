@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 class PointHand extends StatelessWidget {
   final int number;
+  final Color numberColor;
 
   const PointHand({
     super.key,
     required this.number,
+    this.numberColor = Colors.black,
   });
 
   @override
@@ -39,10 +41,10 @@ class PointHand extends StatelessWidget {
               /// ตัวเลขจริง
               Text(
                 "$number",
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
-                  color: Colors.black,
+                  color: numberColor,
                 ),
               ),
             ],

@@ -3,11 +3,30 @@ import 'package:areyoughost/models/mock_models.dart';
 
 class ChatBox extends StatelessWidget {
   final List<ChatMessage> messages;
+  final ScrollController? scrollController;
+  final String? historyLabel;
 
   const ChatBox({
     super.key,
     required this.messages,
+    this.scrollController,
+    this.historyLabel,
   });
+
+  static const Color _joinedColor = Color(0xFF4DD6C9);
+  static const Color _leftColor = Color(0xFFFF6B6B);
+
+  Color _messageColor(ChatMessage msg) {
+    final text = msg.message;
+    final isSystem = msg.senderName == 'ระบบ' || msg.senderId == '0';
+    if (!isSystem) return Colors.white;
+
+    // Match game status announcements to the same palette as joined/left feed:
+    // positive/neutral -> joined color, negative (death/leave-like) -> left color.
+    final isNegative =
+        text.contains('เสียชีวิต') || text.contains('ตาย') || text.contains('โดนฝ่ายผีฆ่า');
+    return isNegative ? _leftColor : _joinedColor;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,57 +35,62 @@ class ChatBox extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Colors.black.withValues(alpha: 0.35),
           borderRadius: BorderRadius.circular(22),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
-              color: const Color(0x1F000000),
+              color: Color(0x1F000000),
               blurRadius: 12,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center, // 👈 Vertical center
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'แชทออนไลน์',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 24, // 👈 Bigger
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
+              if (historyLabel != null && historyLabel!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    historyLabel!,
+                    style: const TextStyle(
+                      fontFamily: 'Charmonman',
+                      fontSize: 12,
+                      color: Color(0xFF4DD6C9),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-              ),
-
-              if (messages.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Expanded(
+              Expanded(
+                child: ScrollConfiguration(
+                  behavior: const MaterialScrollBehavior().copyWith(scrollbars: false),
                   child: ListView.builder(
-                    reverse: true,
-                    padding: EdgeInsets.zero,
+                    controller: scrollController,
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
-                      final msg = messages[messages.length - 1 - index];
+                      final msg = messages[index];
+                      final isSystem = msg.senderName == 'ระบบ' || msg.senderId == '0';
                       return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.only(bottom: 8),
                         child: RichText(
                           text: TextSpan(
                             style: const TextStyle(
-                              fontSize: 13,
-                              height: 1.35,
-                              color: Colors.black,
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontFamily: 'Charmonman',
                             ),
                             children: [
+                              if (!isSystem) TextSpan(text: '${msg.senderName} '),
                               TextSpan(
-                                text: '${msg.senderId} Player : ',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                                text: msg.message,
+                                style: TextStyle(
+                                  fontFamily: 'Charmonman',
+                                  color: _messageColor(msg),
+                                  fontWeight: FontWeight.w400,
                                 ),
                               ),
-                              TextSpan(text: msg.message),
                             ],
                           ),
                         ),
@@ -74,7 +98,7 @@ class ChatBox extends StatelessWidget {
                     },
                   ),
                 ),
-              ],
+              ),
             ],
           ),
         ),

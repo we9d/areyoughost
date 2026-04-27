@@ -13,6 +13,7 @@
 /// providing an enhanced desktop experience.
 library;
 
+import 'package:areyoughost/services/app_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -43,10 +44,8 @@ class MobileWrapper extends StatelessWidget {
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
-                image: const DecorationImage(
-                  image: NetworkImage(
-                    'https://i.pinimg.com/736x/fd/0d/45/fd0d45e403f966860c73fe08efd651d6.jpg',
-                  ),
+                image: DecorationImage(
+                  image: NetworkImage(AppConfig.mobileWrapperBackgroundUrl),
                   fit: BoxFit.cover,
                   opacity: 0.3,
                 ),
@@ -82,7 +81,7 @@ class MobileWrapper extends StatelessWidget {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withValues(alpha: 0.5),
                         blurRadius: 20,
                         spreadRadius: 5,
                       ),

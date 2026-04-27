@@ -1,4 +1,5 @@
 import 'package:areyoughost/ui/widgets/buttons/decoration/shadow.dart';
+import 'package:areyoughost/services/role_service.dart';
 import 'package:areyoughost/ui/widgets/role_dropdown_card.dart';
 import 'package:flutter/material.dart';
 
@@ -48,6 +49,13 @@ class RolesDialog extends StatefulWidget {
 
 class _RolesDialogState extends State<RolesDialog> {
   final ScrollController _scrollController = ScrollController();
+  late Future<List<RoleDisplayItem>> _rolesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _rolesFuture = RoleService.fetchRoles();
+  }
 
   @override
   void dispose() {
@@ -117,17 +125,45 @@ class _RolesDialogState extends State<RolesDialog> {
                       child: SingleChildScrollView(
                         controller: _scrollController,
                         padding: const EdgeInsets.only(right: 10),
-                        child: const Column(
-                          children: [
-                            RoleDropdownCard(
-                              imagePath: 'assets/images/V01.jpg',
-                              roleName: 'ชาวบ้าน',
-                              team: 'ชาวบ้าน',
-                              aura: 'ดี',
-                              description:
-                                  'ไม่มีพลังพิเศษ ทำหน้าที่พูดคุย วิเคราะห์ และโหวตกลางตอนวัน',
-                            ),
-                          ],
+                        child: FutureBuilder<List<RoleDisplayItem>>(
+                          future: _rolesFuture,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Padding(
+                                padding: EdgeInsets.only(top: 48),
+                                child: Center(child: CircularProgressIndicator()),
+                              );
+                            }
+                            if (snapshot.hasError) {
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 24),
+                                child: Text(
+                                  'โหลดบทบาทไม่สำเร็จ: ${snapshot.error}',
+                                  style: const TextStyle(color: Colors.redAccent),
+                                ),
+                              );
+                            }
+                            final roles = snapshot.data ?? const <RoleDisplayItem>[];
+                            if (roles.isEmpty) {
+                              return const Padding(
+                                padding: EdgeInsets.only(top: 24),
+                                child: Text('ไม่มีข้อมูลบทบาทในฐานข้อมูล'),
+                              );
+                            }
+                            return Column(
+                              children: roles
+                                  .map(
+                                    (r) => RoleDropdownCard(
+                                      imagePath: r.imagePath,
+                                      roleName: r.roleName,
+                                      team: r.team,
+                                      aura: r.aura,
+                                      description: r.description,
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                            );
+                          },
                         ),
                       ),
                     ),

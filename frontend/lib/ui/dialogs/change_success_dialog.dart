@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 class ChangeSuccessDialog extends StatelessWidget {
   final String title;
   final String message;
-  final Widget destination;
+  final Widget? destination;
   final Duration duration;
 
   const ChangeSuccessDialog({
     super.key,
     required this.title,
     required this.message,
-    required this.destination,
+    this.destination,
     this.duration = const Duration(seconds: 2),
   });
 
@@ -18,7 +18,7 @@ class ChangeSuccessDialog extends StatelessWidget {
     required BuildContext context,
     required String title,
     required String message,
-    required Widget destination,
+    Widget? destination,
     Duration duration = const Duration(seconds: 2),
   }) {
     showDialog(
@@ -30,10 +30,12 @@ class ChangeSuccessDialog extends StatelessWidget {
             Navigator.pop(dialogContext);
           }
 
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => destination),
-          );
+          if (destination != null) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => destination),
+            );
+          }
         });
 
         return ChangeSuccessDialog(

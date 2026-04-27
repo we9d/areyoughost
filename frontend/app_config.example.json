@@ -1,0 +1,5 @@
+{
+  "apiBaseUrl": "https://your-tunnel.ngrok-free.app",
+  "wsUrl": "wss://your-tunnel.ngrok-free.app/ws",
+  "storagePublicBaseUrl": "https://qzmqoksvdgenoxdsrcql.supabase.co/storage/v1/object/public"
+}

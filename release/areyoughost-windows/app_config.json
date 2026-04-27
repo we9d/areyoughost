@@ -1,0 +1,4 @@
+﻿{
+  "apiBaseUrl": "https://marmalade-flattered-uninjured.ngrok-free.dev",
+  "wsUrl": "wss://marmalade-flattered-uninjured.ngrok-free.dev/ws"
+}

@@ -4,7 +4,8 @@ import 'package:flutter/material.dart' as m;
 import 'package:areyoughost/models/room_model.dart';
 import 'package:areyoughost/services/ws_service.dart';
 import 'package:areyoughost/services/session_manager.dart';
-import 'package:areyoughost/ui/lobby/waiting_room_screen.dart';
+import 'package:areyoughost/ui/Invite_friend/Invite_host.dart';
+import 'package:areyoughost/ui/game/game_pre_lobby_screen.dart';
 import 'package:areyoughost/ui/widgets/buttons/playnow_button.dart';
 import 'package:areyoughost/ui/widgets/buttons/playtogether_button.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -25,15 +26,17 @@ class _ModeSelectScreenState extends m.State<ModeSelectScreen> {
     if (WsService.instance.isConnected) return true;
     final session = await SessionManager.getSession();
     final token = session?['token'];
-    if (token == null) {
+    if (token == null || token.isEmpty) {
       setState(() => _errorMessage = 'กรุณาเข้าสู่ระบบก่อน');
       return false;
     }
     try {
       await WsService.instance.connect(token);
-      // Wait for auth.ok
-      await WsService.instance
-          .waitFor('auth.ok', timeout: const Duration(seconds: 5));
+      // Accept both fresh auth and resumed session.
+      await WsService.instance.waitForAny(
+        {'auth.ok', 'session.resumed'},
+        timeout: const Duration(seconds: 5),
+      );
       return true;
     } catch (_) {
       setState(() => _errorMessage = 'ไม่สามารถเชื่อมต่อ server ได้');
@@ -54,28 +57,88 @@ class _ModeSelectScreenState extends m.State<ModeSelectScreen> {
     WsService.instance.quickPlay();
 
     try {
-      // Wait for server to confirm room joined
-      final msg = await WsService.instance.waitFor(
-        'room.joined',
-        timeout: const Duration(seconds: 10),
-      );
-      final room = RoomModel.fromJson(
-          (msg['payload']['room'] as Map<String, dynamic>?) ?? msg['payload']);
+      final expireAt = DateTime.now().add(const Duration(seconds: 30));
+      while (DateTime.now().isBefore(expireAt)) {
+        final remaining = expireAt.difference(DateTime.now());
+        final msg = await WsService.instance.waitForAny(
+          {'mm.queued', 'mm.matched', 'room.joined', 'room.state', 'error'},
+          timeout: remaining.inSeconds > 0 ? remaining : const Duration(seconds: 1),
+        );
 
+        final type = msg['type'] as String?;
+        if (type == 'error') {
+          final payload = msg['payload'];
+          final code = payload is Map ? payload['code'] as String? : null;
+          final detail = payload is Map ? payload['message'] as String? : null;
+          if (!mounted) return;
+          setState(() {
+            _loading = false;
+            _errorMessage = _quickPlayErrorMessage(code, detail);
+          });
+          return;
+        }
+
+        if (type == 'mm.queued') {
+          if (!mounted) return;
+          setState(() {
+            _errorMessage = 'กำลังค้นหาห้อง...';
+          });
+          continue;
+        }
+
+        if (type == 'mm.matched') {
+          // wait for room.state/room.joined payload in next message
+          continue;
+        }
+
+        if (type == 'room.joined' || type == 'room.state') {
+          final payload = msg['payload'];
+          final roomJson = (payload is Map<String, dynamic> &&
+                  payload['room'] is Map<String, dynamic>)
+              ? payload['room'] as Map<String, dynamic>
+              : (payload as Map<String, dynamic>? ?? <String, dynamic>{});
+          final quickplayDeadlineUnix = (payload is Map<String, dynamic>
+                  ? payload['quickplayDeadlineUnix'] as int?
+                  : null) ??
+              (roomJson['quickplayDeadlineUnix'] as int?);
+          if (roomJson.isEmpty) continue;
+          final room = RoomModel.fromJson(roomJson);
+          if (!mounted) return;
+          setState(() => _loading = false);
+          m.Navigator.pushReplacement(
+            context,
+            m.MaterialPageRoute(
+              builder: (_) => GamePreLobbyScreen(
+                initialRoom: room,
+                isHost: false,
+                initialQuickplayDeadlineUnix: quickplayDeadlineUnix,
+              ),
+            ),
+          );
+          return;
+        }
+      }
       if (!mounted) return;
-      setState(() => _loading = false);
-      m.Navigator.pushReplacement(
-        context,
-        m.MaterialPageRoute(
-          builder: (_) => WaitingRoomScreen(initialRoom: room, isHost: false),
-        ),
-      );
-    } catch (_) {
       setState(() {
         _loading = false;
-        _errorMessage = 'ไม่พบห้องในขณะนี้ ลองใหม่อีกครั้ง';
+        _errorMessage = 'ยังไม่พบผู้เล่นพอสำหรับเล่นทันที ลองใหม่อีกครั้ง';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorMessage = 'ยังไม่พบผู้เล่นพอสำหรับเล่นทันที ลองใหม่อีกครั้ง';
       });
     }
+  }
+
+  String _quickPlayErrorMessage(String? code, String? detail) {
+    if (code == 'QUICK_PLAY_FAILED') {
+      return detail?.isNotEmpty == true
+          ? 'เล่นทันทีไม่สำเร็จ: $detail'
+          : 'เล่นทันทีไม่สำเร็จ (เช่น ฐานข้อมูลหรือเซิร์ฟเวอร์)';
+    }
+    return 'เล่นทันทีไม่สำเร็จ ลองใหม่อีกครั้ง';
   }
 
   // ── Play with Friend ──────────────────────────────────────────
@@ -88,13 +151,28 @@ class _ModeSelectScreenState extends m.State<ModeSelectScreen> {
       return;
     }
 
+    final replyFuture = WsService.instance.waitForAny(
+      {'room.created', 'error'},
+      timeout: const Duration(seconds: 10),
+    );
     WsService.instance.createPrivateRoom();
 
     try {
-      final msg = await WsService.instance.waitFor(
-        'room.created',
-        timeout: const Duration(seconds: 10),
-      );
+      final msg = await replyFuture;
+      if (msg['type'] == 'error') {
+        final payload = msg['payload'];
+        final code = payload is Map ? payload['code'] as String? : null;
+        final detail = payload is Map ? payload['message'] as String? : null;
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _errorMessage = code == 'CREATE_PRIVATE_FAILED' && detail?.isNotEmpty == true
+              ? 'สร้างห้องไม่สำเร็จ: $detail'
+              : 'สร้างห้องไม่สำเร็จ ลองใหม่อีกครั้ง';
+        });
+        return;
+      }
+
       final room = RoomModel.fromJson(
           (msg['payload']['room'] as Map<String, dynamic>?) ?? msg['payload']);
 
@@ -103,7 +181,7 @@ class _ModeSelectScreenState extends m.State<ModeSelectScreen> {
       m.Navigator.pushReplacement(
         context,
         m.MaterialPageRoute(
-          builder: (_) => WaitingRoomScreen(initialRoom: room, isHost: true),
+          builder: (_) => HostRoomScreen(initialRoom: room),
         ),
       );
     } catch (_) {

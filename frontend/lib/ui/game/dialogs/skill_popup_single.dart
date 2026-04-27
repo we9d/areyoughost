@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'skill_popup_result.dart';
+import 'package:areyoughost/ui/widgets/network_or_asset_image.dart';
 
 class SkillPopupSingle extends StatelessWidget {
   final String skillName;
@@ -80,11 +80,11 @@ class SkillPopupSingle extends StatelessWidget {
                     },
 
                     child: Container(
-                      width: 130,
-                      height: 130,
+                      width: 110,
+                      height: 110,
                       decoration: BoxDecoration(
                         color: const Color(0xFFD9D9D9),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(18),
                         boxShadow: [
                           BoxShadow(
                             blurRadius: 10,
@@ -95,12 +95,12 @@ class SkillPopupSingle extends StatelessWidget {
                       ),
 
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(18),
 
                         child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Image.asset(
-                            image,
+                          padding: const EdgeInsets.all(0),
+                          child: NetworkOrAssetImage(
+                            path: image,
                             fit: BoxFit.contain,
                           ),
                         ),

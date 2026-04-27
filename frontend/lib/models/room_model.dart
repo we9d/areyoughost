@@ -22,7 +22,7 @@ class RoomModel {
       players: (json['players'] as List<dynamic>? ?? [])
           .map((p) => PlayerInfo.fromJson(p as Map<String, dynamic>))
           .toList(),
-      maxPlayers: json['maxPlayers'] as int? ?? 16,
+      maxPlayers: (json['maxPlayers'] as num?)?.toInt() ?? 16,
       isPublic: (json['isPublic'] as bool?) ?? true,
       status: json['status'] as String? ?? 'waiting',
       inviteCode: json['inviteCode'] as String?,

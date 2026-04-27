@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
 
 class PlayerDeadPopup extends StatelessWidget {
-  const PlayerDeadPopup({super.key});
+  final String victimLabel;
+  final String detailMessage;
+  final String imagePath;
+
+  const PlayerDeadPopup({
+    super.key,
+    required this.victimLabel,
+    required this.detailMessage,
+    this.imagePath = 'assets/images/player_dead_urn.png',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +31,7 @@ class PlayerDeadPopup extends StatelessWidget {
             BoxShadow(
               blurRadius: 24,
               offset: const Offset(0, 10),
-              color: Colors.black.withOpacity(0.25),
+              color: Colors.black.withValues(alpha: 0.25),
             )
           ],
         ),
@@ -56,15 +65,19 @@ class PlayerDeadPopup extends StatelessWidget {
                   BoxShadow(
                     blurRadius: 10,
                     offset: const Offset(0, 6),
-                    color: Colors.black.withOpacity(0.25),
+                    color: Colors.black.withValues(alpha: 0.25),
                   )
                 ],
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: Image.asset(
-                  "assets/images/ash.png",
+                  imagePath,
                   fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => Image.asset(
+                    'assets/images/ash.png',
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             ),
@@ -72,8 +85,8 @@ class PlayerDeadPopup extends StatelessWidget {
             const SizedBox(height: 25),
 
             /// ชื่อผู้เล่น
-            const Text(
-              "2 น้องปอนด์",
+            Text(
+              victimLabel,
               style: TextStyle(
                 fontFamily: "Charmonman",
                 fontSize: 22,
@@ -85,8 +98,8 @@ class PlayerDeadPopup extends StatelessWidget {
             const SizedBox(height: 10),
 
             /// คำอธิบาย
-            const Text(
-              "ผู้เล่นที่ตายจะไม่สามารถพูดได้จนกว่าเกมจะจบ",
+            Text(
+              detailMessage,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: "Charmonman",

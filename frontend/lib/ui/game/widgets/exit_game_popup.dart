@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart' as m;
+import 'package:areyoughost/services/ws_service.dart';
+import 'package:areyoughost/ui/home/home.dart';
 
 class ExitGamePopup extends m.StatelessWidget {
   const ExitGamePopup({super.key});
@@ -61,8 +63,16 @@ class ExitGamePopup extends m.StatelessWidget {
               cursor: m.SystemMouseCursors.click,
               child: m.GestureDetector(
                 onTap: () {
-                  m.Navigator.pop(context);
-                  m.Navigator.pop(context);
+                  // Leave room/queue first, then reset nav stack to home so the app
+                  // is not left without HomeScreen (ModeSelect-only root used to break UI).
+                  WsService.instance.leaveRoom();
+                  WsService.instance.leaveQueue();
+                  m.Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+                    m.MaterialPageRoute<void>(
+                      builder: (_) => const HomeScreen(),
+                    ),
+                    (route) => false,
+                  );
                 },
                 child: m.Container(
                   width: 160,

@@ -1,7 +1,6 @@
-import 'package:areyoughost/ui/dialogs/change_success_dialog.dart';
-import 'package:areyoughost/ui/home/home.dart';
 import 'package:flutter/material.dart';
 import 'package:areyoughost/services/auth_service.dart';
+import 'package:areyoughost/ui/dialogs/change_success_dialog.dart';
 import 'package:areyoughost/ui/widgets/buttons/decoration/shadow.dart';
 
 class ChangeUsernameDialog extends StatefulWidget {
@@ -17,23 +16,72 @@ class _ChangeUsernameDialogState extends State<ChangeUsernameDialog> {
   late TextEditingController controller;
   bool isLoading = false;
   String? errorMessage;
+  static const String _invalidUsernameMessage =
+      'ไม่สามารถใช้สัญลักษณ์พิเศษได้ กรุณาลองใหม่อีกครั้ง';
+
+  String _displayError(dynamic error) {
+    final text = (error ?? '').toString().trim();
+    if (text.isEmpty) {
+      return 'ไม่สามารถเปลี่ยนชื่อได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง';
+    }
+    if (text.toLowerCase().contains('username already taken')) {
+      return 'ชื่อผู้ใช้นี้ถูกใช้งานแล้ว กรุณาเปลี่ยนชื่อใหม่';
+    }
+    if (text.contains('FormatException') || text.contains('Unexpected end of input')) {
+      return 'เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
+    }
+    return text;
+  }
 
   @override
   void initState() {
     super.initState();
     controller = TextEditingController(text: widget.currentUsername);
+    controller.addListener(_onUsernameChanged);
   }
 
   @override
   void dispose() {
+    controller.removeListener(_onUsernameChanged);
     controller.dispose();
     super.dispose();
+  }
+
+  void _onUsernameChanged() {
+    final validationError = _validateUsernameInput(controller.text.trim());
+    if (!mounted) return;
+    setState(() {
+      errorMessage = validationError;
+    });
+  }
+
+  String? _validateUsernameInput(String username) {
+    if (username.isEmpty) return null;
+
+    // Allow only English letters, digits, and underscore.
+    if (username.contains(' ') || !RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) {
+      return _invalidUsernameMessage;
+    }
+
+    final serviceError = AuthService.validateUsername(username);
+    if (serviceError != null) {
+      return serviceError;
+    }
+    return null;
   }
 
   Future<void> _updateUsername() async {
     final newUsername = controller.text.trim();
     if (newUsername == widget.currentUsername) {
       Navigator.pop(context);
+      return;
+    }
+
+    final validationError = _validateUsernameInput(newUsername);
+    if (validationError != null) {
+      setState(() {
+        errorMessage = validationError;
+      });
       return;
     }
 
@@ -51,13 +99,17 @@ class _ChangeUsernameDialogState extends State<ChangeUsernameDialog> {
     });
 
     if (result['success']) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('เปลี่ยนชื่อผู้ใช้งานสำเร็จ')),
+      final rootNavigator = Navigator.of(context, rootNavigator: true);
+      rootNavigator.pop();
+      ChangeSuccessDialog.show(
+        context: rootNavigator.context,
+        title: 'เปลี่ยนชื่อผู้ใช้งานสำเร็จ',
+        message: '...กลับเข้าสู่โลกแห่งความหลอน\nบัญชีของคุณเปลี่ยนชื่อสำเร็จ...',
+        duration: const Duration(milliseconds: 1400),
       );
     } else {
       setState(() {
-        errorMessage = result['error'];
+        errorMessage = _displayError(result['error']);
       });
     }
   }
@@ -190,15 +242,7 @@ class _ChangeUsernameDialogState extends State<ChangeUsernameDialog> {
                             ],
                             stops: [0.0, 1.5],
                           ),
-                          onPressed: () {
-                            ChangeSuccessDialog.show(
-                              context: context,
-                              title: 'เปลี่ยนชื่อผู้ใช้งานสำเร็จ',
-                              message:
-                                  '“...กลับเข้าสู่โลกแห่งความหลอน\nบัญชีของคุณเปลี่ยนชื่อสำเร็จ...”',
-                              destination: const HomeScreen(),
-                            );
-                          },
+                          onPressed: _updateUsername,
                           child: const Text(
                             "ยืนยัน",
                             style: TextStyle(

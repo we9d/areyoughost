@@ -76,28 +76,8 @@ flutter:
 
 
   assets:
-    - assets/images/Login-Register.jpg
-    - assets/images/mobileBg.jpg
-    - assets/images/ModeSelectBg.jpg
-    - assets/images/RandomRoleBg.jpg
-    - assets/images/NightTimeBg.jpg
-    - assets/images/defaultPlayer.png
+    - assets/images/
     - assets/icons/skill-icon.svg
-    - assets/images/V01.jpg
-    - assets/images/InvitePage.jpg
-    - assets/images/DayTimeBg.jpg
-    - assets/images/logo.png
-    - assets/images/Sign.png
-    - assets/images/Point_Finger.png
-    - assets/images/Ghost_Finger.png
-    - assets/images/sun.png
-    - assets/images/moon.png
-    - assets/images/Character.png
-    - assets/images/skill_eye.png
-    - assets/images/skill_heal.png
-    - assets/images/skill_voodoo.png
-    - assets/images/death_ash.jpg
-    - assets/images/ash.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

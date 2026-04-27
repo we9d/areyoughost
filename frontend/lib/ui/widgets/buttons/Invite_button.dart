@@ -4,14 +4,9 @@ import 'package:areyoughost/ui/widgets/search_friend.dart';
 import 'package:areyoughost/ui/widgets/friend_status.dart';
 
 class InviteButton extends StatelessWidget {
-  const InviteButton({super.key});
+  final VoidCallback? onPressed;
 
-  void _showInvitePopup(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => const _InviteDialog(),
-    );
-  }
+  const InviteButton({super.key, this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +23,7 @@ class InviteButton extends StatelessWidget {
           ],
           stops: [0.0, 1.25],
         ),
-        onPressed: () => _showInvitePopup(context),
+        onPressed: onPressed ?? () => _showInvitePopup(context),
         child: const Padding(
           padding: EdgeInsets.only(top: 10),
           child: Text(
@@ -43,6 +38,13 @@ class InviteButton extends StatelessWidget {
       ),
     );
   }
+}
+
+void _showInvitePopup(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (_) => const _InviteDialog(),
+  );
 }
 
 class _InviteDialog extends StatelessWidget {

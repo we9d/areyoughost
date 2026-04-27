@@ -9,7 +9,6 @@
 //! **NOTE**: This module has been refactored to use the Dedicated Server (HTTP/WS)
 //! instead of a local SQLite database.
 
-use crate::db::postgres::PostgresDb;
 use crate::models::*;
 use crate::network::tcp_client::TcpClient;
 use crate::network::tcp_server::TcpServer;
@@ -45,14 +44,94 @@ impl Api {
     Self::new(String::new())
   }
 
-  /// Stub: auth is handled by HTTP POST /auth/login
-  pub fn login(&self, _username: String, _password: String) -> Result<User> {
-    Err(anyhow!("Use HTTP POST /auth/login instead"))
+  /// Initialize the Raw TCP Connection to the server
+  pub async fn connect_server(&self, ip: String) -> Result<()> {
+      let client = TcpClient::connect(&ip).await
+          .map_err(|e| anyhow!("Failed to connect to raw TCP server {}: {}", ip, e))?;
+      *self.client.lock().unwrap() = Some(client);
+      Ok(())
   }
 
-  /// Stub: auth is handled by HTTP POST /auth/register
-  pub fn register(&self, _username: String, _password: String) -> Result<User> {
-    Err(anyhow!("Use HTTP POST /auth/register instead"))
+  /// Raw TCP Protocol Login
+  pub async fn login(&self, username: String, password: String) -> Result<User> {
+      let mut client = {
+          let mut client_opt = self.client.lock().unwrap();
+          client_opt.take().ok_or_else(|| anyhow!("Not connected to server. Call connect_server() first."))?
+      };
+
+      let cmd = serde_json::json!({
+          "command": "Login",
+          "username": username,
+          "password": password
+      });
+
+      let res = async {
+          client.send_command(&cmd.to_string()).await?;
+          client.read_line().await
+      }.await;
+
+      *self.client.lock().unwrap() = Some(client);
+
+      let response = res?;
+      let parsed: serde_json::Value = serde_json::from_str(&response)?;
+
+      if parsed["response_type"] == "AuthSuccess" {
+          let token = parsed["token"].as_str().unwrap_or_default().to_string();
+          let user_id = parsed["player_id"].as_str().unwrap_or_default().to_string();
+          let uname = parsed["username"].as_str().unwrap_or_default().to_string();
+
+          Ok(User {
+              user_id,
+              username: uname,
+              password_hash: token, // Used as token storage
+              created_at: String::new(),
+              last_login: None,
+          })
+      } else {
+          let msg = parsed["message"].as_str().unwrap_or("Unknown error");
+          Err(anyhow!("{}", msg))
+      }
+  }
+
+  /// Raw TCP Protocol Register
+  pub async fn register(&self, username: String, password: String) -> Result<User> {
+      let mut client = {
+          let mut client_opt = self.client.lock().unwrap();
+          client_opt.take().ok_or_else(|| anyhow!("Not connected to server. Call connect_server() first."))?
+      };
+
+      let cmd = serde_json::json!({
+          "command": "Register",
+          "username": username,
+          "password": password
+      });
+
+      let res = async {
+          client.send_command(&cmd.to_string()).await?;
+          client.read_line().await
+      }.await;
+
+      *self.client.lock().unwrap() = Some(client);
+
+      let response = res?;
+      let parsed: serde_json::Value = serde_json::from_str(&response)?;
+
+      if parsed["response_type"] == "AuthSuccess" {
+          let token = parsed["token"].as_str().unwrap_or_default().to_string();
+          let user_id = parsed["player_id"].as_str().unwrap_or_default().to_string();
+          let uname = parsed["username"].as_str().unwrap_or_default().to_string();
+
+          Ok(User {
+              user_id,
+              username: uname,
+              password_hash: token,
+              created_at: String::new(),
+              last_login: None,
+          })
+      } else {
+          let msg = parsed["message"].as_str().unwrap_or("Unknown error");
+          Err(anyhow!("{}", msg))
+      }
   }
 
   /// Stub: DB is server-side only
@@ -175,6 +254,8 @@ impl Api {
                     user_id: pid.clone(),
                     username: name.to_string(),
                     role: None, // Assigned below
+                    current_faction: Some("Villager".to_string()),
+                    transformed_to_ghoul: false,
                     is_alive: true,
                     seat_number: (i + 1) as i32,
                     joined_at: String::new(),
@@ -182,9 +263,8 @@ impl Api {
             );
         }
 
-        // Assign Roles
-        let roles = RoleDistributor::assign_roles(participants.len());
-        let mut role_iter = roles.into_iter();
+        // Assign Roles (distribution wired when roles are bound per seat)
+        let _roles = RoleDistributor::assign_roles(participants.len());
         let game_id_db = "local_game".to_string();
 
         new_state.participants = participants;
@@ -311,6 +391,8 @@ impl Api {
             if action_type == "VOTE" {
                 if let Some(target) = target_id.clone() {
                     state.vote_system.cast_vote(actor_id.clone(), target);
+                } else {
+                    state.vote_system.unvote(&actor_id);
                 }
             }
 
@@ -333,110 +415,4 @@ impl Api {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // Helper to get test database URL
-    fn get_test_db_url() -> String {
-        std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://postgres:password@localhost/areyoughost".to_string())
-    }
-
-    #[test]
-    fn test_register_success() {
-        let api = Api::new(get_test_db_url());
-
-        let username = format!("test{}", chrono::Utc::now().timestamp() % 100000);
-        let password = "test_password_123";
-
-        let user = api
-            .register(username.clone(), password.to_string())
-            .expect("Registration should succeed");
-
-        assert_eq!(user.username, username);
-        assert!(!user.user_id.is_empty());
-        println!("✅ Registration successful: {}", user.username);
-    }
-
-    #[test]
-    fn test_register_duplicate_username() {
-        let api = Api::new(get_test_db_url());
-
-        let username = format!("dup{}", chrono::Utc::now().timestamp() % 100000);
-        let password = "password123";
-
-        api.register(username.clone(), password.to_string())
-            .expect("First registration should succeed");
-
-        let result = api.register(username.clone(), password.to_string());
-        assert!(result.is_err());
-        println!("✅ Duplicate username correctly rejected");
-    }
-
-    #[test]
-    fn test_login_success() {
-        let api = Api::new(get_test_db_url());
-
-        let username = format!("login{}", chrono::Utc::now().timestamp() % 100000);
-        let password = "secure_password_456";
-
-        api.register(username.clone(), password.to_string())
-            .expect("Registration should succeed");
-
-        let logged_in_user = api
-            .login(username.clone(), password.to_string())
-            .expect("Login should succeed");
-
-        assert_eq!(logged_in_user.username, username);
-        println!("✅ Login successful: {}", username);
-    }
-
-    #[test]
-    fn test_login_wrong_password() {
-        let api = Api::new(get_test_db_url());
-
-        let username = format!("wrong{}", chrono::Utc::now().timestamp() % 100000);
-        let password = "correct_password";
-
-        api.register(username.clone(), password.to_string())
-            .expect("Registration should succeed");
-
-        let result = api.login(username.clone(), "wrong_password".to_string());
-        assert!(result.is_err());
-        println!("✅ Wrong password correctly rejected");
-    }
-
-    #[test]
-    fn test_login_nonexistent_user() {
-        let api = Api::new(get_test_db_url());
-
-        let username = format!("none{}", chrono::Utc::now().timestamp() % 100000);
-        let password = "any_password";
-
-        let result = api.login(username.clone(), password.to_string());
-        assert!(result.is_err());
-        println!("✅ Non-existent user correctly rejected");
-    }
-
-    #[test]
-    fn test_thai_username_support() {
-        let api = Api::new(get_test_db_url());
-
-        let username = format!("ไทย{}", chrono::Utc::now().timestamp() % 10000);
-        let password = "รหัสผ่าน123";
-
-        let user = api
-            .register(username.clone(), password.to_string())
-            .expect("Thai characters should be supported");
-
-        assert_eq!(user.username, username);
-
-        let logged_in = api
-            .login(username.clone(), password.to_string())
-            .expect("Thai login should work");
-
-        assert_eq!(logged_in.username, username);
-        println!("✅ Thai characters supported: {}", user.username);
-    }
-}
+// Legacy tests removed since the API is now Async and relies on the TCP server on port 3001.

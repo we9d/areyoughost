@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:areyoughost/ui/widgets/network_or_asset_image.dart';
 
 class RoleResultCard extends StatefulWidget {
   final String roleName;
@@ -76,14 +77,17 @@ class _RoleResultCardState extends State<RoleResultCard>
                 width: 160,
                 height: 190,
                 decoration: BoxDecoration(
-                  color: Colors.black,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(
-                    'assets/images/V01.jpg',
+                  child: NetworkOrAssetImage(
+                    path: widget.imagePath,
                     fit: BoxFit.cover,
+                    fallback: Image.asset(
+                      'assets/images/V01.jpg',
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
               ),

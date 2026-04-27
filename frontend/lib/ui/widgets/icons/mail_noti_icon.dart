@@ -3,11 +3,31 @@ import 'dart:async';
 import 'package:areyoughost/models/room_model.dart';
 import 'package:areyoughost/services/invite_store.dart';
 import 'package:areyoughost/services/ws_service.dart';
-import 'package:areyoughost/ui/lobby/waiting_room_screen.dart';
+import 'package:areyoughost/ui/Invite_friend/Invite_host.dart';
 import 'package:areyoughost/ui/widgets/buttons/accept_invite_button.dart';
 import 'package:areyoughost/ui/widgets/buttons/reject_invite_button.dart';
+import 'package:areyoughost/ui/widgets/icons/mail-icon.dart';
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:flutter/material.dart';
+
+bool _gameInviteDialogShowing = false;
+
+/// แสดงกล่องคำเชิญเข้าห้อง — เปิดเมื่อผู้เล่นกดไอคอนจดหมาย (มีคำเชิญค้างใน [InviteStore])
+void showGameInviteDialog(BuildContext navContext, PendingInvite invite) {
+  if (_gameInviteDialogShowing) return;
+  if (!navContext.mounted) return;
+  _gameInviteDialogShowing = true;
+  showDialog<void>(
+    context: navContext,
+    barrierDismissible: false,
+    builder: (dialogCtx) => _GameInviteDialog(
+      navContext: navContext,
+      invite: invite,
+    ),
+  ).whenComplete(() {
+    _gameInviteDialogShowing = false;
+  });
+}
 
 /// Mail / notification icon that shows a badge when there are pending invites.
 /// Tapping it shows the first pending invite dialog from InviteStore.
@@ -19,8 +39,6 @@ class MailNotiIcon extends StatefulWidget {
 }
 
 class _MailNotiIconState extends State<MailNotiIcon> {
-  bool _isAccepting = false;
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<PendingInvite>>(
@@ -28,14 +46,22 @@ class _MailNotiIconState extends State<MailNotiIcon> {
       builder: (context, invites, _) {
         final hasInvite = invites.isNotEmpty;
         return IconButton(
-          onPressed: hasInvite ? () => _showInviteDialog(context, invites.first) : null,
+          onPressed: () {
+            if (hasInvite) {
+              showGameInviteDialog(context, invites.first);
+            } else {
+              showEmptyMailDialog(context);
+            }
+          },
           icon: Stack(
             clipBehavior: Clip.none,
             children: [
               Icon(
-                BootstrapIcons.envelope_open_fill,
-                color: hasInvite ? Colors.white : Colors.white54,
-                size: 23,
+                hasInvite
+                    ? BootstrapIcons.envelope_open_fill
+                    : BootstrapIcons.envelope_fill,
+                color: Colors.white,
+                size: 25,
               ),
               if (hasInvite)
                 Positioned(
@@ -56,71 +82,73 @@ class _MailNotiIconState extends State<MailNotiIcon> {
       },
     );
   }
+}
 
-  void _showInviteDialog(BuildContext context, PendingInvite invite) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => _InviteDialog(
-        invite: invite,
-        isAccepting: _isAccepting,
-        onAccept: () => _handleAccept(ctx, invite),
-        onReject: () {
-          InviteStore.instance.remove(invite.inviteCode);
-          Navigator.pop(ctx);
-        },
-      ),
-    );
+class _GameInviteDialog extends StatefulWidget {
+  final BuildContext navContext;
+  final PendingInvite invite;
+
+  const _GameInviteDialog({
+    required this.navContext,
+    required this.invite,
+  });
+
+  @override
+  State<_GameInviteDialog> createState() => _GameInviteDialogState();
+}
+
+class _GameInviteDialogState extends State<_GameInviteDialog> {
+  bool _accepting = false;
+
+  void _reject() {
+    InviteStore.instance.remove(widget.invite.inviteCode);
+    Navigator.pop(context);
   }
 
-  Future<void> _handleAccept(BuildContext dialogCtx, PendingInvite invite) async {
-    setState(() => _isAccepting = true);
-
-    // Send accept + wait for room.joined from server
-    WsService.instance.acceptInvite(invite.inviteCode);
-    InviteStore.instance.remove(invite.inviteCode);
+  Future<void> _accept() async {
+    setState(() => _accepting = true);
 
     try {
-      final msg = await WsService.instance.waitFor(
-        'room.joined',
+      // Subscribe before sending accept to avoid missing a fast server reply.
+      final replyFuture = WsService.instance.waitForAny(
+        {'room.joined', 'error'},
         timeout: const Duration(seconds: 10),
       );
+      WsService.instance.acceptInvite(widget.invite.inviteCode);
+      InviteStore.instance.remove(widget.invite.inviteCode);
+      final msg = await replyFuture;
+
+      if (msg['type'] == 'error') {
+        throw StateError('invite.accept failed');
+      }
+
       final roomData = (msg['payload']?['room'] as Map<String, dynamic>?) ??
           (msg['payload'] as Map<String, dynamic>? ?? {});
       final room = RoomModel.fromJson(roomData);
 
       if (!mounted) return;
-      Navigator.pop(dialogCtx); // Close dialog
+      Navigator.pop(context);
+      if (!widget.navContext.mounted) return;
       Navigator.push(
-        context,
+        widget.navContext,
         MaterialPageRoute(
-          builder: (_) => WaitingRoomScreen(initialRoom: room, isHost: false),
+          builder: (_) => HostRoomScreen(
+            initialRoom: room,
+            showHostControls: false,
+          ),
         ),
       );
     } catch (_) {
       if (!mounted) return;
-      Navigator.pop(dialogCtx);
-      ScaffoldMessenger.of(context).showSnackBar(
+      Navigator.pop(context);
+      final messenger = ScaffoldMessenger.maybeOf(widget.navContext);
+      messenger?.showSnackBar(
         const SnackBar(content: Text('ไม่สามารถเข้าร่วมห้องได้ ลองใหม่อีกครั้ง')),
       );
     } finally {
-      if (mounted) setState(() => _isAccepting = false);
+      if (mounted) setState(() => _accepting = false);
     }
   }
-}
-
-class _InviteDialog extends StatelessWidget {
-  final PendingInvite invite;
-  final bool isAccepting;
-  final VoidCallback onAccept;
-  final VoidCallback onReject;
-
-  const _InviteDialog({
-    required this.invite,
-    required this.isAccepting,
-    required this.onAccept,
-    required this.onReject,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -144,7 +172,7 @@ class _InviteDialog extends StatelessWidget {
                 children: [
                   const SizedBox(height: 6),
                   const Text(
-                    'ตอบรับคำเชิญเข้าเกม',
+                    'คำเชิญเข้าห้อง',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.black,
@@ -154,7 +182,7 @@ class _InviteDialog extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    invite.fromUsername,
+                    widget.invite.fromUsername,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.black87,
@@ -167,29 +195,38 @@ class _InviteDialog extends StatelessWidget {
                     'ชวนคุณเข้าร่วมเกม',
                     style: TextStyle(color: Colors.black54, fontSize: 14),
                   ),
-                  const SizedBox(height: 26),
-                  if (isAccepting)
+                  const SizedBox(height: 8),
+                  const Text(
+                    'ไม่ต้องกรอกรหัสชวน — กดเข้าร่วมห้องได้เลย',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.black45, fontSize: 12),
+                  ),
+                  const SizedBox(height: 20),
+                  if (_accepting)
                     const CircularProgressIndicator()
                   else
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        RejectInviteButton(onPressed: onReject),
+                        RejectInviteButton(onPressed: _reject),
                         const SizedBox(width: 18),
-                        AcceptInviteButton(onPressed: onAccept),
+                        AcceptInviteButton(
+                          onPressed: _accept,
+                          label: 'เข้าร่วมห้อง',
+                        ),
                       ],
                     ),
                 ],
               ),
             ),
-            if (!isAccepting)
+            if (!_accepting)
               Positioned(
                 top: -6,
                 right: -8,
                 child: IconButton(
                   splashRadius: 20,
                   icon: const Icon(Icons.close, size: 30, color: Colors.black),
-                  onPressed: onReject,
+                  onPressed: _reject,
                 ),
               ),
           ],

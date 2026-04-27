@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 class PlayerSign extends StatelessWidget {
   final int number;
+  final Color numberColor;
 
   const PlayerSign({
     super.key,
     required this.number,
+    this.numberColor = Colors.white,
   });
 
   @override
@@ -29,10 +31,10 @@ class PlayerSign extends StatelessWidget {
               offset: const Offset(-2, -0.5), // <--- ขยับแกน X (ซ้าย-) และ แกน Y (ลง+)
               child: Text(
                 "$number",
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: numberColor,
                 ),
               ),
             ),

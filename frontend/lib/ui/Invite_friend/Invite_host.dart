@@ -161,10 +161,10 @@ class _HostRoomScreenState extends State<HostRoomScreen> {
 
   void _requestStartGame() {
     if (_startingGame) return;
-    if (_room.players.length < 16) {
+    if (_room.players.length < 2) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ต้องมีผู้เล่นครบ 16 คนก่อนเริ่มเกม')),
+          const SnackBar(content: Text('ต้องมีผู้เล่นอย่างน้อย 2 คนก่อนเริ่มเกม')),
         );
       }
       return;

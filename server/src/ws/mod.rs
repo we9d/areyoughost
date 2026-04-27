@@ -371,49 +371,53 @@ pub(crate) async fn handle_client_message(
 
         "mm.join_queue" => {
             tracing::info!("Player '{}' joining queue", player_id);
-
-            match state
-                .join_queue(player_id.to_string(), username.to_string())
-                .await
-            {
-                Some(room_id) => {
-                    tracing::info!("Match found! Room: {}", room_id);
-                    
-                    let matched_msg =
-                        ServerMessage::new("mm.matched", json!({ "roomId": room_id }));
-                    state.broadcast_to_room(
-                        &room_id,
-                        &serde_json::to_string(&matched_msg).unwrap(),
-                    );
-                    // Ensure countdown state is established before publishing room.state,
-                    // so late subscribers can recover remaining time from room payload.
-                    state.schedule_quickplay_start(&room_id);
+            match state.quick_play(player_id.to_string(), username.to_string()).await {
+                Ok(room_id) => {
+                    tracing::info!("Quickplay room assigned: {}", room_id);
+                    let matched_msg = ServerMessage::new("mm.matched", json!({ "roomId": room_id }));
+                    state.broadcast_to_room(&room_id, &serde_json::to_string(&matched_msg).unwrap());
 
                     let members = state.load_room_members(&room_id).await;
-                    if let Some(room_state) = state.get_room_state(&room_id) {
-                        let mut state_json = room_state.clone();
-                        // Overwrite players with fresh DB truth
-                        if let Some(obj) = state_json.as_object_mut() {
+                    if let Some(mut room_state) = state.get_room_state(&room_id) {
+                        if let Some(obj) = room_state.as_object_mut() {
                             obj.insert(
                                 "players".to_string(),
                                 room_players_payload_with_runtime(state, &room_id, &members),
                             );
                         }
-
-                        let state_msg = ServerMessage::new("room.state", state_json);
-                        state.broadcast_to_room(
-                            &room_id,
-                            &serde_json::to_string(&state_msg).unwrap(),
+                        let joined_msg = ServerMessage::new(
+                            "room.joined",
+                            json!({ "roomId": room_id, "room": room_state.clone() }),
                         );
+                        let _ = tx.send(Message::Text(serde_json::to_string(&joined_msg).unwrap()));
+                        let state_msg = ServerMessage::new("room.state", room_state);
+                        state.broadcast_to_room(&room_id, &serde_json::to_string(&state_msg).unwrap());
+                        let joined_notify = ServerMessage::new(
+                            "room.player_joined",
+                            json!({ "playerId": player_id, "username": username }),
+                        );
+                        state.broadcast_to_room(&room_id, &serde_json::to_string(&joined_notify).unwrap());
+                        // Start/refresh countdown only when room has enough players.
+                        state.schedule_quickplay_start(&room_id);
+                    } else {
+                        tracing::error!(
+                            "mm.join_queue quick_play ok but get_room_state missing room_id={}",
+                            room_id
+                        );
+                        let _ = tx.send(Message::Text(
+                            serde_json::to_string(&ServerMessage::error(
+                                "QUICK_PLAY_FAILED",
+                                "Room state missing after quickplay; check server logs",
+                            ))
+                            .unwrap(),
+                        ));
                     }
                 }
-                None => {
-                    let queue_size = state.queue.lock().await.len();
-                    let response = ServerMessage::new(
-                        "mm.queued",
-                        json!({ "status": "waiting", "queueSize": queue_size }),
-                    );
-                    let _ = tx.send(Message::Text(serde_json::to_string(&response).unwrap()));
+                Err(e) => {
+                    tracing::error!("Player '{}' mm.join_queue quickplay failed: {}", player_id, e);
+                    let _ = tx.send(Message::Text(
+                        serde_json::to_string(&ServerMessage::error("QUICK_PLAY_FAILED", &e)).unwrap(),
+                    ));
                 }
             }
         }
@@ -508,6 +512,7 @@ pub(crate) async fn handle_client_message(
                                 &serde_json::to_string(&state_msg).unwrap(),
                             );
                         }
+                        state.schedule_quickplay_start(room_id);
                     }
                     Err(e) => {
                         let _ = tx.send(Message::Text(

@@ -34,15 +34,15 @@ if (-not $NgrokHost -and -not $env:API_BASE_URL) {
 $apiBaseUrl = if ($env:API_BASE_URL) { $env:API_BASE_URL } else { "https://$NgrokHost" }
 $wsUrl = if ($env:WS_URL) { $env:WS_URL } else { "wss://$NgrokHost/ws" }
 
-Write-Host "Starting Player 1 with:"
+Write-Host "Starting Player 3 with:"
 Write-Host "API_BASE_URL=$apiBaseUrl"
 Write-Host "WS_URL=$wsUrl"
-Write-Host "SESSION_NAMESPACE=player1"
+Write-Host "SESSION_NAMESPACE=player3"
 
 Set-Location $frontendDir
 $env:API_BASE_URL = $apiBaseUrl
 $env:WS_URL = $wsUrl
-$env:SESSION_NAMESPACE = "player1"
+$env:SESSION_NAMESPACE = "player3"
 
 $exePath = Join-Path $frontendDir "build\windows\x64\runner\Debug\areyoughost.exe"
 if (-not (Test-Path $exePath)) {

@@ -370,12 +370,55 @@ impl AppState {
 
     // ─── Quick Play ───────────────────────────────────────────────
 
+    /// Pick a public waiting room for quick play.
+    ///
+    /// Prefer a room that already has ≥2 players **and** an active quickplay countdown so
+    /// additional players can join during the pre-start window. Otherwise prefer the fullest
+    /// waiting lobby so matchmaking does not scatter players across many one-player rooms.
+    fn pick_quick_play_target_room(&self) -> Option<RoomId> {
+        let now = Self::now_unix_secs();
+        let mut best_countdown: Option<(usize, RoomId)> = None;
+        let mut best_fallback: Option<(usize, RoomId)> = None;
+
+        for r in self.rooms.iter() {
+            if r.status != "waiting" || !r.is_public || r.players.len() >= r.max_players {
+                continue;
+            }
+            let n = r.players.len();
+            let room_id = r.room_id.clone();
+            let in_live_countdown = self
+                .quickplay_countdown_deadlines
+                .get(&room_id)
+                .map(|d| *d > now)
+                .unwrap_or(false);
+
+            if n >= 2 && in_live_countdown {
+                let take = match best_countdown {
+                    None => true,
+                    Some((best_n, _)) => n > best_n,
+                };
+                if take {
+                    best_countdown = Some((n, room_id));
+                }
+            } else {
+                let take = match best_fallback {
+                    None => true,
+                    Some((best_n, _)) => n > best_n,
+                };
+                if take {
+                    best_fallback = Some((n, room_id));
+                }
+            }
+        }
+
+        best_countdown
+            .map(|(_, id)| id)
+            .or_else(|| best_fallback.map(|(_, id)| id))
+    }
+
     /// Find an existing waiting public room with space, or create a new one.
     pub async fn quick_play(&self, player_id: String, username: String) -> Result<RoomId, String> {
-        // Find an available public waiting room
-        let available_room = self.rooms.iter().find(|r| {
-            r.status == "waiting" && r.is_public && r.players.len() < r.max_players
-        }).map(|r| r.room_id.clone());
+        let available_room = self.pick_quick_play_target_room();
 
         if let Some(room_id) = available_room {
             self.join_room(&room_id, &player_id, username).await?;
@@ -1160,10 +1203,13 @@ impl AppState {
             ));
         }
 
-        // Fixed-seed RNG avoids `thread_rng` global locks (seen as long hangs under Windows + tokio tests).
-        let mut rng = StdRng::from_seed([7u8; 32]);
+        // Entropy-seeded RNG: a fixed seed made every game draw the same slice of the deck
+        // (e.g. three villagers for 3 players). Avoid `thread_rng` here due to global-lock stalls
+        // under Windows + tokio in some test setups.
+        let mut rng = StdRng::from_entropy();
         unique_pool.shuffle(&mut rng);
-        let mut selected = unique_pool.into_iter().take(player_count).collect::<Vec<_>>();
+        let mut remainder = unique_pool.split_off(player_count);
+        let mut selected = unique_pool;
 
         // For 2-player test games, force opposite factions to avoid immediate parity end.
         if player_count == 2 {
@@ -1181,6 +1227,30 @@ impl AppState {
             });
             if ghost_idx.is_none() || villager_idx.is_none() {
                 selected = vec!["ชาวบ้าน".to_string(), "ผีปอบ".to_string()];
+            }
+        }
+
+        // Small games (3+) still need at least one ghost-team role when the deck contains any.
+        if player_count >= 3 {
+            let pool_has_ghost = selected
+                .iter()
+                .chain(remainder.iter())
+                .any(|r| team_of_role(r) == Team::Ghosts);
+            let selected_has_ghost = selected.iter().any(|r| team_of_role(r) == Team::Ghosts);
+            if pool_has_ghost && !selected_has_ghost {
+                if let Some(gi) = remainder
+                    .iter()
+                    .position(|r| team_of_role(r) == Team::Ghosts)
+                {
+                    let ghost = remainder.remove(gi);
+                    if let Some(vi) = selected
+                        .iter()
+                        .position(|r| team_of_role(r) != Team::Ghosts)
+                    {
+                        let replaced = std::mem::replace(&mut selected[vi], ghost);
+                        remainder.push(replaced);
+                    }
+                }
             }
         }
 
@@ -1921,6 +1991,99 @@ mod tests {
 
         let room = state.rooms.get(room_id).expect("room exists");
         assert_eq!(room.status, "playing");
+    }
+
+    #[tokio::test]
+    async fn start_game_three_players_includes_at_least_one_ghost_team_role() {
+        let state = test_state();
+        for i in 0u32..16 {
+            let room_id = format!("room-3p-{i}");
+            let p1 = format!("p1-3p-{i}");
+            let p2 = format!("p2-3p-{i}");
+            let p3 = format!("p3-3p-{i}");
+            seed_uuid_waiting_room(
+                &state,
+                &room_id,
+                &[(p1.as_str(), "a", true), (p2.as_str(), "b", false), (p3.as_str(), "c", false)],
+            );
+            state.start_game(&room_id, &p1).await.expect("start");
+            let g = state.active_games.get(&room_id).expect("game");
+            let ghost_count = g
+                .players
+                .values()
+                .filter(|p| {
+                    p.role
+                        .as_ref()
+                        .map(|r| team_of_role(r) == Team::Ghosts)
+                        .unwrap_or(false)
+                })
+                .count();
+            assert!(
+                ghost_count >= 1,
+                "round {i}: expected >=1 ghost team, roles: {:?}",
+                g.players.values().map(|p| p.role.clone()).collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn quick_play_reuses_waiting_room_until_full() {
+        let state = test_state();
+        let room_id = "52000000-0000-4000-8000-000000000001";
+        let host_id = "52000000-0000-4000-8000-000000000011";
+        seed_room(&state, room_id, host_id, "host");
+
+        let joined_room_id = state
+            .quick_play(
+                "52000000-0000-4000-8000-000000000012".to_string(),
+                "guest-1".to_string(),
+            )
+            .await
+            .expect("quick play should join existing waiting room");
+        assert_eq!(joined_room_id, room_id);
+
+        let room = state.rooms.get(room_id).expect("room exists");
+        assert_eq!(room.players.len(), 2);
+        assert_eq!(room.max_players, 16);
+    }
+
+    #[tokio::test]
+    async fn quick_play_prefers_room_in_countdown_over_solo_lobbies() {
+        let state = test_state();
+        let room_busy = "62000000-0000-4000-8000-000000000001";
+        let room_solo = "62000000-0000-4000-8000-000000000002";
+        let h1 = "62000000-0000-4000-8000-000000000011";
+        let h2 = "62000000-0000-4000-8000-000000000012";
+        let newcomer = "62000000-0000-4000-8000-000000000099";
+
+        seed_room(&state, room_busy, h1, "host");
+        if let Some(mut room) = state.rooms.get_mut(room_busy) {
+            room.players.push(PlayerInfo {
+                player_id: h2.to_string(),
+                username: "guest".to_string(),
+                is_ready: false,
+                is_host: false,
+            });
+        }
+        let far_deadline = chrono::Utc::now().timestamp() + 3600;
+        state
+            .quickplay_countdown_deadlines
+            .insert(room_busy.to_string(), far_deadline);
+
+        seed_room(
+            &state,
+            room_solo,
+            "62000000-0000-4000-8000-000000000021",
+            "solo",
+        );
+
+        let joined = state
+            .quick_play(newcomer.to_string(), "joiner".to_string())
+            .await
+            .expect("quick play");
+        assert_eq!(joined, room_busy);
+        let room = state.rooms.get(room_busy).expect("room");
+        assert!(room.players.iter().any(|p| p.player_id == newcomer));
     }
 
     #[test]

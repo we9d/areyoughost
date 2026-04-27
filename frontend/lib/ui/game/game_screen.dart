@@ -8,6 +8,7 @@ import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/services/role_service.dart';
 import 'package:areyoughost/services/ws_service.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_choice.dart';
+import 'package:areyoughost/ui/game/dialogs/player_dead_popup.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_result.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_single.dart';
 import 'package:areyoughost/ui/game/widgets/DayTimeAnimation.dart';
@@ -353,6 +354,8 @@ class _GameScreenState extends State<GameScreen> {
   /// `alive`, `myRole` / `myAlive` for this client). Local animations may update
   /// death UI between polls; the next `room.state` reconciles to server truth.
   void _applyRoomStateFromServer(Map<String, dynamic> payload) {
+    final wasMyAliveBeforeSync = _isMyPlayerAlive;
+    bool? myAliveAfterSync;
     final playersJson = payload['players'];
     if (playersJson is List && playersJson.isNotEmpty) {
       final prevMyPlayerNumber = myPlayerNumber;
@@ -399,6 +402,7 @@ class _GameScreenState extends State<GameScreen> {
         idByNumber: nextPlayerIdByNumber,
         activeCount: nextActive,
       );
+      myAliveAfterSync = nextAliveBySeat[nextMyPlayerNumber] ?? _aliveByPlayerNumber[nextMyPlayerNumber] ?? true;
       setState(() {
         players = nextPlayers;
         _activePlayerCount = nextActive;
@@ -438,6 +442,7 @@ class _GameScreenState extends State<GameScreen> {
         final myAliveRaw = payload['myAlive'];
         if (myAliveRaw is bool) {
           _aliveByPlayerNumber[nextMyPlayerNumber] = myAliveRaw;
+          myAliveAfterSync = myAliveRaw;
         }
       });
     }
@@ -448,6 +453,21 @@ class _GameScreenState extends State<GameScreen> {
       if (phase != null) {
         _applyServerPhase(phase: phase, phaseDeadlineAt: deadline);
       }
+    }
+    if (wasMyAliveBeforeSync && myAliveAfterSync == false && mounted) {
+      final victimLabel = '$myPlayerNumber ${_playerName(myPlayerNumber)}';
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          barrierColor: Colors.black54,
+          builder: (_) => PlayerDeadPopup(
+            victimLabel: victimLabel,
+            detailMessage: 'คุณเสียชีวิตแล้ว แต่ยังดูเกมต่อในห้องนี้ได้\n(โหวต/สกิล/แชทไม่ได้)',
+          ),
+        );
+      });
     }
   }
 
@@ -529,6 +549,29 @@ class _GameScreenState extends State<GameScreen> {
           });
         }
         _notify('เซิร์ฟเวอร์ยืนยันการใช้สกิลแล้ว');
+        break;
+      case 'game.skill_result':
+        final payload = msg['payload'] as Map<String, dynamic>?;
+        if (payload == null) break;
+        final skill = (payload['skill'] as String?)?.trim().toLowerCase();
+        if (skill == 'seer_check') {
+          final targetId = (payload['targetId'] as String?) ?? '';
+          final targetLabel = targetId.trim().isNotEmpty
+              ? _labelForPlayerId(targetId)
+              : 'เป้าหมาย';
+          final seenAs = (payload['targetRoleSeenAs'] as String?)?.trim();
+          if (seenAs != null && seenAs.isNotEmpty) {
+            showDialog(
+              context: context,
+              barrierColor: Colors.black54,
+              builder: (_) => SkillPopupResult(
+                skillName: GameSkills.seerCheck,
+                skillImage: RoleService.skillImageUrl(GameSkills.seerCheck),
+                resultMessage: '$targetLabel อยู่ฝ่าย$seenAs',
+              ),
+            );
+          }
+        }
         break;
       case 'game.vote_accepted':
         final payload = msg['payload'] as Map<String, dynamic>?;

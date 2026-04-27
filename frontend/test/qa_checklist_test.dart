@@ -39,4 +39,44 @@ void main() {
       expect(allowed.contains(r), true);
     }
   });
+
+  test('QA: balanced deck clamps player count to 2..16', () {
+    expect(buildBalancedRoleDeck(1).length, 2);
+    expect(buildBalancedRoleDeck(2).length, 2);
+    expect(buildBalancedRoleDeck(16).length, 16);
+    expect(buildBalancedRoleDeck(30).length, 16);
+  });
+
+  test('QA: balanced deck category quotas are correct', () {
+    int expectedEvil(int count) => switch (count) {
+      <= 4 => 1,
+      <= 7 => 2,
+      <= 10 => 3,
+      <= 13 => 4,
+      _ => 5,
+    };
+
+    int expectedNeutral(int count) => count >= 11 ? 2 : (count >= 6 ? 1 : 0);
+
+    for (var n = 2; n <= 16; n++) {
+      final deck = buildBalancedRoleDeck(n);
+      final evil = deck
+          .where((r) => GameRoles.balancedEvilCycle.contains(r))
+          .length;
+      final neutral = deck
+          .where((r) => GameRoles.balancedNeutralCycle.contains(r))
+          .length;
+      final good = deck
+          .where((r) => GameRoles.balancedGoodCycle.contains(r))
+          .length;
+
+      expect(evil, expectedEvil(n), reason: 'evil quota mismatch at n=$n');
+      expect(
+        neutral,
+        expectedNeutral(n),
+        reason: 'neutral quota mismatch at n=$n',
+      );
+      expect(good + evil + neutral, n, reason: 'deck size mismatch at n=$n');
+    }
+  });
 }

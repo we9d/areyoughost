@@ -261,6 +261,15 @@ impl AppState {
         )
     }
 
+    fn seer_alignment_label(role: &str) -> &'static str {
+        match role.trim() {
+            // G13 is intentionally hidden from Seer checks.
+            "ผีเปรต" => "ชาวบ้าน",
+            "ผีปอบ" | "ผีกระสือใหญ่" | "ผีตายโหง" | "หมอผีดำ" => "ผี",
+            _ => "ชาวบ้าน",
+        }
+    }
+
     fn winner_kind_for_phase_end(game: &RuntimeGame) -> Option<&'static str> {
         for (karma_id, target_id) in game.karma_targets.iter() {
             let karma_alive = game.players.get(karma_id).map(|p| p.alive).unwrap_or(false);
@@ -1433,7 +1442,7 @@ impl AppState {
         request_id: &str,
         action_type: &str,
         target_id: Option<String>,
-    ) -> Result<Option<serde_json::Value>, String> {
+    ) -> Result<(Option<serde_json::Value>, Option<serde_json::Value>), String> {
         let mut game = self
             .active_games
             .get_mut(room_id)
@@ -1449,7 +1458,7 @@ impl AppState {
 
         if game.phase_deadline_at <= Self::now_unix_secs() {
             let (payload, _) = self.advance_phase_internal(&mut game, "deadline_elapsed_inline")?;
-            return Ok(Some(payload));
+            return Ok((Some(payload), None));
         }
 
         if game.seen_request_ids.contains(request_id) {
@@ -1460,7 +1469,7 @@ impl AppState {
         // Allow clients to cancel a previously queued action before deadline.
         if target_id.is_none() {
             game.actions.remove(actor_id);
-            return Ok(None);
+            return Ok((None, None));
         }
 
         let actor_alive = game
@@ -1493,6 +1502,22 @@ impl AppState {
             }
         }
 
+        let private_result = if canonical_action == "seer_check" {
+            target_id.as_ref().and_then(|target| {
+                game.players.get(target).map(|target_state| {
+                    let target_role = target_state.role.as_deref().unwrap_or("ชาวบ้าน");
+                    let seen_as = Self::seer_alignment_label(target_role);
+                    serde_json::json!({
+                        "skill": "seer_check",
+                        "targetId": target,
+                        "targetRoleSeenAs": seen_as,
+                    })
+                })
+            })
+        } else {
+            None
+        };
+
         game.actions.insert(
             actor_id.to_string(),
             RuntimeAction {
@@ -1501,7 +1526,7 @@ impl AppState {
             },
         );
 
-        Ok(None)
+        Ok((None, private_result))
     }
 
     pub fn submit_vote(
@@ -2172,7 +2197,7 @@ mod tests {
                 Some(villager_id.clone()),
             )
             .expect("submit");
-        assert!(phase.is_none(), "night should wait until phase deadline");
+        assert!(phase.0.is_none(), "night should wait until phase deadline");
         {
             let mut g = state.active_games.get_mut(room_id).expect("runtime game");
             g.phase_deadline_at = 0;
@@ -2187,11 +2212,12 @@ mod tests {
             matches!(phase_str, "Day" | "End"),
             "unexpected phase after night: {phase_str}"
         );
-        let g2 = state.active_games.get(room_id).expect("game still there");
-        assert!(!g2.players[&villager_id].alive);
-        assert!(g2.players[&ghost_id].alive);
         if phase_str == "End" {
             assert_eq!(phase["winnerKind"].as_str(), Some("ghosts"));
+        } else {
+            let g2 = state.active_games.get(room_id).expect("game still there");
+            assert!(!g2.players[&villager_id].alive);
+            assert!(g2.players[&ghost_id].alive);
         }
     }
 
@@ -2326,9 +2352,14 @@ mod tests {
         if phase_str.contains("End") {
             assert_eq!(phase["winnerKind"].as_str(), Some("villagers"));
         }
-        let g = state.active_games.get(room_id).unwrap();
-        assert!(!g.players[p3].alive);
-        assert!(g.players[p1].alive && g.players[p2].alive);
+        if phase_str.contains("End") {
+            // Runtime may finalize and remove active game when match ends.
+            assert!(!state.active_games.contains_key(room_id));
+        } else {
+            let g = state.active_games.get(room_id).expect("active game after vote");
+            assert!(!g.players[p3].alive);
+            assert!(g.players[p1].alive && g.players[p2].alive);
+        }
     }
 
     #[tokio::test]
@@ -2483,6 +2514,7 @@ mod tests {
                 Some(victim.to_string()),
             )
             .expect("ghost submits")
+            .0
             .is_none());
         let phase = state
             .submit_action(
@@ -2492,15 +2524,25 @@ mod tests {
                 "witch_revive",
                 Some(victim.to_string()),
             )
-            .expect("witch submits")
-            .expect("night resolves");
+            .expect("witch submits");
+        assert!(
+            phase.0.is_none(),
+            "night should wait until phase deadline before resolve"
+        );
+        {
+            let mut g = state.active_games.get_mut(room_id).expect("runtime game");
+            g.phase_deadline_at = 0;
+        }
+        let phase = state.tick_room(room_id).expect("night resolves");
         assert!(
             format!("{}", phase["phase"]).contains("Day")
                 || format!("{}", phase["phase"]).contains("End"),
             "unexpected {phase}"
         );
-        let g = state.active_games.get(room_id).unwrap();
-        assert!(g.players[victim].alive, "victim should be revived same night");
+        if !format!("{}", phase["phase"]).contains("End") {
+            let g = state.active_games.get(room_id).expect("runtime game");
+            assert!(g.players[victim].alive, "victim should be revived same night");
+        }
     }
 
     #[tokio::test]

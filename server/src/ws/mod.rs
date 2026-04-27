@@ -770,12 +770,17 @@ pub(crate) async fn handle_client_message(
 
             if let (Some(room_id), Some(action_type)) = (room_id, action_type) {
                 match state.submit_action(&room_id, player_id, &request_id, action_type, target_id) {
-                    Ok(phase_payload) => {
+                    Ok((phase_payload, private_result)) => {
                         let ack = ServerMessage::new(
                             "game.action_accepted",
                             json!({ "requestId": request_id }),
                         );
                         let _ = tx.send(Message::Text(serde_json::to_string(&ack).unwrap()));
+
+                        if let Some(result_payload) = private_result {
+                            let skill_result = ServerMessage::new("game.skill_result", result_payload);
+                            let _ = tx.send(Message::Text(serde_json::to_string(&skill_result).unwrap()));
+                        }
 
                         if let Some(payload) = phase_payload {
                             let phase_msg = ServerMessage::new("game.phase_changed", payload);

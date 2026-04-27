@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:areyoughost/services/app_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -28,9 +29,20 @@ class WsService {
   String? _authToken;
   String? _resumeToken;
   Timer? _reconnectTimer;
+  Timer? _handshakeTimeout;
+  Timer? _connectionWatchdog;
+  DateTime? _lastInboundAt;
+  DateTime? _lastProbeAt;
+  bool _awaitingProbeResponse = false;
   int _reconnectAttempt = 0;
+  final Random _rand = Random();
   final List<Map<String, dynamic>> _pendingMessages = <Map<String, dynamic>>[];
   static const int _maxPendingMessages = 200;
+  static const int _handshakeTimeoutSecs = 25;
+  static const int _maxBackoffMs = 30000;
+  static const int _watchdogCheckSecs = 2;
+  static const int _watchdogStaleSecs = 7;
+  static const int _watchdogProbeTimeoutSecs = 5;
 
   void _log(String message) {
     if (!kDebugMode) return;
@@ -55,15 +67,49 @@ class WsService {
     await _openSocket();
   }
 
+  void _cancelHandshakeTimeout() {
+    _handshakeTimeout?.cancel();
+    _handshakeTimeout = null;
+  }
+
+  /// When the app returns from background or the OS regains connectivity,
+  /// call this to either [syncRoom] if the socket is still up, or retry the
+  /// handshake soon instead of waiting for the full exponential backoff.
+  void nudgeReconnectIfDisconnected() {
+    if (_manuallyDisconnected || _authToken == null || _authToken!.isEmpty) {
+      return;
+    }
+    if (_connected) {
+      syncRoom();
+      return;
+    }
+    _scheduleReconnect(preferSoon: true);
+  }
+
   Future<void> _openSocket() async {
     if (_connected || _channel != null) return;
     try {
       _channel = WebSocketChannel.connect(Uri.parse(AppConfig.wsUrl));
       _connected = true;
+      _lastInboundAt = DateTime.now();
+      _startConnectionWatchdog();
       _log('socket opened');
       connectionStatus.value = _reconnectAttempt > 0
           ? WsConnectionStatus.reconnecting
           : WsConnectionStatus.connecting;
+
+      _cancelHandshakeTimeout();
+      _handshakeTimeout = Timer(
+        const Duration(seconds: _handshakeTimeoutSecs),
+        () {
+          if (!_manuallyDisconnected &&
+              _connected &&
+              connectionStatus.value != WsConnectionStatus.connected) {
+            _log('handshake timeout, closing socket');
+            unawaited(_channel?.sink.close());
+          }
+        },
+      );
 
       // Try resume first if server previously issued a token.
       if (_resumeToken != null && _resumeToken!.isNotEmpty) {
@@ -91,21 +137,33 @@ class WsService {
               final decoded = jsonDecode(raw) as Map<String, dynamic>;
               final msgType = decoded['type'] as String?;
               final payload = decoded['payload'];
+              if (msgType == 'error' && payload is Map<String, dynamic>) {
+                final code = payload['code'] as String?;
+                // Stale or consumed resume token would otherwise cause a reconnect loop.
+                if (code == 'INVALID_RESUME' || code == 'INVALID_AUTH') {
+                  _log('clearing resume token after $code');
+                  _resumeToken = null;
+                }
+              }
               if (msgType == 'auth.ok' && payload is Map<String, dynamic>) {
                 final rt = payload['resumeToken'];
                 if (rt is String && rt.isNotEmpty) {
                   _resumeToken = rt;
                 }
+                _cancelHandshakeTimeout();
                 connectionStatus.value = WsConnectionStatus.connected;
                 _log('auth.ok received');
                 _flushPendingMessages();
               }
               if (msgType == 'session.resumed') {
+                _cancelHandshakeTimeout();
                 connectionStatus.value = WsConnectionStatus.connected;
                 _log('session.resumed received');
                 _flushPendingMessages();
               }
               _controller.add(decoded);
+              _lastInboundAt = DateTime.now();
+              _awaitingProbeResponse = false;
             } catch (_) {}
           }
         },
@@ -121,6 +179,8 @@ class WsService {
 
   void _handleSocketClosed() {
     _log('socket closed');
+    _cancelHandshakeTimeout();
+    _stopConnectionWatchdog();
     _connected = false;
     _channel = null;
     if (connectionStatus.value != WsConnectionStatus.reconnecting) {
@@ -130,12 +190,61 @@ class WsService {
     _scheduleReconnect();
   }
 
-  void _scheduleReconnect() {
+  void _startConnectionWatchdog() {
+    _stopConnectionWatchdog();
+    _connectionWatchdog = Timer.periodic(
+      const Duration(seconds: _watchdogCheckSecs),
+      (_) {
+        if (_manuallyDisconnected || !_connected) return;
+        final lastInbound = _lastInboundAt;
+        if (lastInbound == null) return;
+        final staleFor = DateTime.now().difference(lastInbound);
+        if (staleFor.inSeconds < _watchdogStaleSecs) return;
+
+        if (!_awaitingProbeResponse) {
+          _awaitingProbeResponse = true;
+          _lastProbeAt = DateTime.now();
+          _log('watchdog stale ${staleFor.inSeconds}s, probing room.sync');
+          _rawSend({'type': 'room.sync', 'payload': {}});
+          return;
+        }
+
+        final probeAt = _lastProbeAt;
+        if (probeAt == null) return;
+        final probeAge = DateTime.now().difference(probeAt);
+        if (probeAge.inSeconds < _watchdogProbeTimeoutSecs) return;
+
+        _log(
+          'watchdog probe timeout (${probeAge.inSeconds}s), forcing reconnect',
+        );
+        connectionStatus.value = WsConnectionStatus.reconnecting;
+        _connected = false;
+        _stopConnectionWatchdog();
+        unawaited(_channel?.sink.close());
+      },
+    );
+  }
+
+  void _stopConnectionWatchdog() {
+    _connectionWatchdog?.cancel();
+    _connectionWatchdog = null;
+    _awaitingProbeResponse = false;
+    _lastProbeAt = null;
+  }
+
+  void _scheduleReconnect({bool preferSoon = false}) {
     if (_manuallyDisconnected || _authToken == null || _authToken!.isEmpty) return;
-    if (_reconnectTimer?.isActive == true) return;
+    if (_reconnectTimer?.isActive == true && !preferSoon) return;
+    if (preferSoon) {
+      _reconnectTimer?.cancel();
+    }
     connectionStatus.value = WsConnectionStatus.reconnecting;
-    final delayMs = (1000 * (1 << _reconnectAttempt)).clamp(1000, 10000);
-    _log('schedule reconnect in ${delayMs}ms');
+    final baseMs = preferSoon
+        ? 500
+        : (1000 * (1 << _reconnectAttempt)).clamp(1000, _maxBackoffMs);
+    final jitter = baseMs > 400 ? _rand.nextInt((baseMs ~/ 4).clamp(1, 8000)) : 0;
+    final delayMs = (baseMs + jitter).clamp(250, _maxBackoffMs + 8000);
+    _log('schedule reconnect in ${delayMs}ms (attempt=$_reconnectAttempt preferSoon=$preferSoon)');
     _reconnectTimer = Timer(Duration(milliseconds: delayMs), () async {
       if (_manuallyDisconnected) return;
       _reconnectAttempt = (_reconnectAttempt + 1).clamp(0, 10);
@@ -161,7 +270,11 @@ class WsService {
   }
 
   void _rawSend(Map<String, dynamic> msg) {
-    _channel?.sink.add(jsonEncode(msg));
+    try {
+      _channel?.sink.add(jsonEncode(msg));
+    } catch (_) {
+      _handleSocketClosed();
+    }
   }
 
   void _enqueuePending(Map<String, dynamic> msg) {
@@ -209,6 +322,8 @@ class WsService {
   Future<void> disconnect({bool clearSession = false}) async {
     _log('disconnect requested (clearSession=$clearSession)');
     _manuallyDisconnected = true;
+    _cancelHandshakeTimeout();
+    _stopConnectionWatchdog();
     _reconnectTimer?.cancel();
     await _channel?.sink.close();
     _connected = false;

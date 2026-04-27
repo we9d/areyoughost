@@ -20,11 +20,33 @@ class _LobbyScreenState extends State<LobbyScreen> {
   bool _loading = true;
   String? _error;
   bool _joining = false;
+  WsConnectionStatus? _prevWsStatus;
+  VoidCallback? _wsConnectionListener;
 
   @override
   void initState() {
     super.initState();
     _loadRooms();
+    _prevWsStatus = WsService.instance.connectionStatus.value;
+    _wsConnectionListener = () {
+      if (!mounted) return;
+      final v = WsService.instance.connectionStatus.value;
+      if (_prevWsStatus == WsConnectionStatus.reconnecting &&
+          v == WsConnectionStatus.connected) {
+        _loadRooms();
+      }
+      _prevWsStatus = v;
+    };
+    WsService.instance.connectionStatus.addListener(_wsConnectionListener!);
+  }
+
+  @override
+  void dispose() {
+    if (_wsConnectionListener != null) {
+      WsService.instance.connectionStatus
+          .removeListener(_wsConnectionListener!);
+    }
+    super.dispose();
   }
 
   Future<void> _loadRooms() async {

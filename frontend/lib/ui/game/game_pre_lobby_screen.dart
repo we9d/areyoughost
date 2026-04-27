@@ -33,6 +33,7 @@ class GamePreLobbyScreen extends StatefulWidget {
 class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
   late RoomModel _room;
   StreamSubscription<Map<String, dynamic>>? _sub;
+  VoidCallback? _wsConnectionListener;
   Timer? _countdownTimer;
   final ScrollController _feedScrollController = ScrollController();
   final TextEditingController _chatController = TextEditingController();
@@ -52,6 +53,14 @@ class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
     _seedInitialJoinFeed();
     _sub = WsService.instance.stream.listen(_onServerMessage);
     WsService.instance.syncRoom();
+    _wsConnectionListener = () {
+      if (!mounted) return;
+      if (WsService.instance.connectionStatus.value ==
+          WsConnectionStatus.connected) {
+        WsService.instance.syncRoom();
+      }
+    };
+    WsService.instance.connectionStatus.addListener(_wsConnectionListener!);
     final initialDeadline = widget.initialQuickplayDeadlineUnix;
     if (initialDeadline != null) {
       _startCountdownFromDeadline(initialDeadline);
@@ -60,6 +69,10 @@ class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
 
   @override
   void dispose() {
+    if (_wsConnectionListener != null) {
+      WsService.instance.connectionStatus
+          .removeListener(_wsConnectionListener!);
+    }
     _sub?.cancel();
     _countdownTimer?.cancel();
     _feedScrollController.dispose();

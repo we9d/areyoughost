@@ -135,7 +135,17 @@ pub async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                 break;
             }
             Err(e) => {
-                tracing::error!("WebSocket error: {e:?}");
+                let err_text = format!("{e:?}");
+                if err_text.contains("ResetWithoutClosingHandshake") {
+                    // Common when client process/network drops abruptly. Treat as
+                    // non-fatal disconnect noise so logs stay actionable.
+                    tracing::warn!(
+                        "WebSocket reset without closing handshake for player '{}'",
+                        player_id
+                    );
+                } else {
+                    tracing::error!("WebSocket error for player '{}': {e:?}", player_id);
+                }
                 break;
             }
             _ => {}
@@ -804,7 +814,7 @@ pub(crate) async fn handle_client_message(
             let request_id = msg.req_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
             let target_id = msg.payload.get("targetId").and_then(|v| v.as_str());
 
-            if let (Some(room_id), Some(target_id)) = (room_id, target_id) {
+            if let Some(room_id) = room_id {
                 match state.submit_vote(&room_id, player_id, &request_id, target_id) {
                     Ok(phase_payload) => {
                         let ack = ServerMessage::new(
@@ -838,7 +848,7 @@ pub(crate) async fn handle_client_message(
                 let _ = tx.send(Message::Text(
                     serde_json::to_string(&ServerMessage::error(
                         "INVALID_PAYLOAD",
-                        "Missing targetId or room context",
+                        "Missing room context",
                     ))
                     .unwrap(),
                 ));

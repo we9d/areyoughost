@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory = $false)]
-    [string]$NgrokHost
+    [string]$NgrokHost,
+    [Parameter(Mandatory = $false)]
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,8 +47,8 @@ $env:WS_URL = $wsUrl
 $env:SESSION_NAMESPACE = "player1"
 
 $exePath = Join-Path $frontendDir "build\windows\x64\runner\Debug\areyoughost.exe"
-if (-not (Test-Path $exePath)) {
-    Write-Host "Debug executable not found, building once..."
+if (-not $SkipBuild) {
+    Write-Host "Building latest debug executable..."
     flutter build windows --debug
     if ($LASTEXITCODE -ne 0) {
         throw "Build process failed with exit code $LASTEXITCODE"

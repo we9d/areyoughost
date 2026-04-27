@@ -329,7 +329,8 @@ impl AppState {
     }
 
     pub fn issue_resume_token(&self, player_id: &str) -> String {
-        const TTL_SECS: i64 = 600;
+        /// Long enough for Wi‑Fi/cellular drops and sleep/resume without forcing a full JWT re-login.
+        const TTL_SECS: i64 = 7200;
         if let Some((_, old_token)) = self.player_resume_tokens.remove(player_id) {
             self.resume_tokens.remove(&old_token);
         }
@@ -1230,6 +1231,34 @@ impl AppState {
             }
         }
 
+        // Small games (3 players) should stay fair: exactly 1 ghost-team role.
+        if player_count == 3 {
+            let selected_ghost_count = selected
+                .iter()
+                .filter(|r| team_of_role(r) == Team::Ghosts)
+                .count();
+            if selected_ghost_count > 1 {
+                let mut ghosts_to_replace = selected_ghost_count - 1;
+                for role in &mut selected {
+                    if ghosts_to_replace == 0 {
+                        break;
+                    }
+                    if team_of_role(role) != Team::Ghosts {
+                        continue;
+                    }
+                    if let Some(non_ghost_idx) = remainder
+                        .iter()
+                        .position(|r| team_of_role(r) != Team::Ghosts)
+                    {
+                        let replacement = remainder.remove(non_ghost_idx);
+                        let replaced = std::mem::replace(role, replacement);
+                        remainder.push(replaced);
+                        ghosts_to_replace -= 1;
+                    }
+                }
+            }
+        }
+
         // Small games (3+) still need at least one ghost-team role when the deck contains any.
         if player_count >= 3 {
             let pool_has_ghost = selected
@@ -1428,6 +1457,12 @@ impl AppState {
         }
         game.seen_request_ids.insert(request_id.to_string());
 
+        // Allow clients to cancel a previously queued action before deadline.
+        if target_id.is_none() {
+            game.actions.remove(actor_id);
+            return Ok(None);
+        }
+
         let actor_alive = game
             .players
             .get(actor_id)
@@ -1466,23 +1501,6 @@ impl AppState {
             },
         );
 
-        let expected_actors = game
-            .players
-            .iter()
-            .filter(|(_, p)| p.alive)
-            .filter(|(_, p)| {
-                p.role
-                    .as_deref()
-                    .map(Self::role_has_night_action)
-                    .unwrap_or(false)
-            })
-            .count();
-        if expected_actors > 0 && game.actions.len() >= expected_actors {
-            let (payload, _) =
-                self.advance_phase_internal(&mut game, "all_actions_submitted")?;
-            return Ok(Some(payload));
-        }
-
         Ok(None)
     }
 
@@ -1491,7 +1509,7 @@ impl AppState {
         room_id: &str,
         voter_id: &str,
         request_id: &str,
-        target_id: &str,
+        target_id: Option<&str>,
     ) -> Result<Option<serde_json::Value>, String> {
         let mut game = self
             .active_games
@@ -1521,26 +1539,26 @@ impl AppState {
             return Err("Dead player cannot vote".to_string());
         }
 
-        let target_alive = game
-            .players
-            .get(target_id)
-            .map(|p| p.alive)
-            .unwrap_or(false);
-        if !target_alive {
-            return Err("Target must be alive".to_string());
-        }
+        let target_id = target_id.and_then(|v| {
+            let t = v.trim();
+            if t.is_empty() { None } else { Some(t) }
+        });
 
-        if game.votes.contains_key(voter_id) {
-            return Err("Player already voted in this round".to_string());
-        }
-
-        game.votes
-            .insert(voter_id.to_string(), target_id.to_string());
-
-        let alive_count = game.players.values().filter(|p| p.alive).count();
-        if alive_count > 0 && game.votes.len() >= alive_count {
-            let (payload, _) = self.advance_phase_internal(&mut game, "all_votes_submitted")?;
-            return Ok(Some(payload));
+        if let Some(target_id) = target_id {
+            let target_alive = game
+                .players
+                .get(target_id)
+                .map(|p| p.alive)
+                .unwrap_or(false);
+            if !target_alive {
+                return Err("Target must be alive".to_string());
+            }
+            // Allow changing vote before deadline: latest target wins.
+            game.votes
+                .insert(voter_id.to_string(), target_id.to_string());
+        } else {
+            // Explicit unvote before deadline.
+            game.votes.remove(voter_id);
         }
 
         Ok(None)
@@ -1633,8 +1651,12 @@ impl AppState {
             .rooms
             .get(room_id)
             .ok_or_else(|| "Room not found".to_string())?;
-        if !room.players.iter().any(|p| p.player_id == host_id) {
-            return Err("Player is not part of this room".to_string());
+        let host_ok = room
+            .players
+            .iter()
+            .any(|p| p.player_id == host_id && p.is_host);
+        if !host_ok {
+            return Err("Only host can advance phase".to_string());
         }
 
         let (payload, _) = self.advance_phase_internal(&mut game, "host_advanced")?;
@@ -1878,9 +1900,7 @@ impl AppState {
         }
 
         for room_id in ended_rooms {
-            if let Some(mut room) = self.rooms.get_mut(&room_id) {
-                room.status = "ended".to_string();
-            }
+            self.reset_room_to_waiting_after_game_end(&room_id);
         }
     }
 
@@ -1894,11 +1914,18 @@ impl AppState {
             .advance_phase_internal(&mut game, "deadline_elapsed")
             .ok()?;
         if game.phase == RuntimePhase::End {
-            if let Some(mut room) = self.rooms.get_mut(room_id) {
-                room.status = "ended".to_string();
-            }
+            drop(game);
+            self.reset_room_to_waiting_after_game_end(room_id);
         }
         Some(phase_payload)
+    }
+
+    fn reset_room_to_waiting_after_game_end(&self, room_id: &str) {
+        self.active_games.remove(room_id);
+        self.quickplay_countdown_deadlines.remove(room_id);
+        if let Some(mut room) = self.rooms.get_mut(room_id) {
+            room.status = "waiting".to_string();
+        }
     }
 }
 
@@ -2144,8 +2171,15 @@ mod tests {
                 "ghost_kill",
                 Some(villager_id.clone()),
             )
-            .expect("submit")
-            .expect("night should resolve when required actors submit");
+            .expect("submit");
+        assert!(phase.is_none(), "night should wait until phase deadline");
+        {
+            let mut g = state.active_games.get_mut(room_id).expect("runtime game");
+            g.phase_deadline_at = 0;
+        }
+        let phase = state
+            .tick_room(room_id)
+            .expect("deadline elapsed should resolve phase");
 
         let phase_str = phase["phase"].as_str().expect("phase as string");
         // After kill, only ghost may remain → win check can jump straight to End.
@@ -2266,17 +2300,24 @@ mod tests {
             g.phase_deadline_at = i64::MAX / 4;
         }
         assert!(state
-            .submit_vote(room_id, p1, "v1", p3)
+            .submit_vote(room_id, p1, "v1", Some(p3))
             .expect("vote")
             .is_none());
         assert!(state
-            .submit_vote(room_id, p2, "v2", p3)
+            .submit_vote(room_id, p2, "v2", Some(p3))
             .expect("vote")
             .is_none());
         let phase = state
-            .submit_vote(room_id, p3, "v3", p3)
-            .expect("vote")
-            .expect("all alive voted");
+            .submit_vote(room_id, p3, "v3", Some(p3))
+            .expect("vote");
+        assert!(phase.is_none(), "voting should wait until phase deadline");
+        {
+            let mut g = state.active_games.get_mut(room_id).unwrap();
+            g.phase_deadline_at = 0;
+        }
+        let phase = state
+            .tick_room(room_id)
+            .expect("deadline elapsed should resolve vote");
         let phase_str = format!("{}", phase["phase"]);
         assert!(
             phase_str.contains("Night") || phase_str.contains("End"),
@@ -2311,7 +2352,7 @@ mod tests {
             g.phase_deadline_at = i64::MAX / 4;
         }
         let e = state
-            .submit_vote(room_id, dead, "vx", other)
+            .submit_vote(room_id, dead, "vx", Some(other))
             .expect_err("dead cannot vote");
         assert!(e.contains("Dead") || e.contains("dead"));
 
@@ -2343,6 +2384,73 @@ mod tests {
             .validate_chat_sender(room_id, dead)
             .expect_err("dead cannot chat by day");
         assert!(e3.contains("Dead") || e3.contains("dead"));
+    }
+
+    #[tokio::test]
+    async fn qa_vote_toggle_and_change_allowed_only_in_voting_phase() {
+        let state = test_state();
+        let room_id = "4a000000-0000-4000-8000-000000000001";
+        let p1 = "4a000000-0000-4000-8000-000000000011";
+        let p2 = "4a000000-0000-4000-8000-000000000012";
+        let p3 = "4a000000-0000-4000-8000-000000000013";
+        seed_uuid_waiting_room(
+            &state,
+            room_id,
+            &[(p1, "a", true), (p2, "b", false), (p3, "c", false)],
+        );
+        state.start_game(room_id, p1).await.expect("start");
+        {
+            let mut g = state.active_games.get_mut(room_id).unwrap();
+            g.phase = RuntimePhase::Voting;
+            g.votes.clear();
+            g.phase_deadline_at = i64::MAX / 4;
+            g.players.get_mut(p1).unwrap().alive = true;
+            g.players.get_mut(p2).unwrap().alive = true;
+            g.players.get_mut(p3).unwrap().alive = true;
+        }
+
+        // First tap: cast vote.
+        assert!(state
+            .submit_vote(room_id, p1, "v1", Some(p2))
+            .expect("cast vote")
+            .is_none());
+        {
+            let g = state.active_games.get(room_id).unwrap();
+            assert_eq!(g.votes.get(p1).map(|s| s.as_str()), Some(p2));
+        }
+
+        // Second tap on another player: change vote.
+        assert!(state
+            .submit_vote(room_id, p1, "v2", Some(p3))
+            .expect("change vote")
+            .is_none());
+        {
+            let g = state.active_games.get(room_id).unwrap();
+            assert_eq!(g.votes.get(p1).map(|s| s.as_str()), Some(p3));
+        }
+
+        // Third tap on current target: unvote.
+        assert!(state
+            .submit_vote(room_id, p1, "v3", None)
+            .expect("unvote")
+            .is_none());
+        {
+            let g = state.active_games.get(room_id).unwrap();
+            assert!(g.votes.get(p1).is_none());
+        }
+
+        // Outside voting phase, every vote action must be rejected.
+        {
+            let mut g = state.active_games.get_mut(room_id).unwrap();
+            g.phase = RuntimePhase::Day;
+        }
+        let err = state
+            .submit_vote(room_id, p1, "v4", Some(p2))
+            .expect_err("vote must be rejected outside voting phase");
+        assert!(
+            err.contains("voting phase"),
+            "unexpected error for out-of-phase vote: {err}"
+        );
     }
 
     #[tokio::test]

@@ -31,6 +31,7 @@ class _HostRoomScreenState extends State<HostRoomScreen> {
   final List<_RoomFeedEntry> _messages = <_RoomFeedEntry>[];
   final ScrollController _feedScrollController = ScrollController();
   StreamSubscription<Map<String, dynamic>>? _sub;
+  VoidCallback? _wsConnectionListener;
   late RoomModel _room;
   final Set<String> _knownPlayerIds = <String>{};
   final Map<String, int> _joinOrderByPlayerId = <String, int>{};
@@ -46,10 +47,22 @@ class _HostRoomScreenState extends State<HostRoomScreen> {
     _room = widget.initialRoom;
     _seedInitialJoinFeed();
     _sub = WsService.instance.stream.listen(_onServerMessage);
+    _wsConnectionListener = () {
+      if (!mounted) return;
+      if (WsService.instance.connectionStatus.value ==
+          WsConnectionStatus.connected) {
+        WsService.instance.syncRoom();
+      }
+    };
+    WsService.instance.connectionStatus.addListener(_wsConnectionListener!);
   }
 
   @override
   void dispose() {
+    if (_wsConnectionListener != null) {
+      WsService.instance.connectionStatus
+          .removeListener(_wsConnectionListener!);
+    }
     _sub?.cancel();
     _feedScrollController.dispose();
     messageController.dispose();

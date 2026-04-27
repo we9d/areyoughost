@@ -77,11 +77,20 @@ class _GameScreenState extends State<GameScreen> {
   String? _winnerText;
   final Map<int, int> _ghostVoteTargetByVoter = <int, int>{};
   final Map<int, int> _dayVoteTargetByVoter = <int, int>{};
+  int? _pendingDayVoteTarget;
+  int? _pendingGhostVoteTarget;
+  bool _pendingDayVoteLocked = false;
+  bool _pendingGhostVoteLocked = false;
+  int _pendingDayVoteRevision = 0;
+  int _pendingGhostVoteRevision = 0;
+  Timer? _dayVoteSubmitTimer;
+  Timer? _ghostVoteSubmitTimer;
   final List<String> _pendingPhaseAnnouncements = <String>[];
   bool _showNightStartPrompt = false;
   Timer? _nightStartPromptTimer;
   final ScrollController _chatScrollController = ScrollController();
   StreamSubscription<Map<String, dynamic>>? _wsSub;
+  VoidCallback? _wsConnectionListener;
   bool _showHistoryInMainChat = false;
   SkillOption? _armedSkill;
   /// สกิลสอบสวน: เลือกผู้เล่นคนที่ 1 แล้วรอเลือกคนที่ 2 เพื่อเทียบฝ่าย
@@ -93,7 +102,6 @@ class _GameScreenState extends State<GameScreen> {
   final Map<int, String> _playerIdByNumber = <int, String>{};
   int? _phaseDeadlineAtUnix;
   int _lastPhaseSyncUnix = 0;
-  int _lastPhaseAdvanceRequestUnix = 0;
   bool _amHost = false;
 
   /// 🌞 Day / 🌙 Night
@@ -205,6 +213,14 @@ class _GameScreenState extends State<GameScreen> {
     return counts;
   }
 
+  Map<int, int> get _effectiveDayVoteTargetByVoter {
+    return _dayVoteTargetByVoter;
+  }
+
+  Map<int, int> get _effectiveGhostVoteTargetByVoter {
+    return _ghostVoteTargetByVoter;
+  }
+
   Map<int, int> get _dayVoteCountByTarget {
     final counts = <int, int>{};
     for (final target in _dayVoteTargetByVoter.values) {
@@ -224,6 +240,15 @@ class _GameScreenState extends State<GameScreen> {
           : 'ประชุมตอนกลางวัน $_phaseSecondsLeft วินาที';
     }
     return 'เวลากลางคืน $_phaseSecondsLeft วินาที';
+  }
+
+  String get _myDayVoteStatusText {
+    if (!_isDayVoting || !_isMyPlayerAlive) return '';
+    final target = _dayVoteTargetByVoter[myPlayerNumber];
+    if (target == null) {
+      return 'สถานะโหวต: ยังไม่โหวต';
+    }
+    return 'สถานะโหวต: โหวต ${_playerLabel(target)}';
   }
 
   void _notify(String message) {
@@ -275,15 +300,17 @@ class _GameScreenState extends State<GameScreen> {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       final next = (deadline - now).clamp(0, 9999);
       setState(() => _phaseSecondsLeft = next);
+      _tryAutoSubmitPendingVote(next);
       if (next == 0 && now - _lastPhaseSyncUnix >= 1) {
         _lastPhaseSyncUnix = now;
         WsService.instance.syncRoom();
-        if (now - _lastPhaseAdvanceRequestUnix >= 2) {
-          _lastPhaseAdvanceRequestUnix = now;
-          WsService.instance.send('game.advance_phase', {});
-        }
       }
     });
+  }
+
+  void _tryAutoSubmitPendingVote(int secondsLeft) {
+    // Manual-only vote flow: never auto-submit at phase end.
+    // User actions (tap to vote/change/cancel) are the only triggers.
   }
 
   void _applyServerPhase({
@@ -328,6 +355,7 @@ class _GameScreenState extends State<GameScreen> {
   void _applyRoomStateFromServer(Map<String, dynamic> payload) {
     final playersJson = payload['players'];
     if (playersJson is List && playersJson.isNotEmpty) {
+      final prevMyPlayerNumber = myPlayerNumber;
       final nextActive = playersJson.length.clamp(1, 16);
       final nextPlayers = List<PlayerModel>.generate(
         16,
@@ -375,6 +403,18 @@ class _GameScreenState extends State<GameScreen> {
         players = nextPlayers;
         _activePlayerCount = nextActive;
         myPlayerNumber = nextMyPlayerNumber;
+        if (prevMyPlayerNumber != nextMyPlayerNumber) {
+          final staleDayVote = _dayVoteTargetByVoter.remove(prevMyPlayerNumber);
+          if (staleDayVote != null &&
+              !_dayVoteTargetByVoter.containsKey(nextMyPlayerNumber)) {
+            _dayVoteTargetByVoter[nextMyPlayerNumber] = staleDayVote;
+          }
+          final staleGhostVote = _ghostVoteTargetByVoter.remove(prevMyPlayerNumber);
+          if (staleGhostVote != null &&
+              !_ghostVoteTargetByVoter.containsKey(nextMyPlayerNumber)) {
+            _ghostVoteTargetByVoter[nextMyPlayerNumber] = staleGhostVote;
+          }
+        }
         _amHost = nextAmHost;
         _playerIdByNumber
           ..clear()
@@ -420,6 +460,12 @@ class _GameScreenState extends State<GameScreen> {
         if (payload != null) _applyRoomStateFromServer(payload);
         break;
       case 'game.phase_changed':
+        if (WsService.instance.connectionStatus.value !=
+            WsConnectionStatus.connected) {
+          // During reconnect, rely on fresh room.state after resync to avoid
+          // applying stale phase transitions from a flaky socket.
+          break;
+        }
         final payload = msg['payload'] as Map<String, dynamic>?;
         if (payload != null) {
           _queuePhaseSummaryFromServerPayload(payload);
@@ -474,9 +520,43 @@ class _GameScreenState extends State<GameScreen> {
         _scrollChatToLatest();
         break;
       case 'game.action_accepted':
+        if (_pendingGhostVoteTarget != null) {
+          setState(() {
+            _ghostVoteTargetByVoter[myPlayerNumber] = _pendingGhostVoteTarget!;
+            _pendingGhostVoteTarget = null;
+            _pendingGhostVoteLocked = false;
+            _pendingGhostVoteRevision += 1;
+          });
+        }
         _notify('เซิร์ฟเวอร์ยืนยันการใช้สกิลแล้ว');
         break;
       case 'game.vote_accepted':
+        final payload = msg['payload'] as Map<String, dynamic>?;
+        final targetId = payload?['targetId'] as String?;
+        if (targetId != null && targetId.trim().isNotEmpty) {
+          final seat = _seatForPlayerId(targetId);
+          if (seat != null) {
+            setState(() {
+              _dayVoteTargetByVoter[myPlayerNumber] = seat;
+              _pendingDayVoteTarget = null;
+              _pendingDayVoteLocked = false;
+              _pendingDayVoteRevision += 1;
+            });
+          } else {
+            setState(() {
+              _pendingDayVoteTarget = null;
+              _pendingDayVoteLocked = false;
+              _pendingDayVoteRevision += 1;
+            });
+          }
+        } else {
+          setState(() {
+            _dayVoteTargetByVoter.remove(myPlayerNumber);
+            _pendingDayVoteTarget = null;
+            _pendingDayVoteLocked = false;
+            _pendingDayVoteRevision += 1;
+          });
+        }
         _notify('เซิร์ฟเวอร์ยืนยันการโหวตแล้ว');
         break;
       case 'error':
@@ -504,19 +584,31 @@ class _GameScreenState extends State<GameScreen> {
 
   void _rollbackLocalVoteSelection() {
     if (!mounted) return;
+    _dayVoteSubmitTimer?.cancel();
+    _ghostVoteSubmitTimer?.cancel();
     setState(() {
       _dayVoteTargetByVoter.remove(myPlayerNumber);
       _ghostVoteTargetByVoter.remove(myPlayerNumber);
+      _pendingDayVoteTarget = null;
+      _pendingGhostVoteTarget = null;
+      _pendingDayVoteLocked = false;
+      _pendingGhostVoteLocked = false;
+      _pendingDayVoteRevision += 1;
+      _pendingGhostVoteRevision += 1;
     });
   }
 
   void _rollbackPendingInteractionUi() {
     if (!mounted) return;
+    _ghostVoteSubmitTimer?.cancel();
     setState(() {
       _armedSkill = null;
       _compareInvestigateFirst = null;
       _previewTargetNumbers.clear();
       _ghostVoteTargetByVoter.remove(myPlayerNumber);
+      _pendingGhostVoteTarget = null;
+      _pendingGhostVoteLocked = false;
+      _pendingGhostVoteRevision += 1;
     });
   }
 
@@ -758,6 +850,14 @@ class _GameScreenState extends State<GameScreen> {
     _phaseSecondsLeft = 0;
     _wsSub = WsService.instance.stream.listen(_onServerMessage);
     WsService.instance.syncRoom();
+    _wsConnectionListener = () {
+      if (!mounted) return;
+      if (WsService.instance.connectionStatus.value ==
+          WsConnectionStatus.connected) {
+        WsService.instance.syncRoom();
+      }
+    };
+    WsService.instance.connectionStatus.addListener(_wsConnectionListener!);
     final initialPhase = widget.initialPhase;
     if (initialPhase != null && initialPhase.isNotEmpty) {
       _applyServerPhase(
@@ -806,8 +906,14 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    if (_wsConnectionListener != null) {
+      WsService.instance.connectionStatus
+          .removeListener(_wsConnectionListener!);
+    }
     _wsSub?.cancel();
     _nightStartPromptTimer?.cancel();
+    _dayVoteSubmitTimer?.cancel();
+    _ghostVoteSubmitTimer?.cancel();
     _phaseTimer?.cancel();
     _chatScrollController.dispose();
     super.dispose();
@@ -992,28 +1098,93 @@ class _GameScreenState extends State<GameScreen> {
       _useArmedSkillOnTarget(number);
       return;
     }
+    if (isDay) {
+      _handleDayVoteTap(number);
+      return;
+    }
     if (number == myPlayerNumber) return;
+    _handleNightVoteTap(number);
+  }
 
+  void _handleDayVoteTap(int number) {
+    if (!_isDayVoting || !_isMyPlayerAlive) return;
+    if (number == myPlayerNumber) {
+      final hadVote = _dayVoteTargetByVoter.containsKey(myPlayerNumber);
+      WsService.instance.send('game.vote', {'targetId': null});
+      setState(() {
+        _dayVoteTargetByVoter.remove(myPlayerNumber);
+        _pendingDayVoteTarget = null;
+        _pendingDayVoteLocked = false;
+        _pendingDayVoteRevision += 1;
+      });
+      _notify(hadVote ? 'ถอนโหวตแล้ว' : 'เลือกไม่โหวตแล้ว');
+      return;
+    }
+    final current = _dayVoteTargetByVoter[myPlayerNumber];
+    if (current == number) {
+      WsService.instance.send('game.vote', {'targetId': null});
+      setState(() {
+        _dayVoteTargetByVoter.remove(myPlayerNumber);
+        _pendingDayVoteTarget = null;
+        _pendingDayVoteLocked = false;
+        _pendingDayVoteRevision += 1;
+      });
+      _notify('ถอนโหวตแล้ว');
+      return;
+    }
+    final targetId = _playerIdByNumber[number];
+    if (targetId == null || targetId.isEmpty) {
+      WsService.instance.syncRoom();
+      return;
+    }
     setState(() {
-      if (isDay) {
-        if (!_isDayVoting || !_isMyPlayerAlive) return;
-        _dayVoteTargetByVoter[myPlayerNumber] = number;
-        final targetId = _playerIdByNumber[number];
-        if (targetId != null && targetId.isNotEmpty) {
-          WsService.instance.send('game.vote', {'targetId': targetId});
-        }
-      } else {
-        if (!_isMyPlayerGhost || !_isMyPlayerAlive) return;
-        _ghostVoteTargetByVoter[myPlayerNumber] = number;
-        final targetId = _playerIdByNumber[number];
-        if (targetId != null && targetId.isNotEmpty) {
-          WsService.instance.send('game.submit_action', {
-            'actionType': 'kill',
-            'targetId': targetId,
-          });
-        }
-      }
+      _dayVoteTargetByVoter[myPlayerNumber] = number;
+      _pendingDayVoteTarget = null;
+      _pendingDayVoteLocked = false;
+      _pendingDayVoteRevision += 1;
     });
+    // Some server/client paths still behave as "must clear before re-vote".
+    // Send explicit unvote first, then cast the new vote in-order.
+    if (current != null && current != number) {
+      WsService.instance.send('game.vote', {'targetId': null});
+    }
+    WsService.instance.send('game.vote', {'targetId': targetId});
+    _notify(current == null ? 'โหวตแล้ว' : 'เปลี่ยนโหวตแล้ว');
+  }
+
+  void _handleNightVoteTap(int number) {
+    if (!_isMyPlayerGhost || !_isMyPlayerAlive) return;
+    final current = _ghostVoteTargetByVoter[myPlayerNumber];
+    if (current == number) {
+      WsService.instance.send('game.submit_action', {
+        'actionType': 'kill',
+        'targetId': null,
+      });
+      setState(() {
+        _ghostVoteTargetByVoter.remove(myPlayerNumber);
+        _pendingGhostVoteTarget = null;
+        _pendingGhostVoteLocked = false;
+        _pendingGhostVoteRevision += 1;
+      });
+      _notify('ยกเลิกโหวตแล้ว');
+      return;
+    }
+    final targetId = _playerIdByNumber[number];
+    if (targetId == null || targetId.isEmpty) {
+      WsService.instance.syncRoom();
+      return;
+    }
+    setState(() {
+      _ghostVoteTargetByVoter[myPlayerNumber] = number;
+      _pendingGhostVoteTarget = null;
+      _pendingGhostVoteLocked = false;
+      _pendingGhostVoteRevision += 1;
+    });
+    WsService.instance.send('game.submit_action', {
+      'actionType': 'kill',
+      'targetId': targetId,
+    });
+    _notify(current == null ? 'โหวตแล้ว' : 'เปลี่ยนโหวตแล้ว');
   }
 
   void openSkillDialog() {
@@ -1345,6 +1516,14 @@ class _GameScreenState extends State<GameScreen> {
     }
     _previewTargetNumbers.clear();
     _skillIconByPlayerNumber.clear();
+    _dayVoteSubmitTimer?.cancel();
+    _ghostVoteSubmitTimer?.cancel();
+    _pendingDayVoteTarget = null;
+    _pendingGhostVoteTarget = null;
+    _pendingDayVoteLocked = false;
+    _pendingGhostVoteLocked = false;
+    _pendingDayVoteRevision += 1;
+    _pendingGhostVoteRevision += 1;
     _armedSkill = null;
     _compareInvestigateFirst = null;
     selectedTarget = null;
@@ -1481,6 +1660,26 @@ class _GameScreenState extends State<GameScreen> {
                       },
                       onPlayerTap: openPlayersPopup,
                     ),
+                    if (_myDayVoteStatusText.isNotEmpty)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.fromLTRB(12, 6, 12, 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: Text(
+                          _myDayVoteStatusText,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
 
                     const SizedBox(height: 6),
 
@@ -1494,7 +1693,7 @@ class _GameScreenState extends State<GameScreen> {
                                 players: players,
                                 myPlayerNumber: myPlayerNumber,
                                 myAuthUserId: AuthService.currentUser.value?.userId,
-                                dayVoteTargetByVoter: _dayVoteTargetByVoter,
+                                dayVoteTargetByVoter: _effectiveDayVoteTargetByVoter,
                                 dayVoteCountByTarget: _dayVoteCountByTarget,
                                 dayVoteEnabled: isDay &&
                                     _isDayVoting &&
@@ -1508,7 +1707,7 @@ class _GameScreenState extends State<GameScreen> {
                                 players: players,
                                 myPlayerNumber: myPlayerNumber,
                                 myAuthUserId: AuthService.currentUser.value?.userId,
-                                ghostVoteTargetByVoter: _ghostVoteTargetByVoter,
+                                ghostVoteTargetByVoter: _effectiveGhostVoteTargetByVoter,
                                 ghostVoteCountByTarget: _ghostVoteCountByTarget,
                                 ghostNightKillVoteEnabled: !isDay &&
                                     _isMyPlayerGhost &&

@@ -391,6 +391,8 @@ impl Api {
             if action_type == "VOTE" {
                 if let Some(target) = target_id.clone() {
                     state.vote_system.cast_vote(actor_id.clone(), target);
+                } else {
+                    state.vote_system.unvote(&actor_id);
                 }
             }
 

@@ -55,10 +55,12 @@ class AreYouGhostApp extends StatefulWidget {
   State<AreYouGhostApp> createState() => _AreYouGhostAppState();
 }
 
-class _AreYouGhostAppState extends State<AreYouGhostApp> {
+class _AreYouGhostAppState extends State<AreYouGhostApp>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Listen globally for invite.received events from any WS connection
     WsService.instance.stream.listen((msg) {
       if (msg['type'] == 'invite.received') {
@@ -74,6 +76,20 @@ class _AreYouGhostAppState extends State<AreYouGhostApp> {
         // ไม่เปิด popup อัตโนมัติ — ให้มีแค่จุดแดงที่ไอคอนจดหมาย ผู้เล่นกดเองแล้วค่อยเลือกรับ/ปฏิเสธ
       }
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      WsService.instance.nudgeReconnectIfDisconnected();
+    }
   }
 
   @override

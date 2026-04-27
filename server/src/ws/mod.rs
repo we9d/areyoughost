@@ -8,10 +8,35 @@ use tokio::sync::mpsc;
 
 use crate::session_auth::authenticate_first_message;
 use crate::persistence::insert_match_event;
-use crate::state::manager::AppState;
+use crate::state::manager::{AppState, PlayerInfo};
 
 pub mod messages;
 use messages::{ClientMessage, ServerMessage};
+
+fn room_players_payload_with_runtime(
+    state: &Arc<AppState>,
+    room_id: &str,
+    members: &[PlayerInfo],
+) -> serde_json::Value {
+    let runtime = state.active_games.get(room_id);
+    let players = members
+        .iter()
+        .map(|p| {
+            let alive = runtime
+                .as_ref()
+                .and_then(|g| g.players.get(&p.player_id).map(|s| s.alive))
+                .unwrap_or(true);
+            serde_json::json!({
+                "playerId": p.player_id,
+                "username": p.username,
+                "isReady": p.is_ready,
+                "isHost": p.is_host,
+                "alive": alive,
+            })
+        })
+        .collect::<Vec<_>>();
+    serde_json::to_value(players).unwrap_or_else(|_| serde_json::json!([]))
+}
 
 pub async fn ws_handler(
     State(state): State<Arc<AppState>>,
@@ -171,7 +196,10 @@ pub(crate) async fn handle_client_message(
                     let members = state.load_room_members(&room_id).await;
                     if let Some(mut room_state) = state.get_room_state(&room_id) {
                         if let Some(obj) = room_state.as_object_mut() {
-                            obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                            obj.insert(
+                                "players".to_string(),
+                                room_players_payload_with_runtime(state, &room_id, &members),
+                            );
                         }
                         let joined_msg = ServerMessage::new(
                             "room.joined",
@@ -217,7 +245,10 @@ pub(crate) async fn handle_client_message(
                     let members = state.load_room_members(&room_id).await;
                     if let Some(mut room_state) = state.get_room_state(&room_id) {
                         if let Some(obj) = room_state.as_object_mut() {
-                            obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                            obj.insert(
+                                "players".to_string(),
+                                room_players_payload_with_runtime(state, &room_id, &members),
+                            );
                             obj.insert("inviteCode".to_string(), serde_json::Value::String(invite_code.clone()));
                         }
                         let response = ServerMessage::new(
@@ -298,7 +329,10 @@ pub(crate) async fn handle_client_message(
                                 let members = state.load_room_members(&room_id).await;
                                 if let Some(mut room_state) = state.get_room_state(&room_id) {
                                     if let Some(obj) = room_state.as_object_mut() {
-                                        obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                                        obj.insert(
+                                            "players".to_string(),
+                                            room_players_payload_with_runtime(state, &room_id, &members),
+                                        );
                                     }
                                     let joined_msg = ServerMessage::new(
                                         "room.joined",
@@ -360,7 +394,10 @@ pub(crate) async fn handle_client_message(
                         let mut state_json = room_state.clone();
                         // Overwrite players with fresh DB truth
                         if let Some(obj) = state_json.as_object_mut() {
-                            obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                            obj.insert(
+                                "players".to_string(),
+                                room_players_payload_with_runtime(state, &room_id, &members),
+                            );
                         }
 
                         let state_msg = ServerMessage::new("room.state", state_json);
@@ -414,7 +451,10 @@ pub(crate) async fn handle_client_message(
                     if let Some(room_state) = state.get_room_state(&room_id) {
                         let mut state_json = room_state.clone();
                         if let Some(obj) = state_json.as_object_mut() {
-                            obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                            obj.insert(
+                                "players".to_string(),
+                                room_players_payload_with_runtime(state, &room_id, &members),
+                            );
                         }
 
                         let response = ServerMessage::new(
@@ -456,7 +496,10 @@ pub(crate) async fn handle_client_message(
                         if let Some(room_state) = state.get_room_state(room_id) {
                             let mut state_json = room_state.clone();
                             if let Some(obj) = state_json.as_object_mut() {
-                                obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                                obj.insert(
+                                    "players".to_string(),
+                                    room_players_payload_with_runtime(state, room_id, &members),
+                                );
                             }
 
                             let state_msg = ServerMessage::new("room.state", state_json);
@@ -499,7 +542,10 @@ pub(crate) async fn handle_client_message(
                 if let Some(room_state) = state.get_room_state(&room_id) {
                     let mut state_json = room_state.clone();
                     if let Some(obj) = state_json.as_object_mut() {
-                        obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                        obj.insert(
+                            "players".to_string(),
+                            room_players_payload_with_runtime(state, &room_id, &members),
+                        );
                     }
                     let player_count = state_json
                         .get("players")
@@ -589,7 +635,10 @@ pub(crate) async fn handle_client_message(
                 let members = state.load_room_members(&room_id).await;
                 if let Some(mut room_state) = state.get_room_state(&room_id) {
                     if let Some(obj) = room_state.as_object_mut() {
-                        obj.insert("players".to_string(), serde_json::to_value(&members).unwrap());
+                        obj.insert(
+                            "players".to_string(),
+                            room_players_payload_with_runtime(state, &room_id, &members),
+                        );
                     }
                     state.enrich_room_state_for_viewer(&room_id, player_id, &mut room_state);
                     let state_msg = ServerMessage::new("room.state", room_state);
@@ -607,6 +656,42 @@ pub(crate) async fn handle_client_message(
                 let _ = tx.send(Message::Text(
                     serde_json::to_string(&ServerMessage::error("NOT_IN_ROOM", "You are not in a room"))
                         .unwrap(),
+                ));
+            }
+        }
+
+        "room.chat" => {
+            let room_id = state.player_rooms.get(player_id).map(|r| r.clone());
+            let text = msg.payload.get("text").and_then(|v| v.as_str());
+            if let (Some(room_id), Some(text)) = (room_id, text) {
+                let trimmed = text.trim();
+                if trimmed.is_empty() {
+                    let _ = tx.send(Message::Text(
+                        serde_json::to_string(&ServerMessage::error(
+                            "INVALID_PAYLOAD",
+                            "Chat text cannot be empty",
+                        ))
+                        .unwrap(),
+                    ));
+                    return;
+                }
+                let out = ServerMessage::new(
+                    "room.chat_message",
+                    json!({
+                        "roomId": room_id,
+                        "playerId": player_id,
+                        "username": username,
+                        "text": trimmed
+                    }),
+                );
+                state.broadcast_to_room(&room_id, &serde_json::to_string(&out).unwrap());
+            } else {
+                let _ = tx.send(Message::Text(
+                    serde_json::to_string(&ServerMessage::error(
+                        "INVALID_PAYLOAD",
+                        "Missing text or room context",
+                    ))
+                    .unwrap(),
                 ));
             }
         }

@@ -27,10 +27,11 @@ class GameRoles {
     seer,
     doctor,
     soldier,
-    police,
     monk,
     witch,
-    undertaker,
+    // Temporarily removed from random pool until end-to-end logic is aligned:
+    // - police (pair-check flow is still local-only)
+    // - undertaker (not wired to backend action)
   ];
 
   static const List<String> balancedEvilCycle = <String>[

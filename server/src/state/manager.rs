@@ -133,10 +133,12 @@ impl AppState {
         "ร่างทรง",
         "แพทย์",
         "ทหาร",
-        "ตำรวจ",
+        // Temporarily keep police out of random assignment.
+        "ชาวบ้าน",
         "พระธุดงค์",
         "หมอผีคุณไสย",
-        "สัปเหร่อ",
+        // Temporarily keep undertaker out of random assignment.
+        "ชาวบ้าน",
         "ผีปอบ",
         "ผีกระสือใหญ่",
         "ผีตายโหง",

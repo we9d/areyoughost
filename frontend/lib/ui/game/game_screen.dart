@@ -8,7 +8,6 @@ import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/services/role_service.dart';
 import 'package:areyoughost/services/ws_service.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_choice.dart';
-import 'package:areyoughost/ui/game/dialogs/player_dead_popup.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_result.dart';
 import 'package:areyoughost/ui/game/dialogs/skill_popup_single.dart';
 import 'package:areyoughost/ui/game/widgets/DayTimeAnimation.dart';
@@ -70,14 +69,9 @@ class _GameScreenState extends State<GameScreen> {
   final Set<int> _previewTargetNumbers = <int>{};
   final Set<int> _protectedPlayerNumbers = <int>{};
   final Set<int> _silencedPlayerNumbers = <int>{};
-  final Map<int, List<_NightKillIntent>> _nightKillIntentsByTarget =
-      <int, List<_NightKillIntent>>{};
-  int? _pendingNightReviveTarget;
-  int? _bodyguardProtectTarget;
   int? _lastDoctorProtectedTarget;
   final Map<int, int> _karmaTargetByOwner = <int, int>{};
   int? _myKarmaTargetNumber;
-  int? _lastDayExecutedTargetNumber;
   bool _gameEnded = false;
   bool _resultScreenOpened = false;
   String? _winnerText;
@@ -89,7 +83,6 @@ class _GameScreenState extends State<GameScreen> {
   final ScrollController _chatScrollController = ScrollController();
   StreamSubscription<Map<String, dynamic>>? _wsSub;
   bool _showHistoryInMainChat = false;
-  final Set<int> _deadPopupShownNumbers = <int>{};
   SkillOption? _armedSkill;
   /// สกิลสอบสวน: เลือกผู้เล่นคนที่ 1 แล้วรอเลือกคนที่ 2 เพื่อเทียบฝ่าย
   int? _compareInvestigateFirst;
@@ -429,6 +422,7 @@ class _GameScreenState extends State<GameScreen> {
       case 'game.phase_changed':
         final payload = msg['payload'] as Map<String, dynamic>?;
         if (payload != null) {
+          _queuePhaseSummaryFromServerPayload(payload);
           final winnerRaw = payload['winnerKind'] as String?;
           _applyServerPhase(
             phase: (payload['phase'] as String?) ?? 'Night',
@@ -480,19 +474,50 @@ class _GameScreenState extends State<GameScreen> {
         _scrollChatToLatest();
         break;
       case 'game.action_accepted':
+        _notify('เซิร์ฟเวอร์ยืนยันการใช้สกิลแล้ว');
+        break;
       case 'game.vote_accepted':
+        _notify('เซิร์ฟเวอร์ยืนยันการโหวตแล้ว');
         break;
       case 'error':
         final payload = msg['payload'];
         final code = payload is Map ? payload['code'] as String? : null;
         final message = payload is Map ? payload['message'] as String? : null;
-        if (code == 'ACTION_REJECTED' ||
-            code == 'VOTE_REJECTED' ||
-            code == 'CHAT_REJECTED') {
+        if (code == 'ACTION_REJECTED') {
+          _rollbackPendingInteractionUi();
+          WsService.instance.syncRoom();
+          _notify(message ?? 'เซิร์ฟเวอร์ปฏิเสธคำสั่งสกิล');
+          break;
+        }
+        if (code == 'VOTE_REJECTED') {
+          _rollbackLocalVoteSelection();
+          WsService.instance.syncRoom();
+          _notify(message ?? 'เซิร์ฟเวอร์ปฏิเสธการโหวต');
+          break;
+        }
+        if (code == 'CHAT_REJECTED') {
           _notify(message ?? code ?? 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์');
         }
         break;
     }
+  }
+
+  void _rollbackLocalVoteSelection() {
+    if (!mounted) return;
+    setState(() {
+      _dayVoteTargetByVoter.remove(myPlayerNumber);
+      _ghostVoteTargetByVoter.remove(myPlayerNumber);
+    });
+  }
+
+  void _rollbackPendingInteractionUi() {
+    if (!mounted) return;
+    setState(() {
+      _armedSkill = null;
+      _compareInvestigateFirst = null;
+      _previewTargetNumbers.clear();
+      _ghostVoteTargetByVoter.remove(myPlayerNumber);
+    });
   }
 
   void _queueAnnouncementForNextPhase(String message) {
@@ -521,189 +546,6 @@ class _GameScreenState extends State<GameScreen> {
     _scrollChatToLatest();
   }
 
-  _NightResolveSummary _resolveNightPhaseDeterministic() {
-    final out = _NightResolveSummary();
-    if (_ghostVoteTargetByVoter.isNotEmpty) {
-      final counts = _ghostVoteCountByTarget;
-      if (counts.isNotEmpty) {
-        final top = counts.entries.toList()
-          ..sort((a, b) {
-            if (b.value != a.value) return b.value.compareTo(a.value);
-            return a.key.compareTo(b.key);
-          });
-        final highest = top.first.value;
-        final leaders = top.where((e) => e.value == highest).toList(growable: false);
-        if (leaders.length == 1) {
-          _queueNightKillIntent(
-            targetNumber: leaders.first.key,
-            source: _NightKillSource.ghost,
-            reasonAnnouncement: '${_playerName(leaders.first.key)} เสียชีวิต เพราะโดนฝ่ายผีฆ่า',
-            popupDetail:
-                'ผู้เล่นที่ตายจะดูเกมได้อย่างเดียวจนกว่าจะถูกชุบชีวิต (${GameSkills.witchRevive}ของสัปเหร่อ)',
-          );
-        } else {
-          _queueAnnouncementForNextPhase('โหวตฝ่ายผีเสมอกัน ยังไม่มีผู้เล่นถูกกำจัดในคืนนี้');
-        }
-      }
-    }
-
-    final bodyguardTarget = _bodyguardProtectTarget;
-    if (bodyguardTarget != null &&
-        _isActivePlayerNumber(bodyguardTarget) &&
-        (_aliveByPlayerNumber[myPlayerNumber] ?? false)) {
-      final existing = _nightKillIntentsByTarget[bodyguardTarget];
-      if (existing != null && existing.isNotEmpty && bodyguardTarget != myPlayerNumber) {
-        _nightKillIntentsByTarget.remove(bodyguardTarget);
-        for (final intent in existing) {
-          _queueNightKillIntent(
-            targetNumber: myPlayerNumber,
-            source: _NightKillSource.bodyguardSacrifice,
-            reasonAnnouncement:
-                '${_playerName(myPlayerNumber)} ยืนรับการโจมตีแทน ${_playerName(bodyguardTarget)}',
-            popupDetail: 'ทหารสละชีวิตเพื่อปกป้องเป้าหมายในคืนนี้',
-          );
-          out.protected.add(bodyguardTarget);
-          out.logs.add('Bodyguard redirected ${intent.source.name} -> $bodyguardTarget');
-        }
-      }
-    }
-
-    final targets = _nightKillIntentsByTarget.keys.toList()..sort();
-    final diedThisNight = <int>{};
-    for (final targetNumber in targets) {
-      if (!_isActivePlayerNumber(targetNumber)) continue;
-      if (!(_aliveByPlayerNumber[targetNumber] ?? true)) continue;
-      final intents = List<_NightKillIntent>.from(
-        _nightKillIntentsByTarget[targetNumber] ?? const <_NightKillIntent>[],
-      );
-      if (intents.isEmpty) continue;
-
-      if (_protectedPlayerNumbers.contains(targetNumber)) {
-        intents.sort((a, b) => a.source.priority.compareTo(b.source.priority));
-        intents.removeAt(0); // deterministic single-source block
-        out.protected.add(targetNumber);
-      }
-      if (intents.isEmpty) continue;
-
-      final role = _roleByPlayerNumber[targetNumber] ?? '';
-      final hitByGhost = intents.any((i) => i.source == _NightKillSource.ghost);
-      if (role == GameRoles.unlucky && hitByGhost) {
-        _roleByPlayerNumber[targetNumber] = GameRoles.ghoul;
-        out.transformed.add(targetNumber);
-        _queueAnnouncementForNextPhase(
-          '${_playerName(targetNumber)} ถูกโจมตี แต่พลังคำสาปเปลี่ยนเป็น “${GameRoles.ghoul}”',
-        );
-        continue;
-      }
-
-      final selected = intents.first;
-      _markPlayerDead(
-        targetNumber: targetNumber,
-        reasonAnnouncement: selected.reasonAnnouncement,
-        popupDetail: selected.popupDetail,
-      );
-      diedThisNight.add(targetNumber);
-      out.deaths.add(targetNumber);
-      out.deathReasonByNumber[targetNumber] = selected.reasonAnnouncement;
-    }
-
-    final reviveTarget = _pendingNightReviveTarget;
-    if (reviveTarget != null && diedThisNight.contains(reviveTarget)) {
-      setState(() {
-        _aliveByPlayerNumber[reviveTarget] = true;
-        _deadPopupShownNumbers.remove(reviveTarget);
-      });
-      out.deaths.remove(reviveTarget);
-      out.revived.add(reviveTarget);
-      _queueAnnouncementForNextPhase('${_playerName(reviveTarget)} ฟื้นคืนสภาพกลับมามีชีวิต');
-    }
-
-    out.cursed.addAll(_silencedPlayerNumbers);
-    return out;
-  }
-
-  _DayResolveSummary _resolveDayVoteIfAny() {
-    final out = _DayResolveSummary();
-    if (_dayVoteTargetByVoter.isEmpty) return out;
-    final counts = _dayVoteCountByTarget;
-    if (counts.isEmpty) return out;
-    final top = counts.entries.toList()
-      ..sort((a, b) {
-        if (b.value != a.value) return b.value.compareTo(a.value);
-        return a.key.compareTo(b.key);
-      });
-    final highest = top.first.value;
-    final leaders = top.where((e) => e.value == highest).toList(growable: false);
-    if (leaders.length != 1) {
-      return out;
-    }
-    final targetNumber = leaders.first.key;
-    final target = players.firstWhere(
-      (p) => p.number == targetNumber,
-      orElse: () => PlayerModel(number: targetNumber, name: 'Player$targetNumber'),
-    );
-    _markPlayerDead(
-      targetNumber: targetNumber,
-      reasonAnnouncement: '${target.name} ถูกโหวตออกจากที่ประชุมตอนกลางวัน',
-      popupDetail: 'ผู้เล่นคนนี้ถูกตัดสินให้ออกจากเกมจากเสียงโหวต',
-    );
-    out.executed = targetNumber;
-    _lastDayExecutedTargetNumber = targetNumber;
-    out.executedReason = '${target.name} ถูกโหวตออกจากที่ประชุมตอนกลางวัน';
-    final executedRole = _roleByPlayerNumber[targetNumber] ?? '';
-    if (executedRole == GameRoles.violentGhost) {
-      final voters = _dayVoteTargetByVoter.entries
-          .where((e) => e.value == targetNumber)
-          .map((e) => e.key)
-          .where((n) => n != targetNumber && (_aliveByPlayerNumber[n] ?? false))
-          .toList()
-        ..sort();
-      int? revengeTarget;
-      if (voters.isNotEmpty) {
-        revengeTarget = voters.first;
-      } else {
-        final fallback = players
-            .map((p) => p.number)
-            .where((n) =>
-                n != targetNumber &&
-                _isActivePlayerNumber(n) &&
-                (_aliveByPlayerNumber[n] ?? false))
-            .toList()
-          ..sort();
-        if (fallback.isNotEmpty) revengeTarget = fallback.first;
-      }
-      if (revengeTarget != null) {
-        _markPlayerDead(
-          targetNumber: revengeTarget,
-          reasonAnnouncement:
-              '${_playerName(revengeTarget)} เสียชีวิตจากแรงอาฆาตของ${GameRoles.violentGhost}',
-          popupDetail:
-              '${GameRoles.violentGhost}ทิ้งคำสาปก่อนตาย ทำให้มีผู้เสียชีวิตเพิ่ม',
-        );
-        out.extraDeath = revengeTarget;
-        out.extraDeathReason =
-            '${_playerName(revengeTarget)} เสียชีวิตจากแรงอาฆาตของ${GameRoles.violentGhost}';
-      }
-    }
-    return out;
-  }
-
-  void _queueNightKillIntent({
-    required int targetNumber,
-    required _NightKillSource source,
-    required String reasonAnnouncement,
-    required String popupDetail,
-  }) {
-    if (!_isActivePlayerNumber(targetNumber)) return;
-    _nightKillIntentsByTarget.putIfAbsent(targetNumber, () => <_NightKillIntent>[]).add(
-          _NightKillIntent(
-            source: source,
-            reasonAnnouncement: reasonAnnouncement,
-            popupDetail: popupDetail,
-          ),
-        );
-  }
-
   String _playerName(int number) {
     final p = players.firstWhere(
       (x) => x.number == number,
@@ -714,48 +556,77 @@ class _GameScreenState extends State<GameScreen> {
 
   String _playerLabel(int number) => '$number ${_playerName(number)}';
 
-  void _announceNightResult(_NightResolveSummary result) {
-    final deaths = result.deaths.map(_playerLabel).toList(growable: false);
-    final protected = result.protected.map(_playerLabel).toList(growable: false);
-    final cursed = result.cursed.map(_playerLabel).toList(growable: false);
-    final transformed = result.transformed.map(_playerLabel).toList(growable: false);
-    _queueAnnouncementForNextPhase('สรุปเหตุการณ์เมื่อคืน');
-    if (deaths.isEmpty) {
-      _queueAnnouncementForNextPhase('เมื่อคืนไม่มีผู้เสียชีวิต');
-    } else {
-      _queueAnnouncementForNextPhase('ผู้ที่เสียชีวิต: ${deaths.join(', ')}');
-      for (final number in result.deaths) {
-        final reason = result.deathReasonByNumber[number];
-        if (reason != null && reason.trim().isNotEmpty) {
-          _queueAnnouncementForNextPhase('สาเหตุ: $reason');
-        }
-      }
+  int? _seatForPlayerId(String rawId) {
+    final want = _normPlayerId(rawId);
+    if (want.isEmpty) return null;
+    for (final e in _playerIdByNumber.entries) {
+      if (_normPlayerId(e.value) == want) return e.key;
     }
-    if (protected.isNotEmpty) {
-      _queueAnnouncementForNextPhase('ผู้ที่รอดจากการป้องกัน: ${protected.join(', ')}');
-    }
-    if (cursed.isNotEmpty) {
-      _queueAnnouncementForNextPhase('ผู้ที่ถูกคำสาปพูดไม่ได้วันนี้: ${cursed.join(', ')}');
-    }
-    if (transformed.isNotEmpty) {
-      _queueAnnouncementForNextPhase('ผู้ที่ถูกแปลงสถานะ: ${transformed.join(', ')}');
-    }
+    return null;
   }
 
-  void _announceDayResult(_DayResolveSummary result) {
-    _queueAnnouncementForNextPhase('สรุปผลการโหวตกลางวัน');
-    if (result.executed == null) {
-      _queueAnnouncementForNextPhase('ไม่มีผู้เล่นถูกโหวตออกในรอบนี้');
-    } else {
-      _queueAnnouncementForNextPhase('ผู้ที่ถูกโหวตออก: ${_playerLabel(result.executed!)}');
-      if (result.executedReason != null && result.executedReason!.trim().isNotEmpty) {
-        _queueAnnouncementForNextPhase('สาเหตุ: ${result.executedReason}');
+  String _labelForPlayerId(String rawId) {
+    final seat = _seatForPlayerId(rawId);
+    if (seat != null) return _playerLabel(seat);
+    return rawId;
+  }
+
+  /// Chat announcements derived from server [game.phase_changed] (no local kill simulation).
+  void _queuePhaseSummaryFromServerPayload(Map<String, dynamic> payload) {
+    final prev = (payload['previousPhase'] as String?)?.toLowerCase() ?? '';
+    final phase = (payload['phase'] as String?)?.toLowerCase() ?? '';
+
+    if (prev == 'night' && (phase == 'day' || phase == 'voting')) {
+      final summary = payload['nightActionSummary'];
+      if (summary is Map<String, dynamic>) {
+        final kills = summary['killTargets'];
+        if (kills is List && kills.isNotEmpty) {
+          final labels = <String>[];
+          for (final id in kills) {
+            if (id is String && id.trim().isNotEmpty) {
+              labels.add(_labelForPlayerId(id));
+            }
+          }
+          if (labels.isNotEmpty) {
+            _queueAnnouncementForNextPhase('สรุปเหตุการณ์เมื่อคืน');
+            _queueAnnouncementForNextPhase('ผู้ที่เสียชีวิต: ${labels.join(', ')}');
+          } else {
+            _queueAnnouncementForNextPhase('เมื่อคืนไม่มีผู้เสียชีวิต');
+          }
+        } else {
+          _queueAnnouncementForNextPhase('เมื่อคืนไม่มีผู้เสียชีวิต');
+        }
+        final revived = summary['revived'];
+        if (revived is List && revived.isNotEmpty) {
+          final labels = <String>[];
+          for (final id in revived) {
+            if (id is String && id.trim().isNotEmpty) {
+              labels.add(_labelForPlayerId(id));
+            }
+          }
+          if (labels.isNotEmpty) {
+            _queueAnnouncementForNextPhase('ผู้ที่ฟื้นคืนชีพ: ${labels.join(', ')}');
+          }
+        }
+      } else {
+        _queueAnnouncementForNextPhase('สรุปเหตุการณ์เมื่อคืน');
+        _queueAnnouncementForNextPhase('เมื่อคืนไม่มีผู้เสียชีวิต');
       }
     }
-    if (result.extraDeath != null) {
-      _queueAnnouncementForNextPhase('มีผู้เสียชีวิตเพิ่มเติม: ${_playerLabel(result.extraDeath!)}');
-      if (result.extraDeathReason != null && result.extraDeathReason!.trim().isNotEmpty) {
-        _queueAnnouncementForNextPhase('สาเหตุ: ${result.extraDeathReason}');
+
+    if (prev == 'voting' && phase == 'night') {
+      _queueAnnouncementForNextPhase('สรุปผลการโหวตกลางวัน');
+      final elim = payload['eliminatedPlayerId'] as String?;
+      if (elim != null && elim.trim().isNotEmpty) {
+        _queueAnnouncementForNextPhase('ผู้ที่ถูกโหวตออก: ${_labelForPlayerId(elim)}');
+      } else {
+        _queueAnnouncementForNextPhase('ไม่มีผู้เล่นถูกโหวตออกในรอบนี้');
+      }
+      final extra = payload['extraEliminatedPlayerId'] as String?;
+      if (extra != null && extra.trim().isNotEmpty) {
+        _queueAnnouncementForNextPhase(
+          'มีผู้เสียชีวิตเพิ่มเติม: ${_labelForPlayerId(extra)}',
+        );
       }
     }
   }
@@ -780,77 +651,6 @@ class _GameScreenState extends State<GameScreen> {
         }
       }
     }
-  }
-
-  bool _checkWinConditionAndAnnounce() {
-    if (_gameEnded) return true;
-
-    for (final e in _karmaTargetByOwner.entries) {
-      final owner = e.key;
-      final target = e.value;
-      if (_lastDayExecutedTargetNumber == target) {
-        final ownerName = _playerName(owner);
-        _finishGame(
-          winnerKind: _WinnerKind.spirit,
-          winnerText: '${GameRoles.karma}ชนะ',
-          endAnnouncement:
-              'เกมจบ: $ownerName ทำเงื่อนไขสำเร็จ (เป้าหมายถูกโหวตออกตอนกลางวัน)',
-        );
-        return true;
-      }
-    }
-
-    final living = players
-        .where((p) => _isActivePlayerNumber(p.number))
-        .where((p) => _aliveByPlayerNumber[p.number] ?? false)
-        .toList(growable: false);
-    if (living.length == 1) {
-      final role = _roleByPlayerNumber[living.first.number] ?? '';
-      if (role == GameRoles.serialKiller) {
-        _finishGame(
-          winnerKind: _WinnerKind.serialKiller,
-          winnerText: '${GameRoles.serialKiller}ชนะ',
-          endAnnouncement: 'เกมจบ: ${GameRoles.serialKiller}เหลือรอดคนสุดท้าย',
-        );
-        return true;
-      }
-    }
-
-    var ghosts = 0;
-    var villagers = 0;
-    for (final p in living) {
-      final team = _teamOfRole(_roleByPlayerNumber[p.number] ?? '');
-      if (team == GameTeams.ghosts) {
-        ghosts += 1;
-      } else if (team == GameTeams.villagers) {
-        villagers += 1;
-      }
-    }
-    if (ghosts == 0) {
-      _finishGame(
-        winnerKind: _WinnerKind.villagers,
-        winnerText: 'ฝ่ายชาวบ้านชนะ',
-        endAnnouncement: 'เกมจบ: ฝ่ายชาวบ้านกำจัดผีทั้งหมดได้สำเร็จ',
-      );
-      return true;
-    }
-    if (villagers == 0) {
-      _finishGame(
-        winnerKind: _WinnerKind.ghosts,
-        winnerText: 'ฝ่ายผีชนะ',
-        endAnnouncement: 'เกมจบ: ฝ่ายผีเหลือรอดเหนือฝ่ายชาวบ้าน',
-      );
-      return true;
-    }
-    if (living.length >= 3 && ghosts >= villagers) {
-      _finishGame(
-        winnerKind: _WinnerKind.ghosts,
-        winnerText: 'ฝ่ายผีชนะ',
-        endAnnouncement: 'เกมจบ: จำนวนผีเท่ากับหรือมากกว่าฝ่ายชาวบ้าน',
-      );
-      return true;
-    }
-    return false;
   }
 
   void _finishGame({
@@ -912,45 +712,6 @@ class _GameScreenState extends State<GameScreen> {
       default:
         return null;
     }
-  }
-
-  void _markPlayerDead({
-    required int targetNumber,
-    required String reasonAnnouncement,
-    required String popupDetail,
-  }) {
-    if (!_isActivePlayerNumber(targetNumber)) return;
-    final target = players.firstWhere(
-      (p) => p.number == targetNumber,
-      orElse: () => PlayerModel(number: targetNumber, name: 'Player$targetNumber'),
-    );
-    final alreadyDead = !(_aliveByPlayerNumber[targetNumber] ?? true);
-    if (!alreadyDead) {
-      setState(() {
-        _aliveByPlayerNumber[targetNumber] = false;
-        if (targetNumber == myPlayerNumber) {
-          _armedSkill = null;
-          _previewTargetNumbers.clear();
-          _compareInvestigateFirst = null;
-        }
-      });
-    }
-    if (alreadyDead || _deadPopupShownNumbers.contains(targetNumber)) return;
-    // Death popup is only for the eliminated player on this device.
-    if (targetNumber != myPlayerNumber) return;
-    _deadPopupShownNumbers.add(targetNumber);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      showDialog<void>(
-        context: context,
-        barrierColor: Colors.black54,
-        builder: (_) => PlayerDeadPopup(
-          victimLabel: '${target.number} ${target.name}',
-          detailMessage: popupDetail,
-          imagePath: 'assets/images/player_dead_urn.png',
-        ),
-      );
-    });
   }
 
   @override
@@ -1175,13 +936,6 @@ class _GameScreenState extends State<GameScreen> {
     if (GameRoles.ghostTeamRoles.contains(role)) return GameTeams.ghosts;
     if (GameRoles.independentTeamRoles.contains(role)) return GameTeams.independent;
     return GameTeams.villagers;
-  }
-
-  String _auraOfRole(String role) {
-    final team = _teamOfRole(role);
-    if (team == GameTeams.ghosts) return 'ออร่าดำ';
-    if (team == GameTeams.independent) return 'ออร่าหม่น';
-    return 'ออร่าขาว';
   }
 
    /// ===============================================================
@@ -1483,10 +1237,6 @@ class _GameScreenState extends State<GameScreen> {
       return;
     }
 
-    final target = players.firstWhere(
-      (p) => p.number == targetNumber,
-      orElse: () => PlayerModel(number: targetNumber, name: 'Player$targetNumber'),
-    );
     final targetId = _playerIdByNumber[targetNumber];
     if (targetId == null || targetId.isEmpty) {
       WsService.instance.syncRoom();
@@ -1506,32 +1256,13 @@ class _GameScreenState extends State<GameScreen> {
       'actionType': actionType,
       'targetId': targetId,
     });
-    final left = ((_skillUsesLeft[skill.name] ?? 1) - 1).clamp(0, 999);
-    late String resultMessage;
+
     setState(() {
-      _skillIconByPlayerNumber[targetNumber] = skill.image;
-      resultMessage = _buildSkillResultMessage(
-        skillName: skill.name,
-        target: target,
-      );
-      if ((_skillUsesLeft[skill.name] ?? 0) > 0) {
-        _skillUsesLeft[skill.name] = left;
-      }
-      if (rule?.oncePerPhase == true) {
-        _usedThisPhase.add(skill.name);
-      }
       _armedSkill = null;
+      _compareInvestigateFirst = null;
       _previewTargetNumbers.clear();
     });
-    showDialog(
-      context: context,
-      barrierColor: Colors.black54,
-      builder: (_) => SkillPopupResult(
-        skillName: skill.name,
-        skillImage: skill.image,
-        resultMessage: resultMessage,
-      ),
-    );
+    _notify('ส่งคำสั่ง ${skill.name} แล้ว รอยืนยันจากเซิร์ฟเวอร์');
   }
 
   String? _toServerActionType({
@@ -1542,74 +1273,6 @@ class _GameScreenState extends State<GameScreen> {
       skillName: skillName,
       roleName: roleName,
     );
-  }
-
-  String _buildSkillResultMessage({
-    required String skillName,
-    required PlayerModel target,
-  }) {
-    final targetRole = _roleByPlayerNumber[target.number] ?? 'ไม่ทราบบทบาท';
-    final targetTeam = _teamOfRole(targetRole);
-    final targetAura = _auraOfRole(targetRole);
-
-    switch (skillName) {
-      case GameSkills.seerCheck:
-        return '${target.number} ${target.name}\nอยู่ฝ่าย “$targetTeam”';
-      case GameSkills.auraCheck:
-        return '${target.number} ${target.name}\nตรวจพบ “$targetAura”';
-      case GameSkills.undertakerReveal:
-        return '${target.number} ${target.name}\nบทบาทคือ “$targetRole”';
-      case GameSkills.doctorProtect:
-      case GameSkills.doctorGuard:
-      case GameSkills.darkProtect:
-        _protectedPlayerNumbers.add(target.number);
-        if (skillName == GameSkills.doctorProtect || skillName == GameSkills.doctorGuard) {
-          _lastDoctorProtectedTarget = target.number;
-        }
-        return '${target.number} ${target.name}\nได้รับสถานะ “ป้องกัน” คืนนี้';
-      case GameSkills.soldierStandIn:
-        _bodyguardProtectTarget = target.number;
-        return '${target.number} ${target.name}\nถูกเลือกให้ทหารคุ้มกันแทนคืนนี้';
-      case GameSkills.darkCurse:
-        _silencedPlayerNumbers.add(target.number);
-        _queueAnnouncementForNextPhase(
-          '${target.name} ถูกคำสาปให้พูดไม่ได้ในช่วงกลางวัน',
-        );
-        return '${target.number} ${target.name}\nได้รับสถานะ “พูดไม่ได้” ในกลางวันถัดไป';
-      case GameSkills.witchRevive:
-        _pendingNightReviveTarget = target.number;
-        return '${target.number} ${target.name}\nถูกเลือกเป็นเป้าชุบชีวิตคืนนี้';
-      case GameSkills.ghostKill:
-      case GameSkills.serialKill:
-      case GameSkills.witchPoison:
-        if (skillName == GameSkills.ghostKill) {
-          return '${target.number} ${target.name}\nการฆ่าร่วมของฝ่ายผีใช้ผ่านระบบโหวตกลางคืน';
-        } else if (skillName == GameSkills.witchPoison) {
-          _queueNightKillIntent(
-            targetNumber: target.number,
-            source: _NightKillSource.witchKill,
-            reasonAnnouncement: '${target.name} เสียชีวิต เพราะโดนคุณไสยเล่นงาน',
-            popupDetail: 'ผู้เล่นคนนี้เสียชีวิตจากพลังคุณไสย',
-          );
-        } else if (skillName == GameSkills.serialKill) {
-          _queueNightKillIntent(
-            targetNumber: target.number,
-            source: _NightKillSource.serialKiller,
-            reasonAnnouncement: '${target.name} เสียชีวิต เพราะถูกลอบสังหารในตอนกลางคืน',
-            popupDetail: 'ผู้เล่นคนนี้ถูกลอบสังหารและออกจากเกม',
-          );
-        } else {
-          _queueNightKillIntent(
-            targetNumber: target.number,
-            source: _NightKillSource.ghost,
-            reasonAnnouncement: '${target.name} เสียชีวิต เพราะโดนฝ่ายผีฆ่า',
-            popupDetail: 'ผู้เล่นคนนี้ถูกฝ่ายผีกำจัด',
-          );
-        }
-        return '${target.number} ${target.name}\nถูกหมายเป็นเป้าหมายคืนนี้';
-      default:
-        return '${target.number} ${target.name}\nใช้ $skillName สำเร็จ';
-    }
   }
 
   _SkillRule? _ruleForSkill(String skillName) {
@@ -1668,17 +1331,9 @@ class _GameScreenState extends State<GameScreen> {
     if (_lastIsDay == isDay) return;
     final wasDay = _lastIsDay;
     _lastIsDay = isDay;
-    // Night -> Day: deterministic night resolve then show report in day feed.
-    if (!wasDay && isDay) {
-      final nightResult = _resolveNightPhaseDeterministic();
-      _announceNightResult(nightResult);
-      _checkWinConditionAndAnnounce();
-    }
-    // Day -> Night: resolve execute result, then show prompt for ghost players.
+    // Server is authoritative for elimination + winner. Client only updates
+    // phase-local UI state and lets `room.state` / `game.phase_changed` drive truth.
     if (wasDay && !isDay) {
-      final dayResult = _resolveDayVoteIfAny();
-      _announceDayResult(dayResult);
-      _checkWinConditionAndAnnounce();
       _showNightStartPromptIfNeeded();
     }
     _flushPhaseAnnouncementsToCurrentPhase();
@@ -1693,9 +1348,6 @@ class _GameScreenState extends State<GameScreen> {
     _armedSkill = null;
     _compareInvestigateFirst = null;
     selectedTarget = null;
-    _bodyguardProtectTarget = null;
-    _nightKillIntentsByTarget.clear();
-    _pendingNightReviveTarget = null;
     _ghostVoteTargetByVoter.clear();
     _dayVoteTargetByVoter.clear();
     _showHistoryInMainChat = false;
@@ -2117,45 +1769,6 @@ class _SkillRule {
     this.targetMustBeDead = false,
     this.oncePerPhase = false,
   });
-}
-
-class _NightKillIntent {
-  final _NightKillSource source;
-  final String reasonAnnouncement;
-  final String popupDetail;
-
-  const _NightKillIntent({
-    required this.source,
-    required this.reasonAnnouncement,
-    required this.popupDetail,
-  });
-}
-
-enum _NightKillSource {
-  ghost(0),
-  serialKiller(1),
-  witchKill(2),
-  bodyguardSacrifice(3);
-
-  const _NightKillSource(this.priority);
-  final int priority;
-}
-
-class _NightResolveSummary {
-  final List<int> deaths = <int>[];
-  final Map<int, String> deathReasonByNumber = <int, String>{};
-  final List<int> protected = <int>[];
-  final List<int> cursed = <int>[];
-  final List<int> transformed = <int>[];
-  final List<int> revived = <int>[];
-  final List<String> logs = <String>[];
-}
-
-class _DayResolveSummary {
-  int? executed;
-  String? executedReason;
-  int? extraDeath;
-  String? extraDeathReason;
 }
 
 enum _WinnerKind {

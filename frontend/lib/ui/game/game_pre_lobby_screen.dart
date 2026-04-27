@@ -132,6 +132,19 @@ class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
         );
         if (playerId.isNotEmpty) _knownPlayerIds.remove(playerId);
         break;
+      case 'room.chat_message':
+        final payload = msg['payload'] as Map<String, dynamic>? ?? <String, dynamic>{};
+        final text = (payload['text'] as String?)?.trim() ?? '';
+        if (text.isEmpty) return;
+        final playerId = (payload['playerId'] as String?) ?? '';
+        final username = (payload['username'] as String?) ?? 'ผู้เล่น';
+        _appendChatMessage(
+          playerId: playerId,
+          senderName: username,
+          content: text,
+          kind: _FeedKind.message,
+        );
+        break;
       case 'mm.countdown':
         final payload = msg['payload'] as Map<String, dynamic>? ?? <String, dynamic>{};
         final seconds = payload['seconds'];
@@ -279,14 +292,7 @@ class _GamePreLobbyScreenState extends State<GamePreLobbyScreen> {
   void _sendLobbyChat() {
     final text = _chatController.text.trim();
     if (text.isEmpty) return;
-    final myId = AuthService.currentUser.value?.userId ?? '';
-    final me = AuthService.currentUser.value?.username ?? 'ผู้เล่น';
-    _appendChatMessage(
-      playerId: myId,
-      senderName: me,
-      content: text,
-      kind: _FeedKind.message,
-    );
+    WsService.instance.send('room.chat', {'text': text});
     _chatController.clear();
   }
 

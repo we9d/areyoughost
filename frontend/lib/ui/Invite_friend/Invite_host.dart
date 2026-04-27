@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:areyoughost/models/room_model.dart';
-import 'package:areyoughost/services/auth_service.dart';
 import 'package:areyoughost/services/ws_service.dart';
 import 'package:areyoughost/ui/Invite_friend/invite_friends_dialog.dart';
 import 'package:areyoughost/ui/game/game_started_roles.dart';
@@ -98,16 +97,28 @@ class _HostRoomScreenState extends State<HostRoomScreen> {
           kind: _FeedKind.left,
         );
         break;
+      case 'room.chat_message':
+        final p = msg['payload'] as Map<String, dynamic>? ?? <String, dynamic>{};
+        final text = (p['text'] as String?)?.trim() ?? '';
+        if (text.isEmpty) return;
+        _appendFeed(
+          playerId: (p['playerId'] as String?) ?? '',
+          username: (p['username'] as String?) ?? 'ผู้เล่น',
+          content: text,
+          kind: _FeedKind.message,
+        );
+        break;
       case 'error':
         final payload = msg['payload'] as Map<String, dynamic>? ?? <String, dynamic>{};
         final code = payload['code'] as String?;
-        if (code == 'GAME_START_FAILED') {
+        if (code == 'GAME_START_FAILED' || code == 'INVALID_PAYLOAD') {
           if (mounted) {
-            setState(() => _startingGame = false);
+            if (_startingGame) setState(() => _startingGame = false);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  (payload['message'] as String?) ?? 'เริ่มเกมไม่สำเร็จ',
+                  (payload['message'] as String?) ??
+                      (code == 'GAME_START_FAILED' ? 'เริ่มเกมไม่สำเร็จ' : 'ส่งข้อความไม่สำเร็จ'),
                 ),
               ),
             );
@@ -150,10 +161,10 @@ class _HostRoomScreenState extends State<HostRoomScreen> {
 
   void _requestStartGame() {
     if (_startingGame) return;
-    if (_room.players.length < 2) {
+    if (_room.players.length < 16) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ต้องมีผู้เล่นอย่างน้อย 2 คนก่อนเริ่มเกม')),
+          const SnackBar(content: Text('ต้องมีผู้เล่นครบ 16 คนก่อนเริ่มเกม')),
         );
       }
       return;
@@ -268,14 +279,7 @@ class _HostRoomScreenState extends State<HostRoomScreen> {
   void _sendMessage() {
     final text = messageController.text.trim();
     if (text.isEmpty) return;
-    final myId = AuthService.currentUser.value?.userId ?? '';
-    final me = AuthService.currentUser.value?.username ?? 'ผู้เล่น';
-    _appendFeed(
-      playerId: myId,
-      username: me,
-      content: text,
-      kind: _FeedKind.message,
-    );
+    WsService.instance.send('room.chat', {'text': text});
     messageController.clear();
   }
 

@@ -82,7 +82,6 @@ class ChatBox extends StatelessWidget {
                               fontFamily: 'Charmonman',
                             ),
                             children: [
-                              if (!isSystem) TextSpan(text: '${msg.senderId} '),
                               if (!isSystem) TextSpan(text: '${msg.senderName} '),
                               TextSpan(
                                 text: msg.message,
